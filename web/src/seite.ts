@@ -51,3 +51,18 @@ document.getElementById("sprungmarke")?.addEventListener("click", () => {
     inhalt.scrollIntoView();
 });
 
+
+// ---- Widerspruch gegen die Reichweitenmessung ----------------------------
+
+// GoatCounter zählt nicht, solange localStorage „skipgc" auf „t" steht.
+const nichtZaehlen = document.getElementById("nicht-zaehlen");
+if (nichtZaehlen instanceof HTMLInputElement) {
+    nichtZaehlen.checked = speicher()?.getItem("skipgc") === "t";
+    nichtZaehlen.addEventListener("change", () => {
+        if (nichtZaehlen.checked) {
+            speicher()?.setItem("skipgc", "t");
+        } else {
+            speicher()?.removeItem("skipgc");
+        }
+    });
+}
