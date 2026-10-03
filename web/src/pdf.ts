@@ -19,6 +19,9 @@ export interface PdfOptionen {
 
 type Zeichner = (pdf: jsPDF, daten: VordruckDaten, optionen: VordruckRenderOptionen) => void;
 
+/** Herkunftszeile am Blattrand jedes Vordrucks, den diese App erzeugt. */
+export const HERKUNFT = "Erstellt mit nachrichtenvordruck.app · © Johannes Rudolph";
+
 /** Breite und Höhe eines Vordrucks sowie von A4 in mm. */
 const VORDRUCK = { breite: 148, hoehe: 210 };
 const A4 = { breite: 210, hoehe: 297 };
@@ -32,6 +35,7 @@ const A4 = { breite: 210, hoehe: 297 };
 export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen): jsPDF {
     const stuecke: { zeichner: Zeichner; daten: VordruckDaten }[] = [];
     for (const daten of alle) {
+        daten.fusszeile = HERKUNFT;
         if (optionen.vordruck !== "meldung") {
             stuecke.push({ zeichner: zeichneNachrichtenvordruck, daten });
         }

@@ -44,3 +44,11 @@ describe("A4 hoch", () => {
         expect(inhalt).toMatch(/^1\. 0\. 0\. 1\. 87\.87\d* -123\.30\d* cm$/m);
     });
 });
+
+describe("Herkunftszeile", () => {
+    it("steht auf Nachrichten- und Meldevordruck", () => {
+        const pdf = erzeugePdf([new VordruckDaten()], { vordruck: "beide", blatt: "a5", ohneHintergrund: true });
+        const inhalt = pdf.output();
+        expect(inhalt.match(/Erstellt mit nachrichtenvordruck\.app/g)).toHaveLength(2);
+    });
+});
