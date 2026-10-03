@@ -12,6 +12,8 @@ npx vitest run --coverage
 npm run typecheck
 npm run build        # tsc → dist/
 npm run bilder       # assets/*.png → src/hintergrund.ts
+npm run web          # Web-App (web/) im Entwicklungsserver
+npm run web:build    # Web-App → dist-web/, GitHub Pages
 ```
 
 ## Regeln
@@ -24,4 +26,8 @@ npm run bilder       # assets/*.png → src/hintergrund.ts
   sonst greift die Schriftverkleinerung nicht.
 - Relative Imports mit `.js`-Endung (ESM für Node).
 - `src/hintergrund.ts` ist generiert; nur über `npm run bilder` ändern.
+- Die Web-App in `web/` ist Anwendung, nicht Bibliothek: ihre Abhängigkeiten
+  (Vite, ExcelJS, Archivo) bleiben devDependencies und landen nie in `dist/`.
+  Gestaltung nach dem Design-System von erfassungsbogen.app (`web/src/stil.css`:
+  Rollen-Token, Radius 0, Anzeigemodi Standard/Dunkel/Feld/Nacht).
 - Commits: Conventional Commits, z. B. `feat(nachrichtenvordruck): …`.

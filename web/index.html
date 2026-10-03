@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Nachrichtenvordruck als PDF ausfüllen – BOS, kostenlos</title>
+  <meta name="description" content="BOS-Nachrichtenvordruck (4fach-Satz) und Meldevordruck am Bildschirm ausfüllen oder aus einer Excel- bzw. CSV-Tabelle erzeugen und als PDF herunterladen. Läuft komplett im Browser." />
+  <meta name="theme-color" content="#12275e" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <script>
+    // Anzeigemodus vor dem ersten Malen anwenden, sonst blitzt die Seite
+    // nachts erst hell auf. Gleiche Regel wie anzeige.ts: gespeicherte Wahl
+    // geht vor, ohne Wahl entscheidet die Systemeinstellung (dunkel → Dunkel).
+    try {
+      var bnvModus = localStorage.getItem("bnv.anzeigemodus.v1");
+      if (!bnvModus && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        bnvModus = "dunkel";
+      if (bnvModus === "feld" || bnvModus === "nacht" || bnvModus === "dunkel")
+        document.documentElement.classList.add(bnvModus + "-modus");
+    } catch (e) { /* Privatmodus: Standard-Darstellung */ }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <button type="button" class="sprungmarke" id="sprungmarke">Zum Inhalt springen</button>
+
+    <header class="seiten-kopf">
+      <div class="kopf-inhalt">
+        <div class="titelzeile">
+          <h1>Nachrichtenvordruck</h1>
+          <div class="anzeige-schalter" role="group" aria-label="Anzeige">
+            <button type="button" data-modus="standard" title="Normale, helle Darstellung">Standard</button>
+            <button type="button" data-modus="dunkel" title="Heller Text auf dunklem Grund">Dunkel</button>
+            <button type="button" data-modus="feld" title="Große Tippziele und hoher Kontrast für draußen">Feld</button>
+            <button type="button" data-modus="nacht" title="Gedimmte, warme Darstellung für Nachteinsätze">Nacht</button>
+          </div>
+        </div>
+        <nav class="reiter" role="tablist" aria-label="Arbeitsweise">
+          <button type="button" role="tab" id="reiter-einzeln" aria-controls="ansicht-einzeln" aria-selected="true">Einzeln ausfüllen</button>
+          <button type="button" role="tab" id="reiter-tabelle" aria-controls="ansicht-tabelle" aria-selected="false" tabindex="-1">Aus Excel oder CSV</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="inhalt" tabindex="-1">
+      <p class="einleitung">BOS-Nachrichtenvordruck und Meldevordruck als PDF: einen einzelnen am Bildschirm ausfüllen oder viele auf einmal aus einer Tabelle erzeugen.</p>
+      <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.</p>
+
+      <section class="karte einstellungen" aria-labelledby="einstellungen-titel">
+        <h2 id="einstellungen-titel" class="nur-sr">Vordruck und Blatt</h2>
+        <div class="zeile">
+          <fieldset class="wahl">
+            <legend>Vordruck</legend>
+            <label class="inline"><input type="radio" name="vordruck" value="nachricht" checked /> Nachrichtenvordruck</label>
+            <label class="inline"><input type="radio" name="vordruck" value="meldung" /> Meldevordruck</label>
+            <label class="inline"><input type="radio" name="vordruck" value="beide" /> Beide</label>
+          </fieldset>
+          <fieldset class="wahl">
+            <legend>Blatt</legend>
+            <label class="inline"><input type="radio" name="blatt" value="a4" checked /> A4 quer, zwei je Blatt</label>
+            <label class="inline"><input type="radio" name="blatt" value="a5" /> A5, einer je Blatt</label>
+          </fieldset>
+          <fieldset class="wahl">
+            <legend>Druck</legend>
+            <label class="inline"><input type="checkbox" name="ohneHintergrund" /> Ohne Formularbild (für vorgedruckte Bögen)</label>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ============================ Einzeln ============================ -->
+      <section id="ansicht-einzeln" role="tabpanel" aria-labelledby="reiter-einzeln" class="ansicht">
+        <div class="arbeitsflaeche">
+          <form id="maske" class="maske" autocomplete="off">
+            <section class="karte">
+              <h3>Kopf</h3>
+              <div class="zeile">
+                <label class="feld schmal">Nr.
+                  <input name="nummer" inputmode="numeric" />
+                </label>
+                <label class="feld mittel" data-nur="nachricht">Übermittlungsweg
+                  <select name="weg">
+                    <option value="">–</option>
+                    <option selected>Funk</option><option>Telefon</option><option>Telefax</option><option>DFÜ</option><option>Kurier</option>
+                  </select>
+                </label>
+                <label class="feld mittel" data-nur="nachricht">Richtung
+                  <select name="richtung">
+                    <option value="">–</option>
+                    <option>Eingang</option><option selected>Ausgang</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="karte">
+              <h3>Spruchkopf</h3>
+              <div class="zeile" data-nur="nachricht">
+                <label class="feld mittel">Art
+                  <select name="art">
+                    <option value="">–</option>
+                    <option>Spruch</option><option>Durchsage</option>
+                  </select>
+                </label>
+                <label class="feld mittel">Vorrang
+                  <select name="vorrang">
+                    <option value="">ohne</option>
+                    <option>Sofort</option><option>Blitz</option>
+                  </select>
+                </label>
+                <label class="inline unten"><input type="checkbox" name="gespraechsnotiz" value="ja" /> Gesprächsnotiz</label>
+              </div>
+              <div class="zeile">
+                <label class="feld">Empfänger (Rufname)
+                  <input name="empfaenger" placeholder="z. B. Heros Jever 21/10" />
+                </label>
+                <label class="feld" data-nur="nachricht">Anschrift
+                  <input name="anschrift" placeholder="z. B. Technische Einsatzleitung" />
+                </label>
+              </div>
+              <p class="hinweis">Mehrere Empfänger oder Anschriften mit Semikolon trennen.</p>
+            </section>
+
+            <section class="karte">
+              <h3>Inhalt</h3>
+              <label class="feld">Text
+                <textarea name="inhalt" rows="7"></textarea>
+              </label>
+              <div class="zeile">
+                <label class="feld">Absender
+                  <input name="absender" placeholder="z. B. Heros Oldenburg 16/11" />
+                </label>
+                <label class="feld" data-nur="meldung">Verfasser
+                  <input name="verfasser" />
+                </label>
+              </div>
+            </section>
+
+            <section class="karte" data-nur="nachricht">
+              <h3>Abfassung</h3>
+              <div class="zeile">
+                <label class="feld">Abfassungszeit
+                  <input name="abfassungszeit" placeholder="TTHHMMmonJJ" class="daten" />
+                </label>
+                <button type="button" id="jetzt">Jetzt</button>
+                <label class="feld schmal">Zeichen
+                  <input name="zeichen" />
+                </label>
+                <label class="feld schmal">Funktion
+                  <input name="funktion" />
+                </label>
+              </div>
+            </section>
+
+            <details class="karte weitere" data-nur="nachricht">
+              <summary>Vermerke, Quittung und Verteiler</summary>
+              <h4>Aufnahmevermerk (Eingang)</h4>
+              <div class="zeile">
+                <label class="feld schmal">Datum <input name="aufnahmeDatum" /></label>
+                <label class="feld schmal">Uhrzeit <input name="aufnahmeUhrzeit" /></label>
+                <label class="feld schmal">Hdz. <input name="aufnahmeHdz" /></label>
+              </div>
+              <h4>Annahmevermerk (Ausgang)</h4>
+              <div class="zeile">
+                <label class="feld schmal">Datum <input name="annahmeDatum" /></label>
+                <label class="feld schmal">Uhrzeit <input name="annahmeUhrzeit" /></label>
+                <label class="feld schmal">Hdz. <input name="annahmeHdz" /></label>
+              </div>
+              <h4>Beförderungsvermerk (Ausgang)</h4>
+              <div class="zeile">
+                <label class="feld schmal">Datum <input name="befoerderungDatum" /></label>
+                <label class="feld schmal">Uhrzeit <input name="befoerderungUhrzeit" /></label>
+                <label class="feld schmal">Hdz. <input name="befoerderungHdz" /></label>
+              </div>
+              <h4>Quittung</h4>
+              <div class="zeile">
+                <label class="feld schmal">Uhrzeit <input name="quittungUhrzeit" /></label>
+                <label class="feld schmal">Zeichen <input name="quittungZeichen" /></label>
+                <label class="feld schmal">Stelle <input name="quittungStelle" /></label>
+                <label class="feld">Vermerke <input name="vermerke" /></label>
+              </div>
+              <h4>Verteiler</h4>
+              <div class="verteiler" role="group" aria-label="Verteiler">
+                <label class="inline"><input type="checkbox" name="verteiler" value="Leiter" /> Leiter</label>
+                <table>
+                  <thead><tr><th scope="col"><span class="nur-sr">Zeile</span></th><th scope="col">1</th><th scope="col">2</th><th scope="col">3</th></tr></thead>
+                  <tbody id="verteiler-raster"></tbody>
+                </table>
+              </div>
+              <h4>Blattrand</h4>
+              <div class="zeile">
+                <label class="feld">Titel (oben) <input name="titel" /></label>
+                <label class="feld">Hinweis (unten) <input name="hinweis" /></label>
+              </div>
+            </details>
+
+            <div class="aktionen">
+              <button type="button" class="primaer" id="einzeln-pdf">PDF herunterladen</button>
+              <button type="button" id="einzeln-leeren">Felder leeren</button>
+            </div>
+            <p class="fehler" id="einzeln-fehler" role="alert" hidden></p>
+          </form>
+
+          <section class="karte vorschau" aria-labelledby="vorschau-titel">
+            <div class="kopfzeile">
+              <h3 id="vorschau-titel">Vorschau</h3>
+              <button type="button" class="link" id="einzeln-oeffnen">In neuem Tab öffnen</button>
+            </div>
+            <iframe id="einzeln-vorschau" title="Vorschau des Vordrucks"></iframe>
+            <p class="nebentext" id="vorschau-ersatz" hidden>Dieser Browser zeigt PDFs nicht eingebettet. „In neuem Tab öffnen“ zeigt den Vordruck, wie er gedruckt wird.</p>
+          </section>
+        </div>
+      </section>
+
+      <!-- ============================ Tabelle ============================ -->
+      <section id="ansicht-tabelle" role="tabpanel" aria-labelledby="reiter-tabelle" class="ansicht" hidden>
+        <div class="karten-paar">
+          <section class="karte">
+            <h3>1. Vorlage holen</h3>
+            <p class="nebentext">Eine Zeile je Vordruck. Die Excel-Vorlage hat Auswahllisten für Art, Vorrang und Übermittlungsweg und ein Blatt „Anleitung“ mit allen Spalten.</p>
+            <div class="aktionen">
+              <button type="button" id="vorlage-xlsx">Excel-Vorlage (.xlsx)</button>
+              <button type="button" id="vorlage-csv">CSV-Vorlage</button>
+            </div>
+          </section>
+          <section class="karte">
+            <h3>2. Ausgefüllte Datei einlesen</h3>
+            <p class="nebentext">Excel (.xlsx) oder CSV mit Semikolon, Komma oder Tabulator. Die Spalten werden am Kopf erkannt, die Reihenfolge ist egal.</p>
+            <label class="datei-ziel" id="datei-ziel">
+              <input type="file" id="datei" class="nur-sr" accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
+              <span class="datei-knopf primaer" aria-hidden="true">Datei auswählen…</span>
+              <span class="nebentext">oder hierher ziehen</span>
+            </label>
+          </section>
+        </div>
+
+        <section class="karte ergebnis" id="ergebnis" hidden aria-live="polite">
+          <div class="kopfzeile">
+            <h3 id="ergebnis-titel">3. Prüfen und herunterladen</h3>
+          </div>
+          <p id="ergebnis-zusammenfassung"></p>
+          <div class="warnung" id="ergebnis-warnung" hidden></div>
+          <div class="alarm-kasten" id="ergebnis-fehler" hidden></div>
+          <div class="tabellen-scroll">
+            <table class="uebersicht" id="ergebnis-tabelle">
+              <thead><tr><th>Zeile</th><th>Nr.</th><th>Empfänger</th><th>Inhalt</th><th>Absender</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="aktionen">
+            <button type="button" class="primaer" id="tabelle-pdf">PDF herunterladen</button>
+            <button type="button" id="tabelle-oeffnen">Vorschau öffnen</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="seite">
+      <div class="fuss-gruppen">
+        <div class="fuss-gruppe">
+          <span class="fuss-titel">Projekt</span>
+          <a href="https://github.com/wattnpapa/bos-nachrichtenvordruck">Quellcode</a>
+          <a href="https://github.com/wattnpapa/bos-nachrichtenvordruck/issues">Fehler melden</a>
+          <a href="https://github.com/wattnpapa/bos-nachrichtenvordruck#readme">Als Bibliothek einbinden</a>
+        </div>
+        <div class="fuss-gruppe">
+          <span class="fuss-titel">Weitere Werkzeuge</span>
+          <a href="https://erfassungsbogen.app/">Erfassungsbogen.app</a>
+          <a href="https://github.com/wattnpapa/sprechfunk-uebung">Sprechfunk-Übung</a>
+        </div>
+      </div>
+      <p class="fuss-marke">Lizenz EUPL-1.2. Ohne Anmeldung, ohne Speicherung auf einem Server.</p>
+    </footer>
+  </div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

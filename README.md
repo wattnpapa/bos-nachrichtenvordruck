@@ -4,6 +4,17 @@ Füllt den BOS-Nachrichtenvordruck (4fach-Satz) und den Meldevordruck mit jsPDF 
 
 Herausgelöst aus [sprechfunk-uebung](https://github.com/wattnpapa/sprechfunk-uebung), wo es die Vordrucke für Übungsteilnehmer und Übungsleitung erzeugt.
 
+## Web-App
+
+Unter `web/` liegt eine Web-App, die auf GitHub Pages läuft. Sie füllt einen einzelnen Vordruck über eine Eingabemaske mit Live-Vorschau aus oder erzeugt viele auf einmal aus einer Excel- oder CSV-Tabelle. Eine Excel-Vorlage mit Auswahllisten und eine CSV-Vorlage gibt es dort zum Herunterladen. Alles läuft im Browser, nichts wird hochgeladen.
+
+```bash
+npm run web          # Entwicklungsserver
+npm run web:build    # dist-web/
+```
+
+Der Workflow `.github/workflows/pages.yml` baut die App bei jedem Push auf `main` und veröffentlicht sie. Einmalig in den Repository-Einstellungen unter Pages als Quelle „GitHub Actions“ wählen; dort lässt sich auch eine eigene Domain eintragen.
+
 ## Installation
 
 Das Paket liegt noch nicht auf npm. Eingebunden wird es direkt aus GitHub, `npm` baut es dabei über das `prepare`-Skript:
