@@ -430,3 +430,16 @@ footer.seite {
 .rechtstext a { color: var(--akzent-hell); }
 /* Kopf, Text und Fußzeile mit derselben linken Kante. */
 .textseite { --satzspiegel: 44rem; }
+
+/* Alle Werkzeuge in einer Zeile ganz unten, durch Punkte getrennt. */
+.werkzeuge {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--r-3);
+  padding-top: var(--r-3); border-top: var(--strich) solid var(--linie-fein);
+}
+.werkzeuge a {
+  display: inline-flex; align-items: center; min-height: calc(var(--ziel-basis) + var(--ziel));
+  color: var(--text-2); font-family: var(--schrift-daten); font-size: var(--t-xs);
+  text-decoration: underline; text-decoration-color: var(--linie); text-underline-offset: 0.2em;
+}
+.werkzeuge span { color: var(--text-3); }
+@media (hover: hover) { .werkzeuge a:hover { color: var(--akzent); text-decoration-color: currentColor; } }
