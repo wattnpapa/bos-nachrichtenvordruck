@@ -1,0 +1,62 @@
+{
+  "name": "bos-nachrichtenvordruck",
+  "version": "1.0.0",
+  "description": "Füllt den BOS-Nachrichtenvordruck und den Meldevordruck als PDF aus (jsPDF), mit eingebetteten Formularbildern.",
+  "keywords": [
+    "bos",
+    "nachrichtenvordruck",
+    "meldevordruck",
+    "sprechfunk",
+    "katastrophenschutz",
+    "thw",
+    "feuerwehr",
+    "jspdf",
+    "pdf"
+  ],
+  "homepage": "https://github.com/wattnpapa/bos-nachrichtenvordruck#readme",
+  "bugs": {
+    "url": "https://github.com/wattnpapa/bos-nachrichtenvordruck/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wattnpapa/bos-nachrichtenvordruck.git"
+  },
+  "license": "EUPL-1.2",
+  "author": {
+    "name": "Johannes Rudolph",
+    "email": "johannes.rudolph@thw-oldenburg.de"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "assets/*.png",
+    "assets/*.pdf"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "bilder": "node scripts/bilder-einbetten.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "jspdf": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^5.0.3",
+    "jspdf": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  }
+}
