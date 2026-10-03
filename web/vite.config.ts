@@ -9,6 +9,13 @@ export default defineConfig({
     build: {
         outDir: "../dist-web",
         emptyOutDir: true,
-        chunkSizeWarningLimit: 1500
+        chunkSizeWarningLimit: 1500,
+        rollupOptions: {
+            input: {
+                app: "web/index.html",
+                impressum: "web/impressum.html",
+                datenschutz: "web/datenschutz.html"
+            }
+        }
     }
 });

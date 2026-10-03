@@ -415,3 +415,18 @@ footer.seite {
 @media (prefers-reduced-motion: reduce) {
   :root { --dauer-1: 0ms; }
 }
+
+/* ---- Rechtsseiten ------------------------------------------------ */
+.zur-app {
+  flex: 1 1 auto; display: inline-flex; align-items: center;
+  min-height: calc(var(--ziel-basis) + var(--ziel));
+  color: var(--kopf-auf); font-weight: 600; text-decoration: none;
+}
+@media (hover: hover) { .zur-app:hover { text-decoration: underline; } }
+.zur-app:focus-visible { outline-color: var(--kopf-auf); }
+.rechtstext h1 { margin: var(--r-2) 0 var(--r-5); }
+.rechtstext h2 { font-size: var(--t-l); margin: var(--r-5) 0 var(--r-2); }
+.rechtstext p { max-width: 68ch; }
+.rechtstext a { color: var(--akzent-hell); }
+/* Kopf, Text und Fußzeile mit derselben linken Kante. */
+.textseite { --satzspiegel: 44rem; }
