@@ -28,3 +28,19 @@ describe("erzeugePdf", () => {
         expect(dateiname({ vordruck: "beide", blatt: "a4", ohneHintergrund: false }, 4)).toBe("vordrucke.pdf");
     });
 });
+
+describe("A4 hoch", () => {
+    it("gibt jedem Vordruck ein A4-Blatt im Hochformat", () => {
+        const pdf = erzeugePdf(drei, { vordruck: "beide", blatt: "a4hoch", ohneHintergrund: true });
+        expect(pdf.getNumberOfPages()).toBe(6);
+        expect(pdf.internal.pageSize.getWidth()).toBeCloseTo(210, 0);
+        expect(pdf.internal.pageSize.getHeight()).toBeCloseTo(297, 0);
+    });
+
+    it("verschiebt den Vordruck um 31 mm nach rechts und 43,5 mm nach unten", () => {
+        const pdf = erzeugePdf([new VordruckDaten()], { vordruck: "nachricht", blatt: "a4hoch", ohneHintergrund: true });
+        const inhalt = pdf.output();
+        // 31 mm = 87,87 pt, 43,5 mm = 123,31 pt
+        expect(inhalt).toMatch(/^1\. 0\. 0\. 1\. 87\.87\d* -123\.30\d* cm$/m);
+    });
+});
