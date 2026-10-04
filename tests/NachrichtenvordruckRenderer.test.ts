@@ -126,3 +126,27 @@ describe("zeichneNachrichtenvordruck", () => {
         expect(texte.filter(t => t.text.trim() !== "" && t.text !== "x")).toHaveLength(0);
     });
 });
+
+describe("Nachrichtenvordruck: Absender", () => {
+    it("verkleinert einen langen Absender, statt über die Zelle bis 142,2 mm hinauszulaufen", () => {
+        const { pdf } = protokollPdf();
+        const daten = volleDaten();
+        daten.absender = "Heros Oldenburg 16/11 über Technische Einsatzleitung Landkreis Wesermarsch, Abschnitt Nord";
+        // Breite in der Schriftgröße messen, in der der Absender tatsächlich gesetzt wird.
+        let breite = 0;
+        const text = pdf.text.bind(pdf);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pdf as any).text = (inhalt: string, x: number, y: number, optionen?: unknown) => {
+            if (inhalt === daten.absender) {
+                breite = pdf.getTextWidth(inhalt);
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (text as any)(inhalt, x, y, optionen);
+        };
+
+        zeichneNachrichtenvordruck(pdf, daten, { ohneHintergrund: true });
+
+        expect(breite).toBeGreaterThan(80);
+        expect(breite).toBeLessThanOrEqual(97);
+    });
+});

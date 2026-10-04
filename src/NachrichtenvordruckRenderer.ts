@@ -76,8 +76,15 @@ export function zeichneNachrichtenvordruck(
     pdf.setFontSize(10);
     pdf.text(daten.nummer, offsetX + 125.5, 17);
 
+    // Zelle „Absender“: 39,0–142,2 mm. Was nicht hineinpasst, wird kleiner
+    // gesetzt, statt über den Formularrand zu laufen; kurze Absender bleiben
+    // unverändert in 12 pt.
     pdf.setFontSize(12);
-    pdf.text(daten.absender, offsetX + 44, 155);
+    if (daten.absender) {
+        zeichneEinzeilig(pdf, { text: daten.absender, x: offsetX + 44, y: 155, maxWidth: 97, fontSize: 12 });
+    } else {
+        pdf.text(daten.absender, offsetX + 44, 155);
+    }
 
     // Die Zellhöhen sind am Formularbild gemessen und dürfen nicht größer
     // gesetzt werden – `zeichneInZelle` verkleinert die Schrift nur, solange der
