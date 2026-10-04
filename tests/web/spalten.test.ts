@@ -226,3 +226,12 @@ describe("Runde 2, P3", () => {
         expect(zeilen[0]?.daten.empfaenger).toEqual(["B"]);
     });
 });
+
+describe("Unmögliche Zeiten", () => {
+    it("meldet unmögliche Abfassungszeit und den 31. Februar", async () => {
+        const { zuVordruckDaten, UNMOEGLICH } = await import("../../web/src/spalten.js");
+        expect(zuVordruckDaten({ abfassungszeit: "321499okt26" }).hinweise.some(h => h.includes(UNMOEGLICH))).toBe(true);
+        expect(zuVordruckDaten({ annahmeDatum: "31.02." }).hinweise.some(h => h.includes(UNMOEGLICH))).toBe(true);
+        expect(zuVordruckDaten({ annahmeDatum: "29.02.", abfassungszeit: "041416okt26" }).hinweise).toEqual([]);
+    });
+});

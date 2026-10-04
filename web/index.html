@@ -98,7 +98,7 @@
         <p id="entwurf-text"></p>
         <div class="aktionen">
           <button type="button" class="primaer" id="entwurf-naechster">Nächster Vordruck</button>
-          <button type="button" id="entwurf-rueckgaengig" hidden>Rückgängig</button>
+          <button type="button" id="entwurf-rueckgaengig" hidden>Zurücknehmen</button>
           <button type="button" id="entwurf-behalten">Weiter bearbeiten</button>
         </div>
       </div>
@@ -226,6 +226,7 @@
               </div>
               <p class="hinweis" id="geraetezeit">Datum-Zeit-Gruppe: Tag, Stunde, Minute, Monat, Jahr, z. B. 041416okt26.</p>
             </section>
+            <button type="button" class="primaer sprung-quer" data-sprung>Prüfen und herunterladen ↓</button>
 
             <details class="karte weitere" id="weitere">
               <summary><span data-nur="nachricht">Vermerke, Quittung und Verteiler</span><span data-nur="meldung">Ausgang und Eingang</span> <span class="zaehler" id="weitere-zahl" hidden></span></summary>
@@ -289,7 +290,7 @@
             </details>
 
             <div class="sprungleiste">
-              <button type="button" class="primaer" id="zur-vorschau">Prüfen und herunterladen ↓</button>
+              <button type="button" class="primaer" id="zur-vorschau" data-sprung>Prüfen und herunterladen ↓</button>
             </div>
           </form>
 
@@ -313,7 +314,8 @@
               <button type="button" id="einzeln-naechster">Nächster Vordruck</button>
               <button type="button" class="abgesetzt" id="einzeln-leeren">Felder leeren</button>
             </div>
-            <p class="nebentext" id="einzeln-status" role="status"><span id="einzeln-status-text"></span> <button type="button" class="link" id="einzeln-rueckgaengig" hidden>Rückgängig</button></p>
+            <p class="nebentext" id="einzeln-status" role="status"><span id="einzeln-status-text"></span> <button type="button" class="link" id="einzeln-rueckgaengig" hidden>Zurücknehmen</button></p>
+            <p class="nebentext" id="verworfen" hidden><button type="button" class="link" id="verworfen-holen"></button></p>
             <p class="hinweis">„Nächster Vordruck“ behält Übermittlungsweg und Richtung, nach einem Ausgang auch Absender, Zeichen und Funktion, und zählt die Nr. hoch. „Felder leeren“ leert alles.</p>
             <p class="nebentext" id="entwurf-stand"></p>
             <p class="leere-zeile"><button type="button" class="link" id="leere-vordrucke">Leere Vordrucke zum Ausfüllen von Hand herunterladen</button></p>
@@ -323,7 +325,7 @@
               <p class="nebentext">Liste auf diesem Gerät, zum Abgleich mit dem Betriebsbuch; maßgeblich bleibt der Papierbogen. Eingetragen wird, was heruntergeladen oder gedruckt wurde, nicht das Ansehen in einem neuen Tab. Es bleiben die letzten 1000; als CSV lässt sie sich sichern und wieder einlesen.</p>
               <div class="tabellen-scroll">
                 <table class="uebersicht">
-                  <thead><tr><th>Zeit</th><th>Nr.</th><th>Richtung</th><th>Vorrang</th><th>Gegenstelle</th><th>Inhalt</th></tr></thead>
+                  <thead><tr><th>Zeit</th><th>Vordruck</th><th>Nr.</th><th>Richtung</th><th>Vorrang</th><th>Gegenstelle</th><th>Inhalt</th></tr></thead>
                   <tbody id="verlauf-liste"></tbody>
                 </table>
               </div>
@@ -332,7 +334,7 @@
                 <button type="button" class="abgesetzt gefahr" id="verlauf-loeschen">Liste löschen</button>
               </div>
             </details>
-            <p class="nebentext" id="verlauf-geloescht" role="status" hidden>Liste gelöscht. <button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button></p>
+            <p class="nebentext" id="verlauf-geloescht" role="status" hidden><span id="verlauf-geloescht-text">Liste gelöscht.</span> <button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button> · <button type="button" class="link" id="verlauf-verwerfen">Endgültig verwerfen</button></p>
           </div>
         </div>
       </section>
@@ -366,17 +368,19 @@
             <h3 id="ergebnis-titel">3. Prüfen und herunterladen</h3>
           </div>
           <p id="ergebnis-zusammenfassung"></p>
-          <div class="warnung" id="ergebnis-warnung" hidden></div>
           <div class="alarm-kasten" id="ergebnis-fehler" hidden></div>
-          <!-- Vor der Übersicht: bei vielen Zeilen stünden die Knöpfe sonst Bildschirme tiefer. -->
+          <!-- Vor Hinweisen und Übersicht: bei vielen Zeilen stünden die Knöpfe sonst Bildschirme tiefer.
+               Die Hinweise wiederholt die Rückfrage vor dem Erzeugen. -->
           <div class="aktionen">
             <button type="button" class="primaer" id="tabelle-pdf">PDF herunterladen</button>
             <button type="button" id="tabelle-oeffnen">Vorschau öffnen<span class="nur-dunkel"> (helles Blatt)</span></button>
           </div>
           <p class="nebentext" id="tabelle-erstellt" role="status" hidden></p>
+          <div class="warnung" id="ergebnis-warnung" hidden></div>
+          <p class="nur-mobil"><button type="button" class="link" id="uebersicht-alle" hidden></button></p>
           <div class="tabellen-scroll">
             <table class="uebersicht" id="ergebnis-tabelle">
-              <thead><tr><th>Zeile</th><th>Nr.</th><th>Vorrang</th><th>Art</th><th>Weg</th><th>Richtung</th><th>Zeit</th><th>Gegenstelle</th><th>Inhalt</th><th>Absender</th></tr></thead>
+              <thead><tr><th>Zeile</th><th>Nr.</th><th class="nur-nachricht">Vorrang</th><th class="nur-nachricht">Art</th><th>Weg</th><th class="nur-nachricht">Richtung</th><th>Zeit</th><th id="uebersicht-gegenstelle">Gegenstelle</th><th>Inhalt</th><th>Absender</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -387,7 +391,7 @@
     <div class="kurzmeldung" id="kurzmeldung" role="status" hidden>
       <span id="kurzmeldung-text"></span>
       <span class="kurzmeldung-knoepfe">
-        <button type="button" id="kurzmeldung-rueckgaengig" hidden>Rückgängig</button>
+        <button type="button" id="kurzmeldung-rueckgaengig" hidden>Zurücknehmen</button>
         <button type="button" id="kurzmeldung-schliessen" aria-label="Meldung schließen">OK</button>
       </span>
     </div>

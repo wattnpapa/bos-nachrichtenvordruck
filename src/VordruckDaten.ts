@@ -124,6 +124,12 @@ export class VordruckDaten {
     hinweis = "";
 
     /**
+     * Kennzeichen eines Folgebogens, z. B. „Blatt 2 von 3“. Steht fett rechts
+     * neben „Inhalt“, im Formular statt am Blattrand, wo Drucker abschneiden.
+     */
+    blatt = "";
+
+    /**
      * Welche Ankreuzfelder aus den gesetzten Angaben folgen.
      *
      * Die Reihenfolge ist stabil, damit sich die PDF-Ausgabe bei gleicher

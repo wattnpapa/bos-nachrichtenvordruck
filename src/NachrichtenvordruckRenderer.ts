@@ -110,6 +110,13 @@ export function zeichneNachrichtenvordruck(
         height: 16.5
     });
 
+    // Folgebogen: rechts in der Zeile „Inhalt“ (65,4–71,9 mm).
+    if (daten.blatt) {
+        pdf.setFont("helvetica", "bold");
+        zeichneEinzeilig(pdf, { text: daten.blatt, x: offsetX + 100, y: 70.2, maxWidth: 41, fontSize: 10 });
+        pdf.setFont("helvetica", "normal");
+    }
+
     // Inhalt auf den zwölf Linien des Formulars (78,41–149,84 mm), je 1,3 mm über
     // der Linie. Längerer Text wird abgeschnitten, nicht verkleinert.
     zeichneZeilenBegrenzt(pdf, {
@@ -130,8 +137,11 @@ export function zeichneNachrichtenvordruck(
 /** Zeilen der Vermerke unterhalb des Streifens neben „Vermerke“; `erste` ist die Zeile im Streifen. */
 function vermerkeAufteilen(pdf: jsPDF, text: string): { erste: string; rest: string } {
     pdf.setFontSize(9);
-    const erste = (pdf.splitTextToSize(text, 22) as string[])[0] ?? "";
-    return { erste, rest: text.slice(text.indexOf(erste) + erste.length).trim() };
+    // Eigene Zeilenumbrüche bleiben: nur der erste Absatz beginnt im Streifen.
+    const [absatz = "", ...weitere] = String(text).replace(/\\n/g, "\n").split(/\r?\n/);
+    const erste = (pdf.splitTextToSize(absatz, 22) as string[])[0] ?? "";
+    const restAbsatz = absatz.slice(absatz.indexOf(erste) + erste.length).trim();
+    return { erste, rest: [restAbsatz, ...weitere].filter((zeile, index) => index > 0 || zeile).join("\n").trim() };
 }
 
 /**

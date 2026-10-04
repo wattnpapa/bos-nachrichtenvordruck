@@ -109,7 +109,7 @@ p { margin: 0 0 var(--r-2); }
 .textlaenge.warnung { font-weight: 600; }
 .entwurf { font-size: var(--t-m); margin: 0 0 var(--r-5); }
 .entwurf p { margin: 0; }
-.entwurf .aktionen { margin: var(--r-3) 0 0; }
+.entwurf .aktionen { margin: var(--r-3) 0 0; gap: var(--r-4); }
 /* Belegte Felder im zugeklappten Bereich: Zahl als Marke hinter der Überschrift. */
 .zaehler {
   margin-left: var(--r-2); font-size: var(--t-s); font-weight: 700;
@@ -150,8 +150,7 @@ p { margin: 0 0 var(--r-2); }
 .seiten-kopf h1 { flex: 1 1 14rem; color: var(--kopf-auf); }
 
 .anzeige-schalter {
-  display: inline-flex; flex-wrap: wrap; max-width: 100%; margin-left: auto;
-  border: var(--strich) solid var(--kopf-linie);
+  display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; margin-left: auto;
 }
 /* Im Balken: inaktive Segmente durchsichtig, das gewählte als helle Fläche. */
 /* Gleich breite Segmente: „Feld“ ist sonst das schmalste und am schwersten zu treffen. */
@@ -159,7 +158,10 @@ p { margin: 0 0 var(--r-2); }
   border: none; background: none; color: var(--kopf-auf-2);
   padding: 0.25rem 0.7rem; font-size: var(--t-s); flex: 1 1 0; min-width: 3.75rem;
 }
-.anzeige-schalter button + button { border-left: var(--strich) solid var(--kopf-linie); }
+/* Getrennte Segmente mit Lücke: ein Fehltipp trifft nicht gleich den Nachbarn. */
+.anzeige-schalter button { border: var(--strich) solid var(--kopf-linie); }
+/* Nachts ist der gewählte Modus ein Rahmen statt der hellsten Fläche des Bildes. */
+.nacht-modus .anzeige-schalter button[aria-pressed="true"] { background: none; color: var(--akzent-hell); box-shadow: inset 0 0 0 2px var(--akzent); }
 .anzeige-schalter button[aria-pressed="true"] { background: var(--kopf-auf); color: var(--kopf-fond); }
 @media (hover: hover) { .anzeige-schalter button:hover { color: var(--kopf-auf); } .anzeige-schalter button[aria-pressed="true"]:hover { color: var(--kopf-fond); } }
 .anzeige-schalter button:focus-visible { outline-color: var(--kopf-auf); outline-offset: -3px; }
@@ -327,7 +329,7 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
   /* Neben dem Formular ganz sichtbar bleiben, auch mit zwei Vordrucken untereinander. */
   .vorschau .bildvorschau { width: auto; max-width: 100%; max-height: calc(100vh - 9rem); margin-inline: auto; }
 }
-.abschluss .aktionen { margin-top: 0; margin-bottom: var(--r-2); }
+.abschluss .aktionen { margin-top: 0; margin-bottom: var(--r-2); gap: var(--r-4); }
 /* „Felder leeren“ mit Abstand zu „PDF herunterladen“: kein Fehlgriff mit Handschuh. */
 .aktionen > .abgesetzt { margin-left: var(--r-4); }
 @media (max-width: 40rem) { .aktionen > .abgesetzt { margin: var(--r-4) 0 0; } }
@@ -345,11 +347,14 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 @media (min-width: 64rem) { .sprungleiste { display: none; } }
 /* Beim Tippen (Tastatur offen) nimmt die Leiste zu viel Platz und fängt Tipps ab.
    Nur Textfelder zählen: Ein Tipp auf die Leiste selbst oder ein Kästchen blendet sie nicht aus. */
-.maske:has(textarea:focus, input:focus:not([type=radio], [type=checkbox], [type=button], [type=file])) .sprungleiste { display: none; }
-/* Im flachen Querformat als kleiner Knopf in der Ecke statt als Leiste über die ganze Breite. */
+/* Unsichtbar statt entfernt: Die Seite verschiebt sich nicht, wenn die Leiste wiederkommt. */
+.maske:has(textarea:focus, input:focus:not([type=radio], [type=checkbox], [type=button], [type=file])) .sprungleiste { visibility: hidden; pointer-events: none; }
+/* Im flachen Querformat kein schwebender Knopf (er läge über Feldern); stattdessen
+   steht ein Sprungknopf fest zwischen den Karten. */
+.sprung-quer { display: none; }
 @media (max-height: 30rem) {
-  .sprungleiste { position: fixed; right: var(--r-3); bottom: var(--r-3); left: auto; padding: 0; background: none; z-index: 5; }
-  .sprungleiste button { width: auto; box-shadow: 0 0 0 4px var(--grund); }
+  .sprungleiste { position: static; }
+  .sprung-quer { display: block; width: 100%; margin: 0 0 var(--r-4); }
 }
 /* Querformat am Telefon: Vorschau auf Bildschirmhöhe, sonst liegt der Download Bildschirme tiefer. */
 @media (orientation: landscape) and (max-height: 30rem) {
@@ -368,6 +373,9 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 4px var(--grund); font-size: var(--t-s);
 }
 .kurzmeldung[hidden] { display: none; }
+/* Reine Anzeige: Tipps gehen durch auf das, was darunter liegt. */
+.kurzmeldung { pointer-events: none; }
+.kurzmeldung .kurzmeldung-knoepfe { display: none; }
 .kurzmeldung > span:first-child { flex: 1 1 14rem; }
 .kurzmeldung-knoepfe { display: flex; gap: var(--r-4); }
 @media (min-width: 64rem) { .kurzmeldung { bottom: var(--r-4); } }
@@ -614,7 +622,8 @@ table.uebersicht tr.mit-fehler td:first-child { box-shadow: inset 6px 0 0 var(--
 
 /* ---- Nacht und Dunkel: Feinschliff --------------------------------- */
 .nacht-modus { --strich: 2px; --strich-stark: 2px; }
-.nacht-modus button:disabled { opacity: 0.7; }
+.nacht-modus button:disabled { opacity: 0.85; }
+.nacht-modus button.primaer:disabled { filter: none; }
 .nacht-modus .karte, .dunkel-modus .karte { border-color: var(--linie-stark); }
 .dunkel-modus button.primaer { filter: brightness(0.85); }
 /* Die Sprungleiste steht dauernd im Bild: im Dunkeln als Rahmenknopf statt heller Fläche. */
@@ -646,3 +655,10 @@ iframe.nur-zum-drucken { position: absolute; width: 1px; height: 1px; opacity: 0
 /* Löschen ist kein gewöhnlicher Knopf: roter Rand und Schrift. */
 button.gefahr { color: var(--alarm); border-color: var(--alarm); }
 .leere-zeile { margin-bottom: var(--r-4); }
+/* Prüfübersicht beim Meldevordruck: nur, was er druckt. */
+table.uebersicht.meldung .nur-nachricht { display: none; }
+.nur-mobil { display: none; }
+@media (max-width: 40rem) {
+  .nur-mobil { display: block; }
+  table.uebersicht.nur-auffaellige tbody tr:not(.auffaellig) { display: none; }
+}

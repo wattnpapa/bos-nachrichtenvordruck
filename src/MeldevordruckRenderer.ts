@@ -108,6 +108,13 @@ export function zeichneMeldevordruck(
         zeichneEinzeilig(pdf, { text: wert, x: offsetX + 123.6, y, maxWidth: 16.4, fontSize: 9 });
     }
 
+    // Folgebogen: rechts in der Zeile „Inhalt:“.
+    if (daten.blatt) {
+        pdf.setFont("helvetica", "bold");
+        zeichneEinzeilig(pdf, { text: daten.blatt, x: offsetX + 100, y: 49.5, maxWidth: 40, fontSize: 9 });
+        pdf.setFont("helvetica", "normal");
+    }
+
     // Langer Inhalt wird abgeschnitten statt verkleinert und läuft nicht über
     // Verfasser, Abfassungszeit und den Blattrand.
     zeichneZeilenBegrenzt(pdf, {

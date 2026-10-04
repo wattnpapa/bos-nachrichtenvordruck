@@ -13,7 +13,7 @@ describe("Textlänge", () => {
         expect(laenge?.stufe).toBe("abgeschnitten");
         expect(laenge?.maxZeilen).toBe(12);
         expect(istKritisch(laenge)).toBe(true);
-        expect(textlaengeMeldung(laenge!)).toMatch(/Gedruckt werden nur die ersten 12/);
+        expect(textlaengeMeldung(laenge!)).toMatch(/nur die ersten 12 mit „…“.*auf 2 Vordrucke verteilen/);
     });
 
     it("sagt Bescheid, wenn es knapp wird, ohne nachzufragen", () => {

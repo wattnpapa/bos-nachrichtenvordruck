@@ -24,6 +24,8 @@ export interface Textlaenge {
     maxZeilen: number;
     /** Der Vordruck, auf dem es am engsten wird. */
     vordruck: string;
+    /** Wie viele Vordrucke der ganze Text auf Folgebögen braucht. */
+    boegen: number;
 }
 
 let messPdf: jsPDF | undefined;
@@ -50,7 +52,8 @@ export function pruefeTextlaenge(inhalt: string, vordruck: VordruckWahl): Textla
         stufe: engste.zeilen > engste.maxZeilen ? "abgeschnitten" : "knapp",
         zeilen: engste.zeilen,
         maxZeilen: engste.maxZeilen,
-        vordruck: engste.vordruck
+        vordruck: engste.vordruck,
+        boegen: engste.zeilen > engste.maxZeilen ? teileInhalt(inhalt, vordruck).length : 1
     };
 }
 
@@ -63,7 +66,7 @@ export function istKritisch(laenge: Textlaenge | null): laenge is Textlaenge {
 export function textlaengeMeldung(laenge: Textlaenge): string {
     if (laenge.stufe === "abgeschnitten") {
         return `Text zu lang: Der ${laenge.vordruck} hat ${laenge.maxZeilen} Zeilen, der Text braucht ${laenge.zeilen}. `
-            + `Gedruckt werden nur die ersten ${laenge.maxZeilen}, am Ende steht „…“, der Rest fehlt. Bitte kürzen oder auf zwei Vordrucke verteilen.`;
+            + `Auf einem Vordruck stünden nur die ersten ${laenge.maxZeilen} mit „…“ am Ende. Beim Erzeugen lässt er sich auf ${laenge.boegen} Vordrucke verteilen, oder kürzen.`;
     }
     const frei = laenge.maxZeilen - laenge.zeilen;
     return `${laenge.zeilen} von ${laenge.maxZeilen} Zeilen auf dem ${laenge.vordruck} belegt${frei === 1 ? ", noch eine frei" : ", keine mehr frei"}.`;
@@ -84,7 +87,10 @@ export function gekuerztMeldung(daten: VordruckDaten, vordruck: VordruckWahl): s
     const namen = [
         ...(vordruck !== "meldung" ? nachrichtenvordruckGekuerzt(messPdf, daten) : []),
         ...(vordruck !== "nachricht" ? meldevordruckGekuerzt(messPdf, daten) : [])
-    ].map(name => FELDNAMEN[name] ?? SPALTEN.find(spalte => spalte.schluessel === name.replace("vermerk", ""))?.titel ?? name);
+    ].map(name => FELDNAMEN[name]
+        ?? SPALTEN.find(spalte => spalte.schluessel === name)?.titel
+        ?? SPALTEN.find(spalte => spalte.schluessel === name.replace("vermerk", ""))?.titel
+        ?? name);
     const eindeutig = [...new Set(namen)];
     if (eindeutig.length === 0) {
         return "";

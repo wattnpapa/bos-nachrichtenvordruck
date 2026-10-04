@@ -272,12 +272,10 @@ function pruefeFormat(eingabe: Eingabe, hinweise: string[]): void {
     const dtg = (eingabe.abfassungszeit ?? "").trim();
     if (dtg) {
         const teile = /^(\d{2})(\d{2})(\d{2})([a-zäöü]{3})(\d{2})$/i.exec(dtg);
-        const gueltig = teile
-            && Number(teile[1]) >= 1 && Number(teile[1]) <= 31
-            && Number(teile[2]) <= 23 && Number(teile[3]) <= 59
-            && MONATE_DTG.has((teile[4] ?? "").toLowerCase());
-        if (!gueltig) {
+        if (!teile || !MONATE_DTG.has((teile[4] ?? "").toLowerCase())) {
             hinweise.push(`Abfassungszeit „${dtg}“ ist keine Datum-Zeit-Gruppe TTHHMMmonJJ (z. B. 041416okt26)`);
+        } else if (!(Number(teile[1]) >= 1 && Number(teile[1]) <= 31 && Number(teile[2]) <= 23 && Number(teile[3]) <= 59)) {
+            hinweise.push(`Abfassungszeit „${dtg}“ ist ${UNMOEGLICH} (Tag 01–31, Stunde 00–23, Minute 00–59)`);
         }
     }
     for (const schluessel of UHRZEIT_FELDER) {
@@ -294,8 +292,9 @@ function pruefeFormat(eingabe: Eingabe, hinweise: string[]): void {
         const teile = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?$/.exec(wert);
         if (wert && !teile) {
             hinweise.push(`${feldName(schluessel)} „${wert}“ ist kein Datum (z. B. 04.10.)`);
-        } else if (teile && !(Number(teile[1]) >= 1 && Number(teile[1]) <= 31 && Number(teile[2]) >= 1 && Number(teile[2]) <= 12)) {
-            hinweise.push(`${feldName(schluessel)} „${wert}“ ist ${UNMOEGLICH} (Tag 1–31, Monat 1–12)`);
+        } else if (teile && !(Number(teile[2]) >= 1 && Number(teile[2]) <= 12 && Number(teile[1]) >= 1
+            && Number(teile[1]) <= [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][Number(teile[2]) - 1]!)) {
+            hinweise.push(`${feldName(schluessel)} „${wert}“ ist ${UNMOEGLICH} (Tag passend zum Monat, Monat 1–12)`);
         }
     }
 }

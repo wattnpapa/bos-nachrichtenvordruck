@@ -10,6 +10,8 @@ export interface Eintrag {
     eingabe: Eingabe;
     /** Welcher Vordruck erstellt wurde: „nachricht“, „meldung“ oder „beide“. Ältere Einträge haben keinen. */
     vordruck?: string;
+    /** Was vom Stand abweicht, etwa „2 Blätter“ oder „Text gekürzt“. */
+    zusatz?: string;
 }
 
 const SCHLUESSEL = "bnv.verlauf.v1";
@@ -36,6 +38,18 @@ export function ladeVerlauf(): Eintrag[] {
     }
 }
 
+/**
+ * Vergleichsschlüssel eines Stands: leere Felder und die Reihenfolge zählen
+ * nicht, damit eine wieder eingelesene Listen-CSV mit anderen Spalten als
+ * derselbe Stand gilt.
+ */
+export function verlaufKennung(eingabe: Eingabe): string {
+    return JSON.stringify(Object.entries(eingabe)
+        .map(([schluessel, wert]) => [schluessel, (wert ?? "").trim()])
+        .filter(([, wert]) => wert)
+        .sort(([a], [b]) => (a ?? "").localeCompare(b ?? "")));
+}
+
 /** Ergebnis des Merkens: die neue Liste und wie viele alte Einträge dafür herausgefallen sind. */
 export interface Gemerkt {
     liste: Eintrag[];
@@ -49,17 +63,23 @@ export interface Gemerkt {
  * in der Liste steht, kommt nicht doppelt hinein, etwa beim zweiten Download
  * derselben Tabelle.
  */
-export function merkeVordrucke(eingaben: readonly Eingabe[], zeit = new Date(), vordruck?: string): Gemerkt {
+export function merkeVordrucke(
+    eingaben: readonly Eingabe[],
+    zeit = new Date(),
+    vordruck?: string,
+    zusatz: (index: number) => string = () => ""
+): Gemerkt {
     const bisher = ladeVerlauf();
-    const schon = new Set(bisher.map(eintrag => `${eintrag.vordruck ?? ""}|${JSON.stringify(eintrag.eingabe)}`));
+    const schon = new Set(bisher.map(eintrag => `${eintrag.vordruck ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
     const dazu: Eintrag[] = [];
-    for (const eingabe of eingaben) {
-        const kennung = `${vordruck ?? ""}|${JSON.stringify(eingabe)}`;
+    eingaben.forEach((eingabe, index) => {
+        const kennung = `${vordruck ?? ""}|${verlaufKennung(eingabe)}`;
         if (!schon.has(kennung)) {
             schon.add(kennung);
-            dazu.push({ zeit: zeit.toISOString(), eingabe, ...vordruck ? { vordruck } : {} });
+            const text = zusatz(index);
+            dazu.push({ zeit: zeit.toISOString(), eingabe, ...vordruck ? { vordruck } : {}, ...text ? { zusatz: text } : {} });
         }
-    }
+    });
     const alle = [...bisher, ...dazu];
     const liste = alle.slice(-HOECHSTENS);
     if (dazu.length > 0) {
@@ -69,8 +89,8 @@ export function merkeVordrucke(eingaben: readonly Eingabe[], zeit = new Date(), 
 }
 
 /** Ein einzelner Vordruck. */
-export function merkeVordruck(eingabe: Eingabe, zeit = new Date(), vordruck?: string): Gemerkt {
-    return merkeVordrucke([eingabe], zeit, vordruck);
+export function merkeVordruck(eingabe: Eingabe, zeit = new Date(), vordruck?: string, zusatz = ""): Gemerkt {
+    return merkeVordrucke([eingabe], zeit, vordruck, () => zusatz);
 }
 
 /** Schreibt eine ganze Liste zurück, etwa nach „Liste löschen“ und „Wiederherstellen“. */
