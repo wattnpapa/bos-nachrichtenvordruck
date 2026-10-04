@@ -207,3 +207,22 @@ describe("Runde 2", () => {
         expect(zeilen.every(zeile => zeile.fehler.length === 0)).toBe(true);
     });
 });
+
+describe("Runde 2, P3", () => {
+    it("zählt auch Nummern mit Vorsatz hoch", () => {
+        expect(naechsteNummer("A-09")).toBe("A-10");
+        expect(naechsteNummer("E 17")).toBe("E 18");
+    });
+
+    it("findet den Kopf auch unter einer Titelzeile und zählt Zeilen wie Excel", () => {
+        const { zeilen, kopfZeile } = leseTabelle([["Übung Deich"], [], ["Nr", "Inhalt"], ["1", "Text"]]);
+        expect(kopfZeile).toBe(3);
+        expect(zeilen.map(zeile => zeile.zeile)).toEqual([4]);
+    });
+
+    it("meldet zwei Spalten für dasselbe Feld", () => {
+        const { doppelteSpalten, zeilen } = leseTabelle([["Empfänger", "Gegenstelle", "Inhalt"], ["A", "B", "Text"]]);
+        expect(doppelteSpalten).toEqual(["„Empfänger“ und „Gegenstelle“"]);
+        expect(zeilen[0]?.daten.empfaenger).toEqual(["B"]);
+    });
+});

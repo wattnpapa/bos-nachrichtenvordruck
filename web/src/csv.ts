@@ -82,7 +82,9 @@ export function leseCsv(text: string, trenner = erkenneTrenner(text), hinweise: 
             }
             continue;
         }
-        if (zeichen === "\"") {
+        // Ein Anführungszeichen öffnet nur am Feldanfang; mitten im Text
+        // (Text mit "Zitat") gehört es zum Inhalt, wie Excel es auch liest.
+        if (zeichen === "\"" && feld === "") {
             inAnfuehrung = true;
             anfuehrungAb = zeilennummer;
         } else if (zeichen === trenner) {

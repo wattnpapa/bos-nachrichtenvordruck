@@ -52,7 +52,7 @@ export const SPALTEN: readonly Spalte[] = [
     { schluessel: "weg", titel: "Übermittlungsweg", beschreibung: "Funk, Telefon, Telefax, DFÜ oder Kurier. Wird in Kopfzeile und Spruchkopf angekreuzt.", beispiel: "Funk", auswahl: WEG_AUSWAHL, breite: 16, nurNachricht: true },
     { schluessel: "richtung", titel: "Richtung", beschreibung: "Eingang oder Ausgang im Technischen Betriebsbuch.", beispiel: "Ausgang", auswahl: RICHTUNG_AUSWAHL, breite: 10, nurNachricht: true },
     { schluessel: "gespraechsnotiz", titel: "Gesprächsnotiz", beschreibung: "ja: Kästchen „Gesprächsnotiz“ ankreuzen.", beispiel: "nein", auswahl: JA_NEIN, breite: 14, nurNachricht: true },
-    { schluessel: "empfaenger", titel: "Empfänger", beschreibung: "Rufname der Gegenstelle. Mehrere mit Semikolon trennen.", beispiel: "Heros Jever 21/10", breite: 24 },
+    { schluessel: "empfaenger", titel: "Gegenstelle", beschreibung: "Rufname der Gegenstelle (Nachrichtenvordruck) bzw. Empfänger (Meldevordruck). Mehrere mit Semikolon trennen. Die Spalte darf auch „Empfänger“ heißen.", beispiel: "Heros Jever 21/10", breite: 24 },
     { schluessel: "anschrift", titel: "Anschrift", beschreibung: "Anschrift bzw. Stelle der Gegenstelle. Mehrere mit Semikolon trennen.", beispiel: "Technische Einsatzleitung", breite: 24, nurNachricht: true },
     { schluessel: "inhalt", titel: "Inhalt", beschreibung: "Nachrichtentext. Zeilenumbrüche in der Zelle (Alt+Enter) werden übernommen.", beispiel: "Erkundung abgeschlossen. Zufahrt ist frei.", breite: 50 },
     { schluessel: "absender", titel: "Absender", beschreibung: "Rufname des Absenders.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
@@ -102,7 +102,7 @@ for (const spalte of SPALTEN) {
 for (const [alias, schluessel] of [
     ["nummer", "nummer"], ["nr.", "nummer"], ["lfdnr", "nummer"],
     ["weg", "weg"], ["uebermittlung", "weg"],
-    ["rufname", "empfaenger"], ["gegenstelle", "empfaenger"], ["an", "empfaenger"],
+    ["rufname", "empfaenger"], ["empfaenger", "empfaenger"], ["an", "empfaenger"],
     ["anschriften", "anschrift"], ["text", "inhalt"], ["nachricht", "inhalt"],
     ["von", "absender"], ["dtg", "abfassungszeit"], ["handzeichen", "zeichen"],
     ["prio", "vorrang"], ["prioritaet", "vorrang"], ["dringlichkeit", "vorrang"],
@@ -378,6 +378,10 @@ export interface TabellenErgebnis {
     zeilen: { zeile: number; eingabe: Eingabe; daten: VordruckDaten; fehler: string[]; hinweise: string[] }[];
     /** Spalten des Kopfes, die einem Feld zugeordnet sind. */
     bekannteSpalten: number;
+    /** Spaltenpaare für dasselbe Feld; genommen wird jeweils die rechte. */
+    doppelteSpalten: string[];
+    /** Zeile des Kopfes, wie in Excel ab 1 gezählt. */
+    kopfZeile: number;
     unbekannteSpalten: string[];
     /** Zeilen, die unverändert die Beispielzeile der Vorlage sind; sie werden nicht gedruckt. */
     beispielZeilen: number[];
@@ -398,9 +402,31 @@ function istBeispiel(eingabe: Eingabe): boolean {
  * Erste Zeile ist der Kopf, jede weitere ein Vordruck. `zeile` zählt wie in
  * Excel ab 1, damit Fehlermeldungen auf die richtige Zeile zeigen.
  */
+/** Die Zeile unter den ersten zehn mit den meisten bekannten Spaltenköpfen; sonst die erste. */
+export function findeKopfzeile(tabelle: readonly string[][]): number {
+    let beste = 0;
+    let treffer = 0;
+    tabelle.slice(0, 10).forEach((zeile, index) => {
+        const anzahl = zeile.filter(zelle => schluesselZuKopf(zelle)).length;
+        if (anzahl > treffer) {
+            beste = index;
+            treffer = anzahl;
+        }
+    });
+    return beste;
+}
+
 export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
-    const [kopf = [], ...rest] = tabelle;
+    // Der Kopf muss nicht in Zeile 1 stehen: oft steht ein Titel oder eine Leerzeile davor.
+    const kopfIndex = findeKopfzeile(tabelle);
+    const kopf = tabelle[kopfIndex] ?? [];
+    const rest = tabelle.slice(kopfIndex + 1);
     const zuordnung = kopf.map(zelle => schluesselZuKopf(zelle));
+    // Zwei Spalten für dasselbe Feld: die rechte gewinnt, das soll man erfahren.
+    const doppelteSpalten = zuordnung.flatMap((schluessel, index) =>
+        schluessel && zuordnung.indexOf(schluessel) !== index
+            ? [`„${(kopf[zuordnung.indexOf(schluessel)] ?? "").trim()}“ und „${(kopf[index] ?? "").trim()}“`]
+            : []);
     const unbekannteSpalten = kopf
         .filter((zelle, index) => zelle.trim() && !zuordnung[index] && !UEBERGANGEN.has(normiere(zelle)))
         .map(zelle => zelle.trim());
@@ -421,7 +447,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
             return;
         }
         if (istBeispiel(eingabe)) {
-            beispielZeilen.push(index + 2);
+            beispielZeilen.push(index + kopfIndex + 2);
             return;
         }
         const { daten, fehler, hinweise } = zuVordruckDaten(eingabe);
@@ -444,7 +470,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         if (werte.length > kopf.length && !trennerAmZeilenende) {
             fehler.unshift(`${werte.length} Felder, aber nur ${kopf.length} Spalten im Kopf. Steht ein Semikolon im Text? Dann die Zelle in Anführungszeichen setzen; die Werte sind sonst verrutscht`);
         }
-        zeilen.push({ zeile: index + 2, eingabe, daten, fehler, hinweise });
+        zeilen.push({ zeile: index + kopfIndex + 2, eingabe, daten, fehler, hinweise });
     });
 
     // Doppelte Nummern: im Betriebsbuch muss jede Nummer eindeutig sein.
@@ -461,7 +487,11 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         }
     }
 
-    return { zeilen, unbekannteSpalten, beispielZeilen, bekannteSpalten: zuordnung.filter(Boolean).length };
+    return {
+        zeilen, unbekannteSpalten, beispielZeilen, doppelteSpalten,
+        bekannteSpalten: zuordnung.filter(Boolean).length,
+        kopfZeile: kopfIndex + 1
+    };
 }
 
 const MONATE = ["jan", "feb", "mrz", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];
@@ -473,11 +503,15 @@ export function datumZeitGruppe(zeit: Date): string {
         + `${MONATE[zeit.getMonth()]}${zwei(zeit.getFullYear() % 100)}`;
 }
 
-/** Zählt eine rein numerische Nummer hoch und behält führende Nullen; sonst leer. */
+/**
+ * Zählt die Ziffern am Ende hoch und behält Vorsatz und führende Nullen:
+ * „17“ → „18“, „A-09“ → „A-10“. Ohne Ziffern am Ende leer.
+ */
 export function naechsteNummer(nummer: string): string {
-    const ziffern = /^\d+$/.exec(nummer.trim())?.[0];
-    if (!ziffern) {
+    const teile = /^(.*?)(\d+)$/.exec(nummer.trim());
+    if (!teile) {
         return "";
     }
-    return String(Number(ziffern) + 1).padStart(ziffern.length, "0");
+    const [, vorsatz = "", ziffern = ""] = teile;
+    return vorsatz + String(Number(ziffern) + 1).padStart(ziffern.length, "0");
 }

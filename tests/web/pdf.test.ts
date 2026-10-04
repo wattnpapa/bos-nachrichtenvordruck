@@ -78,6 +78,8 @@ describe("dateiname mit Nummer und Zeit", () => {
             .toBe("nachrichtenvordruck_nr17_2026-10-04_1406.pdf");
         expect(dateiname({ vordruck: "nachricht", blatt: "a4", ohneHintergrund: false }, 3, zeit))
             .toBe("nachrichtenvordrucke_2026-10-04_1406.pdf");
+        expect(dateiname({ vordruck: "nachricht", blatt: "a4", ohneHintergrund: false }, 1, new Date(2026, 9, 4, 14, 6, 9)))
+            .toBe("nachrichtenvordruck_2026-10-04_140609.pdf");
         expect(dateiname({ vordruck: "meldung", blatt: "a4", ohneHintergrund: false }, 1, zeit, "17/a b"))
             .toBe("meldevordruck_nr17ab_2026-10-04_1406.pdf");
     });

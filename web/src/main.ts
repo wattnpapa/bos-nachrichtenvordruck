@@ -1,4 +1,7 @@
 /// <reference types="vite/client" />
+
+/** Bauzeitpunkt, von web/vite.config.ts eingesetzt. */
+declare const __FASSUNG__: string;
 import "./seite.js";
 import { zeichneBildvorschau } from "./bildvorschau.js";
 import { dekodiereCsv, schreibeCsv, leseCsv } from "./csv.js";
@@ -187,12 +190,14 @@ function felderFuerVordruckZeigen(): void {
 
 /** Ohne Übermittlungsweg oder Richtung bleibt dort auf dem Vordruck nichts angekreuzt; das soll auffallen. */
 function richtungPruefen(): void {
+    // Der Meldevordruck hat keine Richtung, aber auch „Übermittelt“ mit Funk, Kurier, Telefon und Fax.
+    const meldung = optionen().vordruck === "meldung";
     const fehlt = [
         (maske.elements.namedItem("weg") as HTMLSelectElement).value ? "" : "Übermittlungsweg",
-        document.querySelector('input[name="richtung"]:checked') ? "" : "Richtung"
+        meldung || document.querySelector('input[name="richtung"]:checked') ? "" : "Richtung"
     ].filter(Boolean);
     const hinweis = element<HTMLParagraphElement>("richtung-hinweis");
-    hinweis.hidden = fehlt.length === 0 || optionen().vordruck === "meldung";
+    hinweis.hidden = fehlt.length === 0;
     hinweis.textContent = `${fehlt.join(" und ")} nicht gewählt: Dort wird auf dem Vordruck nichts angekreuzt.`;
 }
 
@@ -223,7 +228,12 @@ function einstellungenLaden(): void {
     }
 }
 
-document.querySelector(".einstellungen")?.addEventListener("change", () => {
+document.querySelector(".einstellungen")?.addEventListener("change", ereignis => {
+    // Was gedruckt wird, soll auch im Feld stehen: ±20 mm.
+    const feld = ereignis.target;
+    if (feld instanceof HTMLInputElement && (feld.name === "versatzX" || feld.name === "versatzY")) {
+        feld.value = String(versatzWert(feld.name));
+    }
     speicher()?.setItem(EINSTELLUNGEN_SCHLUESSEL, JSON.stringify(optionen()));
     einstellungenZeigen();
     felderFuerVordruckZeigen();
@@ -362,6 +372,9 @@ function weitereZaehlen(): number {
     }
     weitereZahl.hidden = zahl === 0;
     weitereZahl.textContent = `${zahl} ${zahl === 1 ? "Angabe" : "Angaben"}`;
+    // Im Raster ist ein Kreuz in der falschen Zeile leicht übersehen; als Text fällt es auf.
+    const verteiler = (eingabe.verteiler ?? "").trim();
+    element<HTMLParagraphElement>("verteiler-stand").textContent = verteiler ? `Angekreuzt: ${verteiler}` : "Nichts angekreuzt.";
     // Titel und Hinweis bleiben von Vordruck zu Vordruck stehen; zugeklappt sollen sie sichtbar sein.
     const rand = [eingabe.titel, eingabe.hinweis].map(wert => (wert ?? "").trim()).filter(Boolean);
     element<HTMLSpanElement>("blattrand-stand").textContent = rand.length > 0
@@ -490,7 +503,19 @@ function einzelPruefen() {
         const tag = zeit.toDateString() === new Date().toDateString()
             ? "heute"
             : `am ${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}`;
-        hinweise.push(`Nr. ${daten.nummer} wurde schon ${tag} um ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr erstellt (Gegenstelle ${letzter.eingabe.empfaenger || "–"})`);
+        const uhrzeit = zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        // Gleiche Nr. und Gegenstelle: eher eine Korrektur derselben Nachricht als eine doppelte Nummer.
+        hinweise.push((letzter.eingabe.empfaenger ?? "") === (eingabe.empfaenger ?? "")
+            ? `Korrektur von Nr. ${daten.nummer}? Die Nummer wurde schon ${tag} um ${uhrzeit} Uhr erstellt`
+            : `Nr. ${daten.nummer} wurde schon ${tag} um ${uhrzeit} Uhr erstellt, mit Gegenstelle ${letzter.eingabe.empfaenger || "leer"}`);
+    }
+    // Die Längenwarnung auch dort, wo vor dem Download die übrigen Hinweise stehen.
+    const laengeVorab = pruefeTextlaenge(daten.inhalt, optionen().vordruck);
+    if (istKritisch(laengeVorab)) {
+        hinweise.push(textlaengeMeldung(laengeVorab).replace(/\.$/, ""));
+    }
+    if (/\d[^\d\s/-]+\d/.test(daten.nummer)) {
+        hinweise.push(`Nr. „${daten.nummer}“ mischt Ziffern und Buchstaben; „Nächster Vordruck“ zählt nur die Ziffern am Ende hoch`);
     }
     // Neue Nummer, aber Angaben des zuletzt erstellten Vordrucks stehen noch da:
     // wer nur Nr. und Text überschreibt, druckt sie sonst unbemerkt mit.
@@ -636,6 +661,7 @@ for (const knopf of document.querySelectorAll<HTMLButtonElement>("button[data-je
 /** Sperrt einen Knopf kurz, damit ein Doppeltipp nicht zweimal herunterlädt. */
 function kurzSperren(knopf: HTMLButtonElement): boolean {
     if (knopf.dataset["gesperrt"]) {
+        zeigeKurzmeldung("Doppelter Tipp: nur einmal ausgeführt.", false);
         return false;
     }
     knopf.dataset["gesperrt"] = "1";
@@ -662,9 +688,18 @@ function alsErstelltMerken(eingabe: Eingabe, jetzt: Date): void {
 }
 
 /** Bei schlecht lesbarem oder überlaufendem Text vor dem Erzeugen nachfragen. */
-async function textlaengeBestaetigt(inhalt: string): Promise<boolean> {
-    const laenge = pruefeTextlaenge(inhalt, optionen().vordruck);
-    return !istKritisch(laenge) || frage(`${textlaengeMeldung(laenge)} Trotzdem erzeugen?`, "Trotzdem erzeugen");
+async function einzelBestaetigt(eingabe: Eingabe): Promise<boolean> {
+    const { daten, fehler } = zuVordruckDaten(eingabe);
+    const laenge = pruefeTextlaenge(daten.inhalt, optionen().vordruck);
+    const doppelt = mitNummer(verlauf, daten.nummer)
+        .some(eintrag => JSON.stringify(eintrag.eingabe) !== JSON.stringify(eingabe) && (eintrag.eingabe.empfaenger ?? "") !== (eingabe.empfaenger ?? ""));
+    const probleme = [
+        istKritisch(laenge) ? textlaengeMeldung(laenge) : "",
+        fehler.length > 0 ? `${fehler[0]}.` : "",
+        doppelt ? `Nr. ${daten.nummer} wurde schon für eine andere Gegenstelle erstellt.` : "",
+        !daten.inhalt ? "Der Vordruck hat keinen Text." : ""
+    ].filter(Boolean);
+    return probleme.length === 0 || frage(`${probleme.join(" ")} Trotzdem erzeugen?`, "Trotzdem erzeugen");
 }
 
 /** Erzeugt den Einzelvordruck für Download, Druck oder neuen Tab und merkt ihn sich. */
@@ -673,7 +708,7 @@ async function einzelErstellen(knopf: HTMLButtonElement, wie: "herunterladen" | 
         return;
     }
     const eingabe = maskeLesen();
-    if (!await textlaengeBestaetigt(eingabe.inhalt ?? "")) {
+    if (!await einzelBestaetigt(eingabe)) {
         return;
     }
     const jetzt = new Date();
@@ -711,7 +746,24 @@ element<HTMLButtonElement>("leere-vordrucke").addEventListener("click", ereignis
     const gewaehlt = { ...optionen(), ohneHintergrund: false };
     const anzahl = gewaehlt.blatt === "a4" && gewaehlt.vordruck !== "beide" ? 2 : 1;
     const leer = Array.from({ length: anzahl }, () => zuVordruckDaten({}).daten);
-    herunterladen(erzeugePdf(leer, gewaehlt).output("blob"), dateiname(gewaehlt, anzahl).replace(".pdf", "_leer.pdf"));
+    const name = dateiname(gewaehlt, anzahl).replace(".pdf", "_leer.pdf");
+    herunterladen(erzeugePdf(leer, gewaehlt).output("blob"), name);
+    meldeStatus(`${name} erstellt: ein Blatt. Mehr Exemplare im Druckdialog unter „Kopien“ einstellen.`, "behalten", true);
+});
+
+// Probeblatt für vorgedruckte Bögen: alle Felder mit Beispielwerten, ohne
+// Formularbild, mit dem eingestellten Versatz. Gegen das Licht auf einen Bogen legen.
+element<HTMLButtonElement>("probeblatt").addEventListener("click", ereignis => {
+    if (!kurzSperren(ereignis.currentTarget as HTMLButtonElement)) {
+        return;
+    }
+    const beispiel = Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, spalte.beispiel || "X"])) as Eingabe;
+    beispiel.verteiler = "Leiter, S1/1, S2/2, S3/3, S4/1, S6/2";
+    beispiel.gespraechsnotiz = "ja";
+    beispiel.richtung = "Ausgang";
+    const gewaehlt = { ...optionen(), ohneHintergrund: true };
+    herunterladen(erzeugePdf([zuVordruckDaten(beispiel).daten], gewaehlt).output("blob"), dateiname(gewaehlt, 1).replace(".pdf", "_probeblatt.pdf"));
+    meldeStatus("Probeblatt erstellt: auf Normalpapier drucken, gegen das Licht auf einen Bogen legen, Versatz anpassen.", "behalten", true);
 });
 
 // ---- Liste erstellter Vordrucke ----------------------------------------
@@ -833,7 +885,7 @@ element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", async () 
     if (belegt.length === 0) {
         return;
     }
-    if (!await frage(`Alle Felder leeren? ${belegt.length} ausgefüllte Angaben${zusatz} werden geleert. Danach lässt es sich einmal rückgängig machen.`, "Felder leeren")) {
+    if (!await frage(`Alle Felder leeren? ${belegt.length} ausgefüllte ${belegt.length === 1 ? "Angabe" : "Angaben"}${zusatz} ${belegt.length === 1 ? "wird" : "werden"} geleert. Danach lässt es sich rückgängig machen.`, "Felder leeren")) {
         return;
     }
     maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
@@ -913,6 +965,8 @@ async function dateiEinlesen(datei: File): Promise<void> {
         }
         ergebnis = neu;
         dateiName = datei.name;
+        // Nur der Name, nicht der Inhalt: nach dem Neuladen sagt die Seite, was zuvor geladen war.
+        tabSpeicher()?.setItem("bnv.tabelle.v1", datei.name);
     } catch (fehler) {
         const meldung = `${datei.name} ließ sich nicht lesen: ${fehler instanceof Error ? fehler.message : String(fehler)}`;
         ergebnis = vorher?.ergebnis ?? null;
@@ -977,6 +1031,20 @@ function tabelleAnzeigen(): void {
         satz.textContent = `Diese Spalten sind unbekannt und werden ignoriert: ${unbekannteSpalten.join(", ")}.`;
         warnung.append(satz);
     }
+    const zusatz = [
+        ergebnis.kopfZeile > 1 ? `Die Spaltenköpfe stehen in Zeile ${ergebnis.kopfZeile}; die Zeilen davor werden übergangen.` : "",
+        ...ergebnis.doppelteSpalten.map(paar => `Die Spalten ${paar} meinen dasselbe Feld; genommen wird die rechte.`),
+        // Wie im Einzelweg: fehlt ein Kennzeichen überall, wird es auf keinem Bogen angekreuzt.
+        zeilen.length > 0 && vordruck !== "meldung" && zeilen.every(zeile => !zeile.daten.richtung)
+            ? "In keiner Zeile steht eine Richtung; im Betriebsbuch wird weder Eingang noch Ausgang angekreuzt." : "",
+        zeilen.length > 0 && zeilen.every(zeile => !zeile.daten.uebermittlungsweg)
+            ? "In keiner Zeile steht ein Übermittlungsweg; auf den Vordrucken wird keiner angekreuzt." : ""
+    ].filter(Boolean);
+    for (const text of zusatz) {
+        const satz = document.createElement("p");
+        satz.textContent = text;
+        warnung.append(satz);
+    }
     if (auffaellig.length > 0) {
         const liste = document.createElement("ul");
         const zeigen = [...auffaellig.slice(0, 20), ...auffaellig.length > 20 ? [`… und ${auffaellig.length - 20} weitere`] : []];
@@ -1018,7 +1086,7 @@ function tabelleAnzeigen(): void {
         const WEGE_TEXT: Record<string, string> = { dfue: "DFÜ" };
         const weg = zeile.daten.uebermittlungsweg;
         // ⚠ Fehler (Wert fehlt auf dem Vordruck), ! Hinweis (wird gedruckt, wie es dasteht).
-        const marke = zeile.fehler.length > 0 ? " ⚠" : zeile.hinweise.length > 0 ? " !" : "";
+        const marke = zeile.fehler.length > 0 ? " ⚠ Fehler" : zeile.hinweise.length > 0 ? " ! Hinweis" : "";
         const zellen = [
             ["Zeile", `${zeile.zeile}${marke}`, "zahl"],
             ["Nr.", zeile.daten.nummer, "zahl"],
@@ -1054,8 +1122,26 @@ function tabelleAnzeigen(): void {
     element<HTMLButtonElement>("tabelle-oeffnen").disabled = zeilen.length === 0;
 }
 
+/**
+ * Zeilen mit verworfenen Werten tragen am unteren Blattrand einen Prüfvermerk,
+ * damit der Bogen selbst zeigt, dass dort etwas fehlt.
+ */
 function tabellenPdf() {
-    return erzeugePdf((ergebnis?.zeilen ?? []).map(zeile => zeile.daten), optionen());
+    return erzeugePdf((ergebnis?.zeilen ?? []).map(zeile => {
+        if (zeile.fehler.length > 0) {
+            const vermerk = `Prüfen: ${kurz(zeile.fehler.join("; "), 100)}`;
+            zeile.daten.hinweis = zeile.eingabe.hinweis?.trim() ? `${zeile.eingabe.hinweis.trim()} · ${vermerk}` : vermerk;
+        }
+        return zeile.daten;
+    }), optionen());
+}
+
+/** Nummernbereich für den Dateinamen, z. B. „17-24“. */
+function nummernbereich(zeilen: readonly { daten: { nummer: string } }[]): string {
+    const nummern = zeilen.map(zeile => zeile.daten.nummer).filter(Boolean);
+    const erste = nummern[0];
+    const letzte = nummern.at(-1);
+    return erste && letzte ? (erste === letzte ? erste : `${erste}-${letzte}`) : "";
 }
 
 element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", async ereignis => {
@@ -1073,16 +1159,16 @@ element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", async ereign
         erste ? `${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} Fehler, etwa Zeile ${erste.zeile}: ${erste.fehler[0]}. Betroffene Felder bleiben leer oder werden ersetzt.` : "",
         zuLang.length > 0 ? `In ${zuLang.length === 1 ? "Zeile" : "den Zeilen"} ${zuLang.map(zeile => zeile.zeile).join(", ")} ist der Text zu lang und schlecht lesbar.` : "",
         doppelt.length > 0 ? `Die Zeilen ${doppelt.map(zeile => zeile.zeile).join(", ")} haben doppelte Nummern.` : "",
-        leseHinweise[0] ? `${leseHinweise[0]}` : ""
+        leseHinweise.find(hinweis => !hinweis.startsWith("Gelesen wurde")) ?? ""
     ].filter(Boolean);
-    if (probleme.length > 0 && !await frage(`${probleme.join(" ")} Trotzdem die PDF erzeugen?`, "Trotzdem erzeugen")) {
+    if (!await tabelleBestaetigt(probleme)) {
         return;
     }
     void mitArbeit(knopf, "PDF wird erstellt…", async () => {
         // Einen Takt warten, damit der Knopf seinen Arbeitszustand zeigt, bevor jsPDF rechnet.
         await new Promise(fertig => setTimeout(fertig, 30));
         const jetzt = new Date();
-        herunterladen(tabellenPdf().output("blob"), dateiname(optionen(), zeilen.length, jetzt));
+        herunterladen(tabellenPdf().output("blob"), dateiname(optionen(), zeilen.length, jetzt, nummernbereich(zeilen)));
         // Auch Tabellen-Vordrucke in die Liste: zum Abgleich und gegen doppelte Nummern.
         verlauf = merkeVordrucke(zeilen.map(zeile => zeile.eingabe), jetzt);
         verlaufZeigen();
@@ -1091,10 +1177,20 @@ element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", async ereign
     });
 });
 
-element<HTMLButtonElement>("tabelle-oeffnen").addEventListener("click", ereignis => {
-    if (kurzSperren(ereignis.currentTarget as HTMLButtonElement)) {
-        window.open(URL.createObjectURL(tabellenPdf().output("blob")), "_blank", "noopener");
+async function tabelleBestaetigt(probleme: readonly string[]): Promise<boolean> {
+    return probleme.length === 0 || frage(`${probleme.join(" ")} Trotzdem die PDF erzeugen?`, "Trotzdem erzeugen");
+}
+
+// Auch die Vorschau fragt bei Fehlern nach: aus dem neuen Tab wird oft direkt gedruckt.
+element<HTMLButtonElement>("tabelle-oeffnen").addEventListener("click", async ereignis => {
+    if (!kurzSperren(ereignis.currentTarget as HTMLButtonElement)) {
+        return;
     }
+    const mitFehler = (ergebnis?.zeilen ?? []).filter(zeile => zeile.fehler.length > 0);
+    if (mitFehler.length > 0 && !await tabelleBestaetigt([`${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} Fehler; betroffene Felder bleiben leer.`])) {
+        return;
+    }
+    window.open(URL.createObjectURL(tabellenPdf().output("blob")), "_blank", "noopener");
 });
 
 const dateiFeld = element<HTMLInputElement>("datei");
@@ -1165,9 +1261,8 @@ if (wiederhergestellt || verlauf.length > 0) {
     document.documentElement.classList.add("wiederkehrend");
 }
 
-// Am Telefon stehen die Einstellungen sonst vor der eigentlichen Arbeit; der Kopf
-// zeigt zugeklappt, was gewählt ist. Am breiten Bildschirm bleiben sie offen.
-element<HTMLDetailsElement>("einstellungen").open = matchMedia("(min-width: 64rem)").matches;
+// Zugeklappt; der Kopf zeigt die Wahl. So beginnt die Maske auch am Rechner weiter oben.
+element<HTMLDetailsElement>("einstellungen").open = false;
 
 element<HTMLButtonElement>("zur-vorschau").addEventListener("click", () => {
     (document.activeElement as HTMLElement | null)?.blur();
@@ -1183,9 +1278,45 @@ addEventListener("offline", netzZeigen);
 netzZeigen();
 zeigeReiter(location.hash === "#tabelle" ? "tabelle" : "einzeln", false, "ersetzen");
 
+// Nach dem Neuladen ist die Tabelle weg (sie wird nicht gespeichert); wenigstens sagen, welche es war.
+const vorigeTabelle = tabSpeicher()?.getItem("bnv.tabelle.v1");
+if (vorigeTabelle && !ergebnis) {
+    const hinweis = element<HTMLParagraphElement>("tabelle-vorher");
+    hinweis.textContent = `Vor dem Neuladen war ${vorigeTabelle} geladen. Tabellen werden nicht gespeichert; bitte erneut einlesen.`;
+    hinweis.hidden = false;
+}
+
+// Ein zweiter offener Tab arbeitet mit demselben gespeicherten Entwurf; der Hinweis soll das sagen.
+try {
+    const kanal = new BroadcastChannel("bnv");
+    kanal.addEventListener("message", nachricht => {
+        if (nachricht.data === "wer-ist-da") {
+            kanal.postMessage("hier");
+        } else if (nachricht.data === "hier" && !entwurfHinweis.hidden && wiederhergestellt) {
+            const text = element<HTMLParagraphElement>("entwurf-text");
+            if (!text.textContent?.includes("anderen Tab")) {
+                text.textContent += " Die App ist noch in einem anderen Tab offen; dieser Entwurf stammt vermutlich von dort.";
+            }
+        }
+    });
+    kanal.postMessage("wer-ist-da");
+} catch {
+    // Ohne BroadcastChannel kein Hinweis.
+}
+
+// Fassung im Fuß, damit bei Rückfragen klar ist, welcher Stand läuft.
+element<HTMLSpanElement>("fassung").textContent = `Fassung ${__FASSUNG__}`;
+
 // Nach dem ersten Aufruf startet die Seite aus dem Cache, auch ohne Netz.
 // Der Dienst entsteht erst beim Bauen (web/vite.config.ts), im Entwicklungsserver gibt es ihn nicht.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
+    // Eine neue Fassung übernimmt sofort; die offene Seite läuft bis zum Neuladen mit der alten.
+    const hatteDienst = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (hatteDienst) {
+            zeigeKurzmeldung("Eine neue Fassung der App ist geladen. Sie gilt ab dem nächsten Neuladen; Eingaben bleiben erhalten.", false);
+        }
+    });
     navigator.serviceWorker.register("./sw.js")
         .then(() => navigator.serviceWorker.ready)
         .then(() => {

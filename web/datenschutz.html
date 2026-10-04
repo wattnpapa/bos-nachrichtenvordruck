@@ -6,6 +6,13 @@
   <title>Datenschutz – Nachrichtenvordruck</title>
   <meta name="description" content="Datenschutzerklärung des Nachrichtenvordrucks: was im Browser bleibt und was beim Aufruf der Seite anfällt." />
   <meta name="theme-color" content="#12275e" />
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    /* Grundfarbe, bevor das Stylesheet geladen ist: nachts kein heller Blitz. */
+    html { background: #f3f5f9; }
+    html.dunkel-modus { background: #0f1116; color: #e7eaf1; }
+    html.nacht-modus { background: #0d0c08; color: #d9cdb6; }
+  </style>
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <script>
     // Anzeigemodus vor dem ersten Malen anwenden, sonst blitzt die Seite
@@ -17,6 +24,8 @@
         bnvModus = "dunkel";
       if (bnvModus === "feld" || bnvModus === "nacht" || bnvModus === "dunkel")
         document.documentElement.classList.add(bnvModus + "-modus");
+      if (bnvModus === "nacht")
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", "#221f16");
     } catch (e) { /* Privatmodus: Standard-Darstellung */ }
   </script>
   <!-- Reichweitenmessung, siehe datenschutz.html Punkt 5. Widerspruch über

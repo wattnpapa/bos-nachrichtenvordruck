@@ -47,4 +47,8 @@ describe("CSV", () => {
         expect(zeilen).toHaveLength(3);
         expect(hinweise[0]).toMatch(/^Ab Zeile 2 umfasst ein Feld/);
     });
+
+    it("lässt Anführungszeichen mitten im Text stehen", () => {
+        expect(leseCsv("Nr;Inhalt\n1;Text mit \"Zitat\" drin\n")).toEqual([["Nr", "Inhalt"], ["1", "Text mit \"Zitat\" drin"]]);
+    });
 });

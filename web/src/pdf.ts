@@ -118,7 +118,9 @@ export function dateiname(optionen: PdfOptionen, anzahl: number, zeit?: Date, nu
     const teile = [
         `${art}${mehrzahl}`,
         nummer.replace(/[^\p{L}\p{N}-]+/gu, "").slice(0, 20) ? `nr${nummer.replace(/[^\p{L}\p{N}-]+/gu, "").slice(0, 20)}` : "",
-        zeit ? `${zeit.getFullYear()}-${zwei(zeit.getMonth() + 1)}-${zwei(zeit.getDate())}_${zwei(zeit.getHours())}${zwei(zeit.getMinutes())}` : ""
+        // Ohne Nummer mit Sekunden: zwei Einzelvordrucke derselben Minute heißen sonst gleich.
+        zeit ? `${zeit.getFullYear()}-${zwei(zeit.getMonth() + 1)}-${zwei(zeit.getDate())}_${zwei(zeit.getHours())}${zwei(zeit.getMinutes())}`
+            + (anzahl === 1 && !nummer ? zwei(zeit.getSeconds()) : "") : ""
     ];
     return `${teile.filter(Boolean).join("_")}.pdf`;
 }

@@ -281,7 +281,7 @@ fieldset.wahl legend {
 }
 fieldset.wahl label.inline { display: flex; margin-right: 0; }
 /* Abstand zwischen den Optionen, damit ein grober Tipp nicht die Nachbarzeile trifft. */
-fieldset.wahl label.inline + label.inline { margin-top: var(--r-1); }
+fieldset.wahl label.inline + label.inline { margin-top: var(--r-2); }
 fieldset.wahl.richtung { flex: 0 1 auto; }
 fieldset.wahl.richtung label.inline { display: inline-flex; margin-right: var(--r-4); }
 .einstellungen .zeile { align-items: flex-start; gap: var(--r-3) var(--r-5); }
@@ -308,7 +308,7 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 .verteiler table { border-collapse: collapse; margin-top: var(--r-1); }
 .verteiler th, .verteiler td { padding: 0 var(--r-2) 0 0; text-align: center; font-size: var(--t-s); }
 .verteiler th[scope="row"] { text-align: left; font-family: var(--schrift-daten); color: var(--text-2); padding-right: var(--r-3); }
-.verteiler td { padding: 2px var(--r-1) 2px 0; }
+.verteiler td { padding: 4px var(--r-1) 4px 0; }
 .verteiler td label {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: calc(var(--ziel-basis) + var(--ziel)); min-height: calc(var(--ziel-basis) + var(--ziel)); cursor: pointer;
@@ -429,7 +429,7 @@ footer.seite {
   border-top: var(--strich) solid var(--linie); font-size: var(--t-s); color: var(--text-2);
 }
 .fuss-gruppen { display: grid; gap: var(--r-4) var(--r-5); grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
-.fuss-gruppe { display: flex; flex-direction: column; align-items: flex-start; gap: var(--r-1); }
+.fuss-gruppe { display: flex; flex-direction: column; align-items: flex-start; gap: var(--r-2); }
 .fuss-gruppe a {
   display: inline-flex; align-items: center; min-height: calc(var(--ziel-basis) + var(--ziel));
   color: var(--text); text-decoration: underline; text-decoration-color: var(--linie); text-underline-offset: 0.2em;
@@ -584,3 +584,22 @@ dialog.frage {
 dialog.frage::backdrop { background: rgba(0, 0, 0, 0.55); }
 dialog.frage p { margin: 0 0 var(--r-3); }
 dialog.frage .aktionen { margin-top: 0; }
+
+/* Sprungziele nicht an den oberen Rand kleben. */
+#vorschau-titel, #abschluss { scroll-margin-top: var(--r-4); }
+
+/* Fehlerkarte am Telefon: kräftiger Rand, nicht nur Tönung; Zahlenzellen voll breit. */
+table.uebersicht tr.mit-fehler { box-shadow: inset 6px 0 0 var(--alarm); }
+@media (max-width: 40rem) {
+  table.uebersicht td.zahl { width: 100%; }
+}
+
+/* ---- Nacht und Dunkel: Feinschliff --------------------------------- */
+.nacht-modus { --strich: 2px; }
+.nacht-modus button:disabled { opacity: 0.7; }
+.nacht-modus .karte, .dunkel-modus .karte { border-color: var(--linie-stark); }
+.dunkel-modus button.primaer { filter: brightness(0.85); }
+/* Die Sprungleiste steht dauernd im Bild: nachts als Rahmenknopf statt heller Fläche. */
+.nacht-modus .sprungleiste button.primaer {
+  background: var(--flaeche); color: var(--akzent-hell); border-color: var(--akzent); filter: none;
+}

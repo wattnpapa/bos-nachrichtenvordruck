@@ -87,7 +87,9 @@ function ladeBild(quelle: string): Promise<HTMLImageElement> {
  * in der Breite des Canvas-Elements.
  */
 export async function zeichneBildvorschau(canvas: HTMLCanvasElement, daten: VordruckDaten, optionen: PdfOptionen): Promise<void> {
-    daten.fusszeile = HERKUNFT;
+    // Wie die PDF: ohne Formularbild keine Herkunftszeile, dafür mit Druckversatz.
+    daten.fusszeile = optionen.ohneHintergrund ? "" : HERKUNFT;
+    const versatz = optionen.ohneHintergrund ? { x: optionen.versatzX ?? 0, y: optionen.versatzY ?? 0 } : { x: 0, y: 0 };
     const renderOptionen = { ohneHintergrund: optionen.ohneHintergrund };
     const seiten: Aufruf[][] = [];
     if (optionen.vordruck !== "meldung") {
@@ -127,6 +129,7 @@ export async function zeichneBildvorschau(canvas: HTMLCanvasElement, daten: Vord
         kontext.translate(0, index * (VORDRUCK_HOEHE + abstand));
         kontext.fillStyle = "#fff";
         kontext.fillRect(0, 0, VORDRUCK_BREITE, VORDRUCK_HOEHE);
+        kontext.translate(versatz.x, versatz.y);
         for (const aufruf of seite) {
             if (aufruf.art === "bild") {
                 const bild = geladen.get(aufruf.quelle);

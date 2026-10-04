@@ -50,6 +50,8 @@ export default defineConfig({
     root: "web",
     base: "./",
     plugins: [offline()],
+    // Fassung zum Anzeigen im Fuß: Tag des Bauens.
+    define: { __FASSUNG__: JSON.stringify(new Date().toISOString().slice(0, 10)) },
     build: {
         outDir: "../dist-web",
         emptyOutDir: true,

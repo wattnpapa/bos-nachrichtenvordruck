@@ -112,6 +112,8 @@
                   <input type="number" name="versatzY" step="0.5" min="-20" max="20" value="0" inputmode="decimal" />
                 </label>
               </div>
+              <p class="hinweis">Höchstens 20 mm in jede Richtung.</p>
+              <button type="button" id="probeblatt">Probeblatt mit Beispielwerten</button>
             </div>
           </fieldset>
         </div>
@@ -127,7 +129,7 @@
                 <label class="feld schmal">Nr.
                   <input name="nummer" inputmode="numeric" />
                 </label>
-                <label class="feld mittel" data-nur="nachricht">Übermittlungsweg
+                <label class="feld mittel">Übermittlungsweg
                   <select name="weg">
                     <option value="">–</option>
                     <option>Funk</option><option>Telefon</option><option>Telefax</option><option>DFÜ</option><option>Kurier</option>
@@ -139,7 +141,7 @@
                   <label class="inline"><input type="radio" name="richtung" value="Ausgang" /> Ausgang</label>
                 </fieldset>
               </div>
-              <p class="hinweis" id="richtung-hinweis" data-nur="nachricht"></p>
+              <p class="hinweis" id="richtung-hinweis"></p>
             </section>
 
             <section class="karte">
@@ -211,22 +213,22 @@
               <div class="zeile">
                 <label class="feld schmal">Datum <input name="aufnahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
                 <label class="feld schmal">Uhrzeit <input name="aufnahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
-                <label class="feld schmal">Hdz. <input name="aufnahmeHdz" /></label>
                 <button type="button" class="jetzt" data-jetzt="aufnahme" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
+                <label class="feld schmal">Hdz. <input name="aufnahmeHdz" /></label>
               </div>
               <h4>Annahmevermerk (Ausgang)</h4>
               <div class="zeile">
                 <label class="feld schmal">Datum <input name="annahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
                 <label class="feld schmal">Uhrzeit <input name="annahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
-                <label class="feld schmal">Hdz. <input name="annahmeHdz" /></label>
                 <button type="button" class="jetzt" data-jetzt="annahme" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
+                <label class="feld schmal">Hdz. <input name="annahmeHdz" /></label>
               </div>
               <h4>Beförderungsvermerk (Ausgang)</h4>
               <div class="zeile">
                 <label class="feld schmal">Datum <input name="befoerderungDatum" inputmode="decimal" placeholder="TT.MM." /></label>
                 <label class="feld schmal">Uhrzeit <input name="befoerderungUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
-                <label class="feld schmal">Hdz. <input name="befoerderungHdz" /></label>
                 <button type="button" class="jetzt" data-jetzt="befoerderung" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
+                <label class="feld schmal">Hdz. <input name="befoerderungHdz" /></label>
               </div>
               <h4>Quittung</h4>
               <div class="zeile">
@@ -238,6 +240,7 @@
               </div>
               <h4>Verteiler</h4>
               <p class="hinweis">Wie auf dem Bogen unter „TEL / EL / EAL / UEAL“: Leiter, darunter die Sachgebiete S1 bis S4 und S6 mit je drei Spalten.</p>
+              <p class="nebentext" id="verteiler-stand" aria-live="polite"></p>
               <div class="verteiler" role="group" aria-label="Verteiler">
                 <label class="inline"><input type="checkbox" name="verteiler" value="Leiter" /> Leiter</label>
                 <table>
@@ -264,11 +267,11 @@
           <section class="karte vorschau" aria-labelledby="vorschau-titel">
             <div class="kopfzeile">
               <h3 id="vorschau-titel">Vorschau</h3>
-              <button type="button" class="link" id="einzeln-oeffnen">In neuem Tab öffnen<span class="nur-dunkel"> (helles Blatt)</span></button>
+              <button type="button" id="einzeln-oeffnen">In neuem Tab öffnen<span class="nur-dunkel"> (helles Blatt)</span></button>
             </div>
             <iframe id="einzeln-vorschau" title="Vorschau des Vordrucks"></iframe>
             <canvas id="einzeln-bild" class="bildvorschau" role="img" aria-label="Vorschau des Vordrucks" hidden></canvas>
-            <p class="nebentext" id="vorschau-ersatz" hidden>Bildvorschau: die Schrift weicht leicht ab. „In neuem Tab öffnen“ zeigt die PDF, wie sie gedruckt wird.<span class="nur-dunkel"> Die Vorschau ist hier abgedunkelt; die PDF im neuen Tab ist ein helles weißes Blatt.</span></p>
+            <p class="nebentext" id="vorschau-ersatz" hidden>Vorschau als Bild zum Prüfen. „In neuem Tab öffnen“ zeigt die PDF genau so, wie sie gedruckt wird.<span class="nur-dunkel"> Die Vorschau ist hier abgedunkelt; die PDF im neuen Tab ist ein helles weißes Blatt.</span></p>
           </section>
 
           <!-- Nach der Vorschau, damit am Telefon erst geprüft und dann heruntergeladen wird. -->
@@ -288,7 +291,7 @@
 
             <details class="verlauf" id="verlauf" hidden>
               <summary>Erstellte Vordrucke <span class="stand" id="verlauf-zahl"></span></summary>
-              <p class="nebentext">Liste auf diesem Gerät, zum Abgleich mit dem Betriebsbuch. Als CSV lässt sie sich wieder einlesen.</p>
+              <p class="nebentext">Liste auf diesem Gerät, zum Abgleich mit dem Betriebsbuch. Es bleiben die letzten 200; als CSV lässt sie sich sichern und wieder einlesen.</p>
               <div class="tabellen-scroll">
                 <table class="uebersicht">
                   <thead><tr><th>Zeit</th><th>Nr.</th><th>Gegenstelle</th><th>Inhalt</th></tr></thead>
@@ -325,6 +328,7 @@
               <span class="datei-knopf primaer" aria-hidden="true">Datei auswählen…</span>
               <span class="nebentext">oder hierher ziehen</span>
             </label>
+            <p class="warnung" id="tabelle-vorher" hidden></p>
           </section>
         </div>
 
@@ -335,15 +339,16 @@
           <p id="ergebnis-zusammenfassung"></p>
           <div class="warnung" id="ergebnis-warnung" hidden></div>
           <div class="alarm-kasten" id="ergebnis-fehler" hidden></div>
+          <!-- Vor der Übersicht: bei vielen Zeilen stünden die Knöpfe sonst Bildschirme tiefer. -->
+          <div class="aktionen">
+            <button type="button" class="primaer" id="tabelle-pdf">PDF herunterladen</button>
+            <button type="button" id="tabelle-oeffnen">Vorschau öffnen</button>
+          </div>
           <div class="tabellen-scroll">
             <table class="uebersicht" id="ergebnis-tabelle">
               <thead><tr><th>Zeile</th><th>Nr.</th><th>Vorrang</th><th>Art</th><th>Weg</th><th>Richtung</th><th>Zeit</th><th>Gegenstelle</th><th>Inhalt</th><th>Absender</th></tr></thead>
               <tbody></tbody>
             </table>
-          </div>
-          <div class="aktionen">
-            <button type="button" class="primaer" id="tabelle-pdf">PDF herunterladen</button>
-            <button type="button" id="tabelle-oeffnen">Vorschau öffnen</button>
           </div>
         </section>
       </section>
@@ -361,8 +366,8 @@
       <form method="dialog">
         <p id="frage-text"></p>
         <div class="aktionen">
-          <button value="ja" class="primaer" id="frage-ja">OK</button>
-          <button value="nein" id="frage-nein">Abbrechen</button>
+          <button value="nein" class="primaer" id="frage-nein">Abbrechen</button>
+          <button value="ja" id="frage-ja">OK</button>
         </div>
       </form>
     </dialog>
@@ -381,7 +386,7 @@
           <a href="./datenschutz.html">Datenschutz</a>
         </div>
       </div>
-      <p class="fuss-marke">Lizenz EUPL-1.2. Ohne Anmeldung, ohne Speicherung auf einem Server.</p>
+      <p class="fuss-marke">Lizenz EUPL-1.2. Ohne Anmeldung, ohne Speicherung auf einem Server. <span id="fassung"></span></p>
       <nav class="werkzeuge" aria-label="Weitere Werkzeuge">
         <a href="https://erfassungsbogen.app/">erfassungsbogen.app</a><span aria-hidden="true">·</span>
         <a href="https://fmbauplaner.app/">fmbauplaner.app</a><span aria-hidden="true">·</span>

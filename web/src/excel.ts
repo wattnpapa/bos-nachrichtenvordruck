@@ -133,14 +133,25 @@ export async function leseExcel(daten: ArrayBuffer, hinweise: string[] = []): Pr
         throw new Error("Die Datei ist keine lesbare Excel-Datei (.xlsx). Ist sie beschädigt oder nur umbenannt? In Excel öffnen und als .xlsx oder CSV neu speichern.");
     }
 
-    const kopfTexte = (blatt: (typeof mappe.worksheets)[number]) => {
-        const werte = blatt.getRow(1).values;
-        return Array.isArray(werte) ? werte.map(wert => zellText(wert ?? null)) : [];
+    // Das Blatt mit den meisten bekannten Spaltenköpfen in den ersten zehn
+    // Zeilen; bei Gleichstand „Vordrucke“. Ein Blatt dieses Namens mit falschen
+    // Köpfen gewinnt so nicht mehr gegen ein passendes anderes.
+    const bewertung = (blatt: (typeof mappe.worksheets)[number]) => {
+        let beste = 0;
+        for (let zeile = 1; zeile <= Math.min(10, blatt.rowCount); zeile++) {
+            const werte = blatt.getRow(zeile).values;
+            const texte = Array.isArray(werte) ? werte.map(wert => zellText(wert ?? null)) : [];
+            beste = Math.max(beste, texte.filter(text => schluesselZuKopf(text)).length);
+        }
+        return beste + (blatt.name === BLATT ? 0.5 : 0);
     };
-    const blatt = mappe.getWorksheet(BLATT)
-        ?? mappe.worksheets.find(kandidat => kopfTexte(kandidat).some(text => schluesselZuKopf(text)));
+    const blatt = [...mappe.worksheets].sort((a, b) => bewertung(b) - bewertung(a))
+        .find(kandidat => bewertung(kandidat) >= 1);
+    if (blatt && mappe.worksheets.length > 1) {
+        hinweise.push(`Gelesen wurde das Blatt „${blatt.name}“.`);
+    }
     if (!blatt) {
-        throw new Error("In der Datei steht kein Blatt mit bekannten Spalten (z. B. „Inhalt“, „Empfänger“).");
+        throw new Error("In der Datei steht kein Blatt mit bekannten Spalten (z. B. „Inhalt“, „Gegenstelle“).");
     }
 
     const breite = blatt.columnCount;
