@@ -13,7 +13,7 @@ export type Blattformat = "a4" | "a4hoch" | "a5";
 export interface PdfOptionen {
     vordruck: VordruckWahl;
     blatt: Blattformat;
-    /** Formularbild weglassen, zum Bedrucken vorgedruckter Bögen. */
+    /** Formular weglassen, zum Bedrucken vorgedruckter Bögen. */
     ohneHintergrund: boolean;
     /**
      * Nur mit `ohneHintergrund`: Text in mm nach rechts bzw. unten verschieben,
@@ -96,7 +96,7 @@ export function erzeugePdf(
  * Zeichnet den Vordruck um `dx`/`dy` mm versetzt: um den Rand von A4 hoch und
  * um den eingestellten Druckversatz. Die Renderer kennen nur einen
  * waagerechten Versatz; die Transformationsmatrix verschiebt alles
- * gleichermaßen, Formularbild wie Text. Sie rechnet in Punkt, mit dem
+ * gleichermaßen, Formular wie Eintragungen. Sie rechnet in Punkt, mit dem
  * Ursprung unten links: nach unten verschieben heißt negatives y.
  */
 function verschoben(pdf: jsPDF, dx: number, dy: number, zeichnen: () => void): void {

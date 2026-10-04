@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { MELDEVORDRUCK_HINTERGRUND, VordruckDaten, zeichneMeldevordruck } from "../src/index.js";
+import { VordruckDaten, zeichneMeldevordruck } from "../src/index.js";
 import { protokollPdf } from "./hilfen.js";
 
-describe("Meldevordruck: Bild und Rahmen", () => {
-    it("legt das mitgelieferte Formularbild und den Rahmen", () => {
+describe("Meldevordruck: Formular und Rahmen", () => {
+    it("zeichnet Formular und Rahmen, ohne Bild", () => {
         const { pdf, texte, bilder } = protokollPdf();
         const daten = new VordruckDaten();
         daten.absender = "Heros Oldenburg 16/11";
@@ -11,7 +11,8 @@ describe("Meldevordruck: Bild und Rahmen", () => {
 
         zeichneMeldevordruck(pdf, daten, { offsetX: 148 });
 
-        expect(bilder).toEqual([{ daten: MELDEVORDRUCK_HINTERGRUND, x: 148, alias: "bos-meldevordruck" }]);
+        expect(bilder).toHaveLength(0);
+        expect(texte).toContainEqual({ text: "Meldung / Auftrag", x: 148 + 31.14, y: 12.62 });
         expect(texte.map(t => t.text)).toEqual(expect.arrayContaining(["Heros Oldenburg 16/11", "Testübung"]));
     });
 

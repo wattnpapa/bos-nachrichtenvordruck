@@ -11,7 +11,7 @@ npm test             # Vitest (watch)
 npx vitest run --coverage
 npm run typecheck
 npm run build        # tsc → dist/
-npm run bilder       # assets/*.png → src/hintergrund.ts
+npm run vergleich    # Formular rot über assets/*.png → vergleich/vergleich.pdf
 npm run web          # Web-App (web/) im Entwicklungsserver
 npm run web:build    # Web-App → dist-web/, GitHub Pages
 ```
@@ -24,8 +24,10 @@ npm run web:build    # Web-App → dist-web/, GitHub Pages
 - Die Zeichenreihenfolge ist festgeschrieben: gleiche Eingabe, gleiche PDF.
 - Koordinaten sind am Formularbild vermessen (mm). Zellhöhen nicht vergrößern,
   sonst greift die Schriftverkleinerung nicht.
+- Das Formular wird als Vektorgrafik gezeichnet (`src/formularGeometrie.ts`,
+  aus den InDesign-PDFs in `assets/` übernommen). Kein Formularbild einbetten;
+  Änderungen an der Geometrie mit `npm run vergleich` gegen die PNGs prüfen.
 - Relative Imports mit `.js`-Endung (ESM für Node).
-- `src/hintergrund.ts` ist generiert; nur über `npm run bilder` ändern.
 - Die Web-App in `web/` ist Anwendung, nicht Bibliothek: ihre Abhängigkeiten
   (Vite, ExcelJS, Archivo) bleiben devDependencies und landen nie in `dist/`.
   Gestaltung nach dem Design-System von erfassungsbogen.app (`web/src/stil.css`:

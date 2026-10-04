@@ -156,7 +156,7 @@ function versatzWert(name: string): number {
     return Number.isFinite(zahl) ? Math.max(-20, Math.min(20, zahl)) : 0;
 }
 
-/** Zusammenfassung der Einstellungen im zugeklappten Kopf, damit „ohne Formularbild“ nicht übersehen wird. */
+/** Zusammenfassung der Einstellungen im zugeklappten Kopf, damit „ohne Formular“ nicht übersehen wird. */
 function einstellungenZeigen(): void {
     const gewaehlt = optionen();
     const text = (name: string) =>
@@ -166,7 +166,7 @@ function einstellungenZeigen(): void {
         const versatz = gewaehlt.versatzX || gewaehlt.versatzY
             ? ` (verschoben ${[gewaehlt.versatzX ?? 0, gewaehlt.versatzY ?? 0].map(mm => mm.toLocaleString("de-DE")).join(" / ")} mm)`
             : "";
-        teile.push(`ohne Formularbild${versatz}`);
+        teile.push(`ohne Formular${versatz}`);
     }
     element<HTMLSpanElement>("einstellungen-stand").textContent = teile.join(" · ");
     element<HTMLDivElement>("versatz").hidden = !gewaehlt.ohneHintergrund;
@@ -742,7 +742,7 @@ element<HTMLButtonElement>("leere-vordrucke").addEventListener("click", ereignis
         return;
     }
     // Ohne Vorab-Kreuze: zuVordruckDaten lässt bei leerer Eingabe alles leer.
-    // Immer mit Formularbild: ohne wäre ein Leerbogen ein weißes Blatt.
+    // Immer mit Formular: ohne wäre ein Leerbogen ein weißes Blatt.
     const gewaehlt = { ...optionen(), ohneHintergrund: false };
     const anzahl = gewaehlt.blatt === "a4" && gewaehlt.vordruck !== "beide" ? 2 : 1;
     const leer = Array.from({ length: anzahl }, () => zuVordruckDaten({}).daten);
@@ -752,7 +752,7 @@ element<HTMLButtonElement>("leere-vordrucke").addEventListener("click", ereignis
 });
 
 // Probeblatt für vorgedruckte Bögen: alle Felder mit Beispielwerten, ohne
-// Formularbild, mit dem eingestellten Versatz. Gegen das Licht auf einen Bogen legen.
+// Formular, mit dem eingestellten Versatz. Gegen das Licht auf einen Bogen legen.
 element<HTMLButtonElement>("probeblatt").addEventListener("click", ereignis => {
     if (!kurzSperren(ereignis.currentTarget as HTMLButtonElement)) {
         return;
@@ -1116,8 +1116,8 @@ function tabelleAnzeigen(): void {
     pdfKnopf.disabled = zeilen.length === 0;
     // Mit „Beide“ entstehen je Zeile zwei Vordrucke.
     const anzahl = zeilen.length * (vordruck === "beide" ? 2 : 1);
-    // „Ohne Formularbild“ ist eine gemerkte Einstellung; am Knopf soll sie nicht überraschen.
-    const ohne = optionen().ohneHintergrund ? ", ohne Formularbild" : "";
+    // „Ohne Formular“ ist eine gemerkte Einstellung; am Knopf soll sie nicht überraschen.
+    const ohne = optionen().ohneHintergrund ? ", ohne Formular" : "";
     pdfKnopf.textContent = `PDF herunterladen (${anzahl} ${anzahl === 1 ? "Vordruck" : "Vordrucke"}${ohne})`;
     element<HTMLButtonElement>("tabelle-oeffnen").disabled = zeilen.length === 0;
 }

@@ -1,7 +1,7 @@
 {
   "name": "bos-nachrichtenvordruck",
   "version": "1.0.0",
-  "description": "Füllt den BOS-Nachrichtenvordruck und den Meldevordruck als PDF aus (jsPDF), mit eingebetteten Formularbildern.",
+  "description": "Füllt den BOS-Nachrichtenvordruck und den Meldevordruck als PDF aus (jsPDF), das Formular als Vektorgrafik gezeichnet.",
   "keywords": [
     "bos",
     "nachrichtenvordruck",
@@ -37,14 +37,12 @@
   },
   "sideEffects": false,
   "files": [
-    "dist",
-    "assets/*.png",
-    "assets/*.pdf"
+    "dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
-    "bilder": "node scripts/bilder-einbetten.mjs",
+    "vergleich": "npm run build && node scripts/vergleich.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",

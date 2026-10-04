@@ -22,6 +22,10 @@ interface Text {
     groesse: number;
     ausrichtung: "left" | "center" | "right";
     winkel: number;
+    /** Zusätzlicher Zeichenabstand in mm (Beschriftung des Formulars). */
+    abstand: number;
+    fett: boolean;
+    farbe: string;
 }
 
 interface Bild {
@@ -29,7 +33,30 @@ interface Bild {
     quelle: string;
 }
 
-type Aufruf = Text | Bild;
+/** Linie und Rechteck des gezeichneten Formulars. */
+interface Linie {
+    art: "linie";
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    staerke: number;
+    farbe: string;
+}
+
+interface Rechteck {
+    art: "rechteck";
+    x: number;
+    y: number;
+    b: number;
+    h: number;
+    stil: string;
+    staerke: number;
+    rand: string;
+    fuellung: string;
+}
+
+type Aufruf = Text | Bild | Linie | Rechteck;
 
 const PT_IN_MM = 25.4 / 72;
 
@@ -39,7 +66,7 @@ function mitschreiben(zeichnen: (pdf: jsPDF) => void): Aufruf[] {
     const text = pdf.text.bind(pdf);
     const addImage = pdf.addImage.bind(pdf);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (pdf as any).text = (inhalt: string | string[], x: number, y: number, optionen?: { align?: Text["ausrichtung"]; angle?: number }) => {
+    (pdf as any).text = (inhalt: string | string[], x: number, y: number, optionen?: { align?: Text["ausrichtung"]; angle?: number; charSpace?: number }) => {
         aufrufe.push({
             art: "text",
             text: Array.isArray(inhalt) ? inhalt.join(" ") : String(inhalt),
@@ -47,12 +74,33 @@ function mitschreiben(zeichnen: (pdf: jsPDF) => void): Aufruf[] {
             y,
             groesse: pdf.getFontSize(),
             ausrichtung: optionen?.align ?? "left",
-            winkel: optionen?.angle ?? 0
+            winkel: optionen?.angle ?? 0,
+            abstand: optionen?.charSpace ?? 0,
+            fett: pdf.getFont().fontStyle === "bold",
+            farbe: pdf.getTextColor()
         });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return (text as any)(inhalt, x, y, optionen);
     };
-    // Das Formularbild nicht in die Wegwerf-PDF kodieren, nur merken.
+    // Das gezeichnete Formular: Linien und Rechtecke mit Farbe und Strichstärke merken.
+    const line = pdf.line.bind(pdf);
+    const rect = pdf.rect.bind(pdf);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (pdf as any).line = (x1: number, y1: number, x2: number, y2: number, stil?: string) => {
+        aufrufe.push({ art: "linie", x1, y1, x2, y2, staerke: pdf.getLineWidth(), farbe: pdf.getDrawColor() });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (line as any)(x1, y1, x2, y2, stil);
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (pdf as any).rect = (x: number, y: number, b: number, h: number, stil?: string) => {
+        aufrufe.push({
+            art: "rechteck", x, y, b, h, stil: stil ?? "S",
+            staerke: pdf.getLineWidth(), rand: pdf.getDrawColor(), fuellung: pdf.getFillColor()
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (rect as any)(x, y, b, h, stil);
+    };
+    // Ein eigenes Formularbild nicht in die Wegwerf-PDF kodieren, nur merken.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (pdf as any).addImage = (quelle: unknown, ...rest: unknown[]) => {
         if (typeof quelle === "string") {
@@ -87,7 +135,7 @@ function ladeBild(quelle: string): Promise<HTMLImageElement> {
  * in der Breite des Canvas-Elements.
  */
 export async function zeichneBildvorschau(canvas: HTMLCanvasElement, daten: VordruckDaten, optionen: PdfOptionen): Promise<void> {
-    // Wie die PDF: ohne Formularbild keine Herkunftszeile, dafür mit Druckversatz.
+    // Wie die PDF: ohne Formular keine Herkunftszeile, dafür mit Druckversatz.
     daten.fusszeile = optionen.ohneHintergrund ? "" : HERKUNFT;
     const versatz = optionen.ohneHintergrund ? { x: optionen.versatzX ?? 0, y: optionen.versatzY ?? 0 } : { x: 0, y: 0 };
     const renderOptionen = { ohneHintergrund: optionen.ohneHintergrund };
@@ -138,9 +186,32 @@ export async function zeichneBildvorschau(canvas: HTMLCanvasElement, daten: Vord
                 }
                 continue;
             }
+            if (aufruf.art === "linie") {
+                kontext.strokeStyle = aufruf.farbe;
+                kontext.lineWidth = aufruf.staerke;
+                kontext.beginPath();
+                kontext.moveTo(aufruf.x1, aufruf.y1);
+                kontext.lineTo(aufruf.x2, aufruf.y2);
+                kontext.stroke();
+                continue;
+            }
+            if (aufruf.art === "rechteck") {
+                if (aufruf.stil.includes("F")) {
+                    kontext.fillStyle = aufruf.fuellung;
+                    kontext.fillRect(aufruf.x, aufruf.y, aufruf.b, aufruf.h);
+                }
+                if (aufruf.stil.includes("D") || aufruf.stil === "S") {
+                    kontext.strokeStyle = aufruf.rand;
+                    kontext.lineWidth = aufruf.staerke;
+                    kontext.strokeRect(aufruf.x, aufruf.y, aufruf.b, aufruf.h);
+                }
+                continue;
+            }
             kontext.save();
-            kontext.fillStyle = "#000";
-            kontext.font = `${aufruf.groesse * PT_IN_MM}px Helvetica, Arial, sans-serif`;
+            kontext.fillStyle = aufruf.farbe;
+            kontext.font = `${aufruf.fett ? "bold " : ""}${aufruf.groesse * PT_IN_MM}px Helvetica, Arial, sans-serif`;
+            // Zeichenabstand wie in der PDF, soweit der Browser ihn kann.
+            (kontext as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${aufruf.abstand}px`;
             kontext.textAlign = aufruf.ausrichtung;
             kontext.textBaseline = "alphabetic";
             kontext.translate(aufruf.x, aufruf.y);
