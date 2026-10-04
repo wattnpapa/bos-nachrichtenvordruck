@@ -119,7 +119,11 @@ export function zellText(wert: CellValue): string {
  * Liest die Excel-Datei als Tabelle aus Text. Genommen wird das Blatt
  * „Vordrucke", sonst das erste Blatt, dessen Kopfzeile ein bekanntes Feld hat.
  */
-export async function leseExcel(daten: ArrayBuffer): Promise<string[][]> {
+/**
+ * `hinweise` sammelt Zellen, deren Wert nicht in der Datei steht: Formeln ohne
+ * gespeichertes Ergebnis, wie sie andere Programme als Excel hinterlassen.
+ */
+export async function leseExcel(daten: ArrayBuffer, hinweise: string[] = []): Promise<string[][]> {
     const ExcelJS = await excel();
     const mappe = new ExcelJS.Workbook();
     try {
@@ -144,7 +148,13 @@ export async function leseExcel(daten: ArrayBuffer): Promise<string[][]> {
     blatt.eachRow({ includeEmpty: true }, zeile => {
         const werte: string[] = [];
         for (let spalte = 1; spalte <= breite; spalte++) {
-            werte.push(zellText(zeile.getCell(spalte).value));
+            const zelle = zeile.getCell(spalte);
+            const wert = zelle.value;
+            if (wert && typeof wert === "object" && ("formula" in wert || "sharedFormula" in wert)
+                && (wert as { result?: CellValue }).result === undefined) {
+                hinweise.push(`Zelle ${zelle.address}: Formel ohne gespeicherten Wert, bleibt leer. Datei in Excel öffnen und neu speichern.`);
+            }
+            werte.push(zellText(wert));
         }
         tabelle[zeile.number - 1] = werte;
     });

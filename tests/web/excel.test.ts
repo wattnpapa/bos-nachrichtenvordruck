@@ -42,6 +42,18 @@ describe("Excel", () => {
         expect(tabelle).toEqual([["Inhalt", "Absender"], ["Hallo", "Heros 1"]]);
     });
 
+    it("meldet Formelzellen ohne gespeicherten Wert", async () => {
+        const mappe = new ExcelJS.Workbook();
+        const blatt = mappe.addWorksheet("Vordrucke");
+        blatt.addRow(["Nr", "Inhalt"]);
+        blatt.addRow(["1", "Text"]);
+        blatt.getCell("B2").value = { formula: "A1&\"x\"" } as ExcelJS.CellFormulaValue;
+        const hinweise: string[] = [];
+        const tabelle = await leseExcel(await mappe.xlsx.writeBuffer() as ArrayBuffer, hinweise);
+        expect(tabelle[1]).toEqual(["1", ""]);
+        expect(hinweise).toEqual([expect.stringMatching(/^Zelle B2: Formel ohne gespeicherten Wert/)]);
+    });
+
     it("meldet eine Mappe ohne bekannte Spalten", async () => {
         const mappe = new ExcelJS.Workbook();
         mappe.addWorksheet("A").addRow(["Farbe"]);

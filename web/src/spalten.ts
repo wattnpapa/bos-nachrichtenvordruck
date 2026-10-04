@@ -104,7 +104,10 @@ for (const [alias, schluessel] of [
     ["weg", "weg"], ["uebermittlung", "weg"],
     ["rufname", "empfaenger"], ["gegenstelle", "empfaenger"], ["an", "empfaenger"],
     ["anschriften", "anschrift"], ["text", "inhalt"], ["nachricht", "inhalt"],
-    ["von", "absender"], ["dtg", "abfassungszeit"], ["handzeichen", "zeichen"]
+    ["von", "absender"], ["dtg", "abfassungszeit"], ["handzeichen", "zeichen"],
+    ["prio", "vorrang"], ["prioritaet", "vorrang"], ["dringlichkeit", "vorrang"],
+    ["datumzeitgruppe", "abfassungszeit"], ["zeit", "abfassungszeit"], ["abfassung", "abfassungszeit"],
+    ["empfaengerrufname", "empfaenger"], ["rufnamedergegenstelle", "empfaenger"]
 ] as const) {
     KOPF_ZU_SCHLUESSEL.set(normiere(alias), schluessel);
 }
@@ -160,7 +163,7 @@ export function leseVerteiler(roh: string, fehler: string[]): Nachrichtenvordruc
         if (name in NACHRICHTENVORDRUCK_ANKREUZFELDER) {
             felder.push(name as NachrichtenvordruckAnkreuzfeld);
         } else {
-            fehler.push(`Verteiler: „${eintrag}“ gibt es nicht (erlaubt: Leiter, S1/1 … S6/3)`);
+            fehler.push(`Verteiler: „${eintrag}“ gibt es nicht (erlaubt: Leiter sowie S1 bis S4 und S6 mit Spalte 1 bis 3, etwa S3/1)`);
         }
     }
     return felder;
@@ -410,6 +413,9 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         const { daten, fehler, hinweise } = zuVordruckDaten(eingabe);
         if (!daten.inhalt) {
             hinweise.push("kein Text");
+        }
+        if ("empfaenger" in eingabe && daten.empfaenger.length === 0) {
+            hinweise.push("keine Gegenstelle bzw. kein Empfänger");
         }
         // Mehr gefüllte Zellen als Spalten im Kopf: meist ein Trennzeichen im
         // Text, etwa mehrere Empfänger mit Semikolon in einer CSV ohne

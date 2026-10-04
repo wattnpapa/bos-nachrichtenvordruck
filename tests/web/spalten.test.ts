@@ -76,6 +76,8 @@ describe("leseTabelle", () => {
         expect(schluesselZuKopf("Empfänger")).toBe("empfaenger");
         expect(schluesselZuKopf("Quittung Uhrzeit")).toBe("quittungUhrzeit");
         expect(schluesselZuKopf("Farbe")).toBeUndefined();
+        expect(schluesselZuKopf("Prio")).toBe("vorrang");
+        expect(schluesselZuKopf("DTG")).toBe("abfassungszeit");
     });
 });
 
@@ -166,6 +168,8 @@ describe("Plausibilität", () => {
         expect(zeilen.map(zeile => zeile.hinweise)).toEqual([
             ["Nr. 5 steht auch in Zeile 3"], ["Nr. 5 steht auch in Zeile 2"], ["kein Text"]
         ]);
+        const mitGegenstelle = leseTabelle([["Nr", "Empfänger", "Inhalt"], ["7", "", "Text"]]);
+        expect(mitGegenstelle.zeilen[0]?.hinweise).toEqual(["keine Gegenstelle bzw. kein Empfänger"]);
     });
 });
 

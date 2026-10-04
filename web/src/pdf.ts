@@ -39,7 +39,12 @@ const A4 = { breite: 210, hoehe: 297 };
  * sonst zwei aufeinanderfolgende Zeilen. Bei A4 hoch steht jeder Vordruck
  * allein und mittig auf dem Blatt, bei A5 füllt er es aus.
  */
-export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen): jsPDF {
+export function erzeugePdf(
+    alle: readonly VordruckDaten[],
+    optionen: PdfOptionen,
+    /** Unkomprimiert nur für Tests, die den Inhaltsstrom lesen. */
+    { komprimiert = true }: { komprimiert?: boolean } = {}
+): jsPDF {
     const stuecke: { zeichner: Zeichner; daten: VordruckDaten }[] = [];
     for (const daten of alle) {
         // Auf einen vorgedruckten Originalbogen gehört kein fremder Text.
@@ -52,10 +57,12 @@ export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen
         }
     }
 
+    // Komprimiert: sonst legt jsPDF die Formularbilder entpackt ab, ein Blatt
+    // wiegt dann fast 4 MB statt rund 30 KB.
     const pdf = {
-        a4: () => new jsPDF("l", "mm", "a4"),
-        a4hoch: () => new jsPDF("p", "mm", "a4"),
-        a5: () => new jsPDF("p", "mm", "a5")
+        a4: () => new jsPDF({ orientation: "l", unit: "mm", format: "a4", compress: komprimiert }),
+        a4hoch: () => new jsPDF({ orientation: "p", unit: "mm", format: "a4", compress: komprimiert }),
+        a5: () => new jsPDF({ orientation: "p", unit: "mm", format: "a5", compress: komprimiert })
     }[optionen.blatt]();
     const jeBlatt = optionen.blatt === "a4" ? 2 : 1;
     const versatz = optionen.ohneHintergrund

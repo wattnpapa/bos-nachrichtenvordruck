@@ -63,7 +63,7 @@ Langer Inhalt wird auf beiden Vordrucken verkleinert, bis er ins Inhaltsfeld pas
 | `hintergrund` | eigenes Formularbild (Data-URL, Base64 oder PNG-Bytes) statt des mitgelieferten |
 | `ohneRahmen` | Titel, Hinweis und Fußzeile am Blattrand weglassen |
 
-Das mitgelieferte Bild landet unter festem Namen in der PDF und wird deshalb nur einmal gespeichert, auch bei vielen Seiten.
+Das mitgelieferte Bild landet unter festem Namen in der PDF und wird deshalb nur einmal gespeichert, auch bei vielen Seiten. Mit `new jsPDF({ …, compress: true })` bleibt die Datei klein: ohne Kompression legt jsPDF das Bild entpackt ab, ein A4-Blatt mit zwei Vordrucken wiegt dann fast 4 MB statt rund 30 KB.
 
 ### Feldgeometrie
 
