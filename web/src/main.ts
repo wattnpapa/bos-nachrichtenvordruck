@@ -1,10 +1,13 @@
+/// <reference types="vite/client" />
 import "./seite.js";
 import { schreibeCsv, leseCsv } from "./csv.js";
 import { dateiname, erzeugePdf, type Blattformat, type PdfOptionen, type VordruckWahl } from "./pdf.js";
+import { pruefeTextlaenge, textlaengeMeldung } from "./textlaenge.js";
 import {
     SPALTEN,
     datumZeitGruppe,
     leseTabelle,
+    naechsteNummer,
     zuVordruckDaten,
     type Eingabe,
     type Schluessel,
@@ -203,17 +206,79 @@ function maskeSchreiben(eingabe: Eingabe): void {
 }
 
 const vorgaben = maskeLesen();
+
+/** Der Entwurf trägt den Zeitpunkt der letzten Änderung mit; maskeSchreiben übergeht ihn. */
+type Entwurf = Eingabe & { _geaendert?: string };
+
+function entwurfSpeichern(): void {
+    const entwurf: Entwurf = { ...maskeLesen(), _geaendert: new Date().toISOString() };
+    speicher()?.setItem(ENTWURF_SCHLUESSEL, JSON.stringify(entwurf));
+}
+
+function weichtAb(eingabe: Eingabe): boolean {
+    return SPALTEN.some(spalte => (eingabe[spalte.schluessel] ?? "") !== (vorgaben[spalte.schluessel] ?? ""));
+}
+
+let wiederhergestellt: Entwurf | null = null;
 try {
-    const entwurf = JSON.parse(speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Eingabe | null;
+    const entwurf = JSON.parse(speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
     if (entwurf) {
         maskeSchreiben(entwurf);
+        wiederhergestellt = weichtAb(maskeLesen()) ? entwurf : null;
     }
 } catch {
     // Kaputter Entwurf: leere Maske.
 }
 
+// Belegte Felder im zugeklappten Bereich sichtbar machen: was dort steht, wird mitgedruckt.
+const weitere = element<HTMLDetailsElement>("weitere");
+const weitereZahl = element<HTMLSpanElement>("weitere-zahl");
+
+function weitereZaehlen(): number {
+    const eingabe = maskeLesen();
+    const namen = new Set(Array.from(weitere.querySelectorAll<HTMLInputElement>("input"), feld => feld.name as Schluessel));
+    let zahl = 0;
+    for (const name of namen) {
+        const wert = eingabe[name] ?? "";
+        if (name === "verteiler") {
+            zahl += wert ? wert.split(",").length : 0;
+        } else if (wert !== (vorgaben[name] ?? "")) {
+            zahl += 1;
+        }
+    }
+    weitereZahl.hidden = zahl === 0;
+    weitereZahl.textContent = `${zahl} ${zahl === 1 ? "Angabe" : "Angaben"}`;
+    return zahl;
+}
+
+const entwurfHinweis = element<HTMLDivElement>("entwurf-hinweis");
+
+function zeitpunkt(iso: string | undefined): string {
+    const datum = iso ? new Date(iso) : null;
+    if (!datum || Number.isNaN(datum.getTime())) {
+        return "vom letzten Mal";
+    }
+    const heute = new Date().toDateString() === datum.toDateString();
+    const uhr = datum.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    return heute ? `von heute, ${uhr} Uhr` : `vom ${datum.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}, ${uhr} Uhr`;
+}
+
+if (wiederhergestellt) {
+    const nummer = wiederhergestellt.nummer?.trim();
+    element<HTMLParagraphElement>("entwurf-text").textContent =
+        `Angaben ${zeitpunkt(wiederhergestellt._geaendert)} wiederhergestellt${nummer ? ` (Nr. ${nummer})` : ""}. ` +
+        "Sie werden so gedruckt, wie sie hier stehen, auch die unter „Vermerke, Quittung und Verteiler“.";
+    entwurfHinweis.hidden = false;
+    if (weitereZaehlen() > 0) {
+        weitere.open = true;
+    }
+}
+weitereZaehlen();
+
 const vorschau = element<HTMLIFrameElement>("einzeln-vorschau");
 const einzelnFehler = element<HTMLParagraphElement>("einzeln-fehler");
+const textlaenge = element<HTMLParagraphElement>("textlaenge");
+const einzelnStatus = element<HTMLParagraphElement>("einzeln-status");
 let vorschauUrl = "";
 let vorschauTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -221,6 +286,10 @@ function einzelPdf() {
     const { daten, fehler } = zuVordruckDaten(maskeLesen());
     einzelnFehler.hidden = fehler.length === 0;
     einzelnFehler.textContent = fehler.join(" · ");
+    const laenge = pruefeTextlaenge(daten.inhalt, optionen().vordruck);
+    textlaenge.hidden = !laenge;
+    textlaenge.textContent = laenge ? textlaengeMeldung(laenge) : "";
+    textlaenge.className = `textlaenge ${laenge && laenge.stufe !== "verkleinert" ? "warnung" : "hinweis"}`;
     return erzeugePdf([daten], optionen());
 }
 
@@ -253,14 +322,15 @@ function planeVorschau(): void {
     vorschauTimer = setTimeout(vorschauAktualisieren, 350);
 }
 
-maske.addEventListener("input", () => {
-    speicher()?.setItem(ENTWURF_SCHLUESSEL, JSON.stringify(maskeLesen()));
+function maskeGeaendert(): void {
+    entwurfSpeichern();
+    weitereZaehlen();
+    einzelnStatus.textContent = "";
     planeVorschau();
-});
-maske.addEventListener("change", () => {
-    speicher()?.setItem(ENTWURF_SCHLUESSEL, JSON.stringify(maskeLesen()));
-    planeVorschau();
-});
+}
+
+maske.addEventListener("input", maskeGeaendert);
+maske.addEventListener("change", maskeGeaendert);
 
 element<HTMLButtonElement>("jetzt").addEventListener("click", () => {
     const feld = maske.elements.namedItem("abfassungszeit") as HTMLInputElement;
@@ -268,9 +338,49 @@ element<HTMLButtonElement>("jetzt").addEventListener("click", () => {
     feld.dispatchEvent(new Event("input", { bubbles: true }));
 });
 
+/** Stand der Maske beim letzten Herunterladen, um ungesicherte Arbeit zu erkennen. */
+let zuletztHeruntergeladen = "";
+
 element<HTMLButtonElement>("einzeln-pdf").addEventListener("click", () => {
     const pdf = einzelPdf();
-    herunterladen(pdf.output("blob"), dateiname(optionen(), 1));
+    const name = dateiname(optionen(), 1);
+    herunterladen(pdf.output("blob"), name);
+    const eingabe = maskeLesen();
+    zuletztHeruntergeladen = JSON.stringify(eingabe);
+    const nummer = eingabe.nummer?.trim();
+    const uhr = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    einzelnStatus.textContent = `${name}${nummer ? ` (Nr. ${nummer})` : ""} um ${uhr} Uhr erstellt. Für die nächste Nachricht „Nächster Vordruck“ wählen.`;
+});
+
+// Was „Nächster Vordruck“ stehen lässt: eigene Angaben und Einstellungen, die
+// von Nachricht zu Nachricht gleich bleiben. Alles andere gehört zur Nachricht
+// und wird geleert, damit nichts davon unbemerkt auf dem nächsten Bogen landet.
+const BEHALTEN: readonly Schluessel[] = ["weg", "richtung", "absender", "verfasser", "zeichen", "funktion", "titel", "hinweis"];
+
+function naechsterVordruck(rueckfrage: boolean): void {
+    const eingabe = maskeLesen();
+    if (rueckfrage && (eingabe.inhalt ?? "").trim() && JSON.stringify(eingabe) !== zuletztHeruntergeladen
+        && !confirm("Dieser Vordruck wurde seit der letzten Änderung nicht heruntergeladen. Trotzdem zum nächsten wechseln?")) {
+        return;
+    }
+    const neu = Object.fromEntries(SPALTEN.map(spalte => [
+        spalte.schluessel,
+        BEHALTEN.includes(spalte.schluessel) ? eingabe[spalte.schluessel] ?? "" : vorgaben[spalte.schluessel] ?? ""
+    ])) as Eingabe;
+    neu.nummer = naechsteNummer(eingabe.nummer ?? "");
+    maskeSchreiben(neu);
+    entwurfSpeichern();
+    weitereZaehlen();
+    entwurfHinweis.hidden = true;
+    planeVorschau();
+    einzelnStatus.textContent = `Neuer Vordruck${neu.nummer ? ` Nr. ${neu.nummer}` : ""}. Absender, Zeichen, Funktion, Übermittlungsweg und Richtung sind übernommen, alles andere ist leer.`;
+    (maske.elements.namedItem("empfaenger") as HTMLInputElement).focus();
+}
+
+element<HTMLButtonElement>("einzeln-naechster").addEventListener("click", () => naechsterVordruck(true));
+element<HTMLButtonElement>("entwurf-naechster").addEventListener("click", () => naechsterVordruck(false));
+element<HTMLButtonElement>("entwurf-behalten").addEventListener("click", () => {
+    entwurfHinweis.hidden = true;
 });
 
 element<HTMLButtonElement>("einzeln-oeffnen").addEventListener("click", () => {
@@ -286,6 +396,9 @@ element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", () => {
     maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
     maskeSchreiben(vorgaben);
     speicher()?.removeItem(ENTWURF_SCHLUESSEL);
+    weitereZaehlen();
+    entwurfHinweis.hidden = true;
+    einzelnStatus.textContent = "";
     planeVorschau();
 });
 
@@ -361,8 +474,26 @@ function tabelleAnzeigen(): void {
         : `${dateiName}: ${zeilen.length} ${zeilen.length === 1 ? "Zeile" : "Zeilen"} → ${art}.`;
 
     const warnung = element<HTMLElement>("ergebnis-warnung");
-    warnung.hidden = unbekannteSpalten.length === 0;
-    warnung.textContent = `Diese Spalten sind unbekannt und werden ignoriert: ${unbekannteSpalten.join(", ")}.`;
+    const zuLang = zeilen.flatMap(zeile => {
+        const laenge = pruefeTextlaenge(zeile.daten.inhalt, vordruck);
+        return laenge && laenge.stufe !== "verkleinert" ? [`Zeile ${zeile.zeile}: ${textlaengeMeldung(laenge)}`] : [];
+    });
+    warnung.replaceChildren();
+    if (unbekannteSpalten.length > 0) {
+        const satz = document.createElement("p");
+        satz.textContent = `Diese Spalten sind unbekannt und werden ignoriert: ${unbekannteSpalten.join(", ")}.`;
+        warnung.append(satz);
+    }
+    if (zuLang.length > 0) {
+        const liste = document.createElement("ul");
+        liste.append(...zuLang.map(text => {
+            const punkt = document.createElement("li");
+            punkt.textContent = text;
+            return punkt;
+        }));
+        warnung.append(liste);
+    }
+    warnung.hidden = warnung.childElementCount === 0;
 
     const fehlerKasten = element<HTMLElement>("ergebnis-fehler");
     fehlerKasten.hidden = mitFehler.length === 0;
@@ -458,3 +589,16 @@ dateiZiel.addEventListener("drop", ereignis => {
 einstellungenLaden();
 felderFuerVordruckZeigen();
 zeigeReiter(location.hash === "#tabelle" ? "tabelle" : "einzeln");
+
+// Nach dem ersten Aufruf startet die Seite aus dem Cache, auch ohne Netz.
+// Der Dienst entsteht erst beim Bauen (web/vite.config.ts), im Entwicklungsserver gibt es ihn nicht.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js")
+        .then(() => navigator.serviceWorker.ready)
+        .then(() => {
+            element<HTMLElement>("offline-stand").hidden = false;
+        })
+        .catch(() => {
+            // Ohne Dienst läuft die Seite wie bisher, nur nicht ohne Netz.
+        });
+}

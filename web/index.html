@@ -7,6 +7,7 @@
   <meta name="description" content="BOS-Nachrichtenvordruck (4fach-Satz) und Meldevordruck am Bildschirm ausfüllen oder aus einer Excel- bzw. CSV-Tabelle erzeugen und als PDF herunterladen. Läuft komplett im Browser." />
   <meta name="theme-color" content="#12275e" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <script>
     // Anzeigemodus vor dem ersten Malen anwenden, sonst blitzt die Seite
     // nachts erst hell auf. Gleiche Regel wie anzeige.ts: gespeicherte Wahl
@@ -48,7 +49,16 @@
 
     <main id="inhalt" tabindex="-1">
       <p class="einleitung">BOS-Nachrichtenvordruck und Meldevordruck als PDF: einen einzelnen am Bildschirm ausfüllen oder viele auf einmal aus einer Tabelle erzeugen.</p>
-      <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.</p>
+      <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.<span id="offline-stand" hidden> Startet nach dem ersten Aufruf auch ohne Netz.</span></p>
+
+      <!-- Vor den Einstellungen, damit er nach dem Laden ohne Scrollen zu sehen ist. -->
+      <div class="warnung entwurf" id="entwurf-hinweis" role="status" hidden>
+        <p id="entwurf-text"></p>
+        <div class="aktionen">
+          <button type="button" class="primaer" id="entwurf-naechster">Neuer Vordruck</button>
+          <button type="button" id="entwurf-behalten">Weiter bearbeiten</button>
+        </div>
+      </div>
 
       <section class="karte einstellungen" aria-labelledby="einstellungen-titel">
         <h2 id="einstellungen-titel" class="nur-sr">Vordruck und Blatt</h2>
@@ -128,8 +138,9 @@
             <section class="karte">
               <h3>Inhalt</h3>
               <label class="feld">Text
-                <textarea name="inhalt" rows="7"></textarea>
+                <textarea name="inhalt" rows="7" aria-describedby="textlaenge"></textarea>
               </label>
+              <p class="textlaenge" id="textlaenge" role="status" hidden></p>
               <div class="zeile">
                 <label class="feld">Absender
                   <input name="absender" placeholder="z. B. Heros Oldenburg 16/11" />
@@ -156,8 +167,8 @@
               </div>
             </section>
 
-            <details class="karte weitere" data-nur="nachricht">
-              <summary>Vermerke, Quittung und Verteiler</summary>
+            <details class="karte weitere" id="weitere" data-nur="nachricht">
+              <summary>Vermerke, Quittung und Verteiler <span class="zaehler" id="weitere-zahl" hidden></span></summary>
               <h4>Aufnahmevermerk (Eingang)</h4>
               <div class="zeile">
                 <label class="feld schmal">Datum <input name="aufnahmeDatum" /></label>
@@ -200,8 +211,10 @@
 
             <div class="aktionen">
               <button type="button" class="primaer" id="einzeln-pdf">PDF herunterladen</button>
+              <button type="button" id="einzeln-naechster">Nächster Vordruck</button>
               <button type="button" id="einzeln-leeren">Felder leeren</button>
             </div>
+            <p class="nebentext" id="einzeln-status" role="status"></p>
             <p class="fehler" id="einzeln-fehler" role="alert" hidden></p>
           </form>
 

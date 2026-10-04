@@ -278,3 +278,12 @@ export function datumZeitGruppe(zeit: Date): string {
     return `${zwei(zeit.getDate())}${zwei(zeit.getHours())}${zwei(zeit.getMinutes())}`
         + `${MONATE[zeit.getMonth()]}${zwei(zeit.getFullYear() % 100)}`;
 }
+
+/** Zählt eine rein numerische Nummer hoch und behält führende Nullen; sonst leer. */
+export function naechsteNummer(nummer: string): string {
+    const ziffern = /^\d+$/.exec(nummer.trim())?.[0];
+    if (!ziffern) {
+        return "";
+    }
+    return String(Number(ziffern) + 1).padStart(ziffern.length, "0");
+}

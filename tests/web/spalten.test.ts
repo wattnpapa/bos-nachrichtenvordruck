@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { datumZeitGruppe, leseTabelle, leseVerteiler, schluesselZuKopf, zuVordruckDaten } from "../../web/src/spalten.js";
+import { datumZeitGruppe, leseTabelle, leseVerteiler, naechsteNummer, schluesselZuKopf, zuVordruckDaten } from "../../web/src/spalten.js";
 
 describe("zuVordruckDaten", () => {
     it("übernimmt Auswahlwerte unabhängig von Schreibweise", () => {
@@ -83,5 +83,18 @@ describe("datumZeitGruppe", () => {
     it("setzt TTHHMMmonJJ", () => {
         expect(datumZeitGruppe(new Date(2026, 9, 3, 14, 5))).toBe("031405okt26");
         expect(datumZeitGruppe(new Date(2027, 2, 9, 7, 30))).toBe("090730mrz27");
+    });
+});
+
+describe("naechsteNummer", () => {
+    it("zählt hoch und behält führende Nullen", () => {
+        expect(naechsteNummer("17")).toBe("18");
+        expect(naechsteNummer(" 009 ")).toBe("010");
+        expect(naechsteNummer("99")).toBe("100");
+    });
+
+    it("lässt die Nummer leer, wenn sie keine reine Zahl ist", () => {
+        expect(naechsteNummer("")).toBe("");
+        expect(naechsteNummer("17a")).toBe("");
     });
 });

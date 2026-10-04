@@ -104,6 +104,17 @@ p { margin: 0 0 var(--r-2); }
 .nebentext { font-size: var(--t-s); color: var(--text-2); }
 .hinweis { font-size: var(--t-xs); color: var(--text-2); margin: var(--r-2) 0 0; }
 .fehler { color: var(--alarm); font-weight: 600; }
+.textlaenge.hinweis { font-size: var(--t-s); }
+.textlaenge.warnung { font-weight: 600; }
+.entwurf { font-size: var(--t-m); margin: 0 0 var(--r-5); }
+.entwurf p { margin: 0; }
+.entwurf .aktionen { margin: var(--r-3) 0 0; }
+/* Belegte Felder im zugeklappten Bereich: Zahl als Marke hinter der Überschrift. */
+.zaehler {
+  margin-left: var(--r-2); font-size: var(--t-s); font-weight: 700;
+  color: var(--warn-text); background: var(--warn-fond); border: var(--strich) solid var(--warn-linie);
+  padding: 0.1rem 0.45rem; white-space: nowrap;
+}
 .daten { font-family: var(--schrift-daten); }
 
 .nur-sr {
