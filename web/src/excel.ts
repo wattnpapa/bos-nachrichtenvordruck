@@ -122,7 +122,12 @@ export function zellText(wert: CellValue): string {
 export async function leseExcel(daten: ArrayBuffer): Promise<string[][]> {
     const ExcelJS = await excel();
     const mappe = new ExcelJS.Workbook();
-    await mappe.xlsx.load(daten);
+    try {
+        await mappe.xlsx.load(daten);
+    } catch {
+        // Die Meldung der Bibliothek ist englisch und technisch („end of central directory …“).
+        throw new Error("Die Datei ist keine lesbare Excel-Datei (.xlsx). Ist sie beschädigt oder nur umbenannt? In Excel öffnen und als .xlsx oder CSV neu speichern.");
+    }
 
     const kopfTexte = (blatt: (typeof mappe.worksheets)[number]) => {
         const werte = blatt.getRow(1).values;

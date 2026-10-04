@@ -80,7 +80,10 @@ export const SPALTEN: readonly Spalte[] = [
 
 export interface Umwandlung {
     daten: VordruckDaten;
+    /** Ungültige Werte: sie fehlen auf dem Vordruck oder werden ersetzt. */
     fehler: string[];
+    /** Auffälligkeiten, die so gedruckt werden, wie sie dastehen (Format, Lücken). */
+    hinweise: string[];
 }
 
 /** Kleinbuchstaben, Umlaute ausgeschrieben, ohne Leer- und Sonderzeichen. */
@@ -204,13 +207,91 @@ export function druckbar(text: string, fremd: Set<string>): string {
     }).join("");
 }
 
+const UHRZEIT_FELDER: readonly Schluessel[] = ["aufnahmeUhrzeit", "annahmeUhrzeit", "befoerderungUhrzeit", "quittungUhrzeit"];
+const DATUM_FELDER: readonly Schluessel[] = ["aufnahmeDatum", "annahmeDatum", "befoerderungDatum"];
+const MONATE_DTG = new Set([
+    "jan", "feb", "mrz", "mär", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez",
+    "mar", "may", "oct", "dec"
+]);
+
+/** Excel speichert Zeiten als Tagesbruchteil und Tage ab dem 30.12.1899. */
+function excelZeit(zahl: number): Date {
+    return new Date(Date.UTC(1899, 11, 30) + Math.round(zahl * 86_400_000));
+}
+const zwei = (zahl: number) => String(zahl).padStart(2, "0");
+
+/**
+ * Holt Zahlen, die aus Excel ohne Datumsformat kommen, in die Schreibweise
+ * des Vordrucks zurück: 0,59 in einer Uhrzeitspalte wird „14:09“, 46299 in
+ * einer Datumsspalte „04.10.“, ein Datum mit Uhrzeit in der Abfassungszeit
+ * die Datum-Zeit-Gruppe. Alles andere bleibt, wie es ist.
+ */
+export function ausExcel(schluessel: Schluessel, wert: string): string {
+    const zahl = /^\d*[.,]?\d+$/.test(wert.trim()) ? Number(wert.trim().replace(",", ".")) : NaN;
+    if (UHRZEIT_FELDER.includes(schluessel) && zahl > 0 && zahl < 1) {
+        const zeit = excelZeit(zahl);
+        return `${zwei(zeit.getUTCHours())}:${zwei(zeit.getUTCMinutes())}`;
+    }
+    if (DATUM_FELDER.includes(schluessel) && zahl >= 20_000 && zahl < 80_000) {
+        const zeit = excelZeit(zahl);
+        return `${zwei(zeit.getUTCDate())}.${zwei(zeit.getUTCMonth() + 1)}.`;
+    }
+    if (schluessel === "abfassungszeit") {
+        if (zahl >= 20_000 && zahl < 80_000) {
+            const zeit = excelZeit(zahl);
+            return datumZeitGruppe(new Date(zeit.getUTCFullYear(), zeit.getUTCMonth(), zeit.getUTCDate(), zeit.getUTCHours(), zeit.getUTCMinutes()));
+        }
+        const datum = /^(\d{1,2})\.(\d{1,2})\.(\d{4}) (\d{1,2}):(\d{2})$/.exec(wert.trim());
+        if (datum) {
+            const [, tag, monat, jahr, stunde, minute] = datum.map(Number) as [number, number, number, number, number, number];
+            return datumZeitGruppe(new Date(jahr, monat - 1, tag, stunde, minute));
+        }
+    }
+    return wert;
+}
+
+/** Prüft die Schreibweise von Zeiten und Daten; gedruckt wird trotzdem, was dasteht. */
+function pruefeFormat(eingabe: Eingabe, hinweise: string[]): void {
+    const dtg = (eingabe.abfassungszeit ?? "").trim();
+    if (dtg) {
+        const teile = /^(\d{2})(\d{2})(\d{2})([a-zäöü]{3})(\d{2})$/i.exec(dtg);
+        const gueltig = teile
+            && Number(teile[1]) >= 1 && Number(teile[1]) <= 31
+            && Number(teile[2]) <= 23 && Number(teile[3]) <= 59
+            && MONATE_DTG.has((teile[4] ?? "").toLowerCase());
+        if (!gueltig) {
+            hinweise.push(`Abfassungszeit „${dtg}“ ist keine Datum-Zeit-Gruppe TTHHMMmonJJ (z. B. 041416okt26)`);
+        }
+    }
+    for (const schluessel of UHRZEIT_FELDER) {
+        const wert = (eingabe[schluessel] ?? "").trim();
+        const teile = /^(\d{1,2})[:.]?(\d{2})$/.exec(wert);
+        if (wert && !(teile && Number(teile[1]) <= 23 && Number(teile[2]) <= 59)) {
+            hinweise.push(`${feldName(schluessel)} „${wert}“ ist keine Uhrzeit (z. B. 14:16)`);
+        }
+    }
+    for (const schluessel of DATUM_FELDER) {
+        const wert = (eingabe[schluessel] ?? "").trim();
+        const teile = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?$/.exec(wert);
+        if (wert && !(teile && Number(teile[1]) >= 1 && Number(teile[1]) <= 31 && Number(teile[2]) >= 1 && Number(teile[2]) <= 12)) {
+            hinweise.push(`${feldName(schluessel)} „${wert}“ ist kein Datum (z. B. 04.10.)`);
+        }
+    }
+}
+
+function feldName(schluessel: Schluessel): string {
+    return SPALTEN.find(spalte => spalte.schluessel === schluessel)?.titel ?? schluessel;
+}
+
 /** Wandelt eine Zeile in `VordruckDaten`. Ungültige Auswahlwerte landen in `fehler`. */
 export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     const fehler: string[] = [];
+    const hinweise: string[] = [];
     const daten = new VordruckDaten();
     const fremd = new Set<string>();
     const eingabe = Object.fromEntries(Object.entries(roh)
-        .map(([schluessel, wert]) => [schluessel, druckbar(wert ?? "", fremd)])) as Eingabe;
+        .map(([schluessel, wert]) => [schluessel, druckbar(ausExcel(schluessel as Schluessel, wert ?? ""), fremd)])) as Eingabe;
+    pruefeFormat(eingabe, hinweise);
     if (fremd.size > 0) {
         fehler.push(`Zeichen ${[...fremd].slice(0, 10).map(zeichen => `„${zeichen}“`).join(", ")} kann der Vordruck nicht darstellen, sie werden als „?“ gedruckt`);
     }
@@ -271,7 +352,7 @@ export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     daten.titel = text("titel");
     daten.hinweis = text("hinweis");
 
-    return { daten, fehler };
+    return { daten, fehler, hinweise };
 }
 
 /** Eine Zeile ohne einen einzigen Wert – in Tabellen meist die leeren Reste unten. */
@@ -280,7 +361,9 @@ export function istLeer(eingabe: Eingabe): boolean {
 }
 
 export interface TabellenErgebnis {
-    zeilen: { zeile: number; eingabe: Eingabe; daten: VordruckDaten; fehler: string[] }[];
+    zeilen: { zeile: number; eingabe: Eingabe; daten: VordruckDaten; fehler: string[]; hinweise: string[] }[];
+    /** Spalten des Kopfes, die einem Feld zugeordnet sind. */
+    bekannteSpalten: number;
     unbekannteSpalten: string[];
     /** Zeilen, die unverändert die Beispielzeile der Vorlage sind; sie werden nicht gedruckt. */
     beispielZeilen: number[];
@@ -324,7 +407,10 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
             beispielZeilen.push(index + 2);
             return;
         }
-        const { daten, fehler } = zuVordruckDaten(eingabe);
+        const { daten, fehler, hinweise } = zuVordruckDaten(eingabe);
+        if (!daten.inhalt) {
+            hinweise.push("kein Text");
+        }
         // Mehr gefüllte Zellen als Spalten im Kopf: meist ein Trennzeichen im
         // Text, etwa mehrere Empfänger mit Semikolon in einer CSV ohne
         // Anführungszeichen. Dann ist alles danach verrutscht.
@@ -332,10 +418,24 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         if (ueberzaehlig > 0) {
             fehler.unshift(`${werte.length} Felder, aber nur ${kopf.length} Spalten im Kopf. Steht ein Semikolon im Text? Dann die Zelle in Anführungszeichen setzen; die Werte sind sonst verrutscht`);
         }
-        zeilen.push({ zeile: index + 2, eingabe, daten, fehler });
+        zeilen.push({ zeile: index + 2, eingabe, daten, fehler, hinweise });
     });
 
-    return { zeilen, unbekannteSpalten, beispielZeilen };
+    // Doppelte Nummern: im Betriebsbuch muss jede Nummer eindeutig sein.
+    const nachNummer = new Map<string, number[]>();
+    for (const zeile of zeilen) {
+        if (zeile.daten.nummer) {
+            nachNummer.set(zeile.daten.nummer, [...nachNummer.get(zeile.daten.nummer) ?? [], zeile.zeile]);
+        }
+    }
+    for (const zeile of zeilen) {
+        const gleich = (nachNummer.get(zeile.daten.nummer) ?? []).filter(andere => andere !== zeile.zeile);
+        if (gleich.length > 0) {
+            zeile.hinweise.push(`Nr. ${zeile.daten.nummer} steht auch in Zeile ${gleich.join(", ")}`);
+        }
+    }
+
+    return { zeilen, unbekannteSpalten, beispielZeilen, bekannteSpalten: zuordnung.filter(Boolean).length };
 }
 
 const MONATE = ["jan", "feb", "mrz", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];

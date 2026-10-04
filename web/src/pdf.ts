@@ -15,6 +15,13 @@ export interface PdfOptionen {
     blatt: Blattformat;
     /** Formularbild weglassen, zum Bedrucken vorgedruckter Bögen. */
     ohneHintergrund: boolean;
+    /**
+     * Nur mit `ohneHintergrund`: Text in mm nach rechts bzw. unten verschieben,
+     * damit er auf einem vorgedruckten Bogen in den Feldern landet. Drucker
+     * ziehen das Papier selten genau gleich ein.
+     */
+    versatzX?: number;
+    versatzY?: number;
 }
 
 type Zeichner = (pdf: jsPDF, daten: VordruckDaten, optionen: VordruckRenderOptionen) => void;
@@ -35,7 +42,8 @@ const A4 = { breite: 210, hoehe: 297 };
 export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen): jsPDF {
     const stuecke: { zeichner: Zeichner; daten: VordruckDaten }[] = [];
     for (const daten of alle) {
-        daten.fusszeile = HERKUNFT;
+        // Auf einen vorgedruckten Originalbogen gehört kein fremder Text.
+        daten.fusszeile = optionen.ohneHintergrund ? "" : HERKUNFT;
         if (optionen.vordruck !== "meldung") {
             stuecke.push({ zeichner: zeichneNachrichtenvordruck, daten });
         }
@@ -50,6 +58,12 @@ export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen
         a5: () => new jsPDF("p", "mm", "a5")
     }[optionen.blatt]();
     const jeBlatt = optionen.blatt === "a4" ? 2 : 1;
+    const versatz = optionen.ohneHintergrund
+        ? { x: optionen.versatzX ?? 0, y: optionen.versatzY ?? 0 }
+        : { x: 0, y: 0 };
+    const rand = optionen.blatt === "a4hoch"
+        ? { x: (A4.breite - VORDRUCK.breite) / 2, y: (A4.hoehe - VORDRUCK.hoehe) / 2 }
+        : { x: 0, y: 0 };
 
     stuecke.forEach((stueck, index) => {
         if (index > 0 && index % jeBlatt === 0) {
@@ -59,8 +73,10 @@ export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen
             offsetX: (index % jeBlatt) * 148.5,
             ohneHintergrund: optionen.ohneHintergrund
         });
-        if (optionen.blatt === "a4hoch") {
-            mittig(pdf, zeichnen);
+        const dx = rand.x + versatz.x;
+        const dy = rand.y + versatz.y;
+        if (dx || dy) {
+            verschoben(pdf, dx, dy, zeichnen);
         } else {
             zeichnen();
         }
@@ -70,23 +86,32 @@ export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen
 }
 
 /**
- * Zeichnet den Vordruck um den Rand von A4 hoch versetzt. Die Renderer kennen
- * nur einen waagerechten Versatz; die Transformationsmatrix verschiebt alles
+ * Zeichnet den Vordruck um `dx`/`dy` mm versetzt: um den Rand von A4 hoch und
+ * um den eingestellten Druckversatz. Die Renderer kennen nur einen
+ * waagerechten Versatz; die Transformationsmatrix verschiebt alles
  * gleichermaßen, Formularbild wie Text. Sie rechnet in Punkt, mit dem
  * Ursprung unten links: nach unten verschieben heißt negatives y.
  */
-function mittig(pdf: jsPDF, zeichnen: () => void): void {
-    const randX = (A4.breite - VORDRUCK.breite) / 2;
-    const randY = (A4.hoehe - VORDRUCK.hoehe) / 2;
+function verschoben(pdf: jsPDF, dx: number, dy: number, zeichnen: () => void): void {
     const punktJeMm = pdf.internal.scaleFactor;
     pdf.saveGraphicsState();
-    pdf.setCurrentTransformationMatrix(pdf.Matrix(1, 0, 0, 1, randX * punktJeMm, -randY * punktJeMm));
+    pdf.setCurrentTransformationMatrix(pdf.Matrix(1, 0, 0, 1, dx * punktJeMm, -dy * punktJeMm));
     zeichnen();
     pdf.restoreGraphicsState();
 }
 
-export function dateiname(optionen: PdfOptionen, anzahl: number): string {
+/**
+ * Dateiname aus Vordruck, Nummer und Zeitpunkt, damit mehrere Downloads im
+ * Ordner unterscheidbar bleiben, z. B. „nachrichtenvordruck_nr17_2026-10-04_1416.pdf“.
+ */
+export function dateiname(optionen: PdfOptionen, anzahl: number, zeit?: Date, nummer = ""): string {
     const art = { nachricht: "nachrichtenvordruck", meldung: "meldevordruck", beide: "vordrucke" }[optionen.vordruck];
     const mehrzahl = anzahl > 1 && optionen.vordruck !== "beide" ? "e" : "";
-    return `${art}${mehrzahl}.pdf`;
+    const zwei = (zahl: number) => String(zahl).padStart(2, "0");
+    const teile = [
+        `${art}${mehrzahl}`,
+        nummer.replace(/[^\p{L}\p{N}-]+/gu, "").slice(0, 20) ? `nr${nummer.replace(/[^\p{L}\p{N}-]+/gu, "").slice(0, 20)}` : "",
+        zeit ? `${zeit.getFullYear()}-${zwei(zeit.getMonth() + 1)}-${zwei(zeit.getDate())}_${zwei(zeit.getHours())}${zwei(zeit.getMinutes())}` : ""
+    ];
+    return `${teile.filter(Boolean).join("_")}.pdf`;
 }

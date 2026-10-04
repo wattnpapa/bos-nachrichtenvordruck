@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SPALTEN, datumZeitGruppe, druckbar, leseTabelle, leseVerteiler, naechsteNummer, schluesselZuKopf, zuVordruckDaten } from "../../web/src/spalten.js";
+import { SPALTEN, ausExcel, datumZeitGruppe, druckbar, leseTabelle, leseVerteiler, naechsteNummer, schluesselZuKopf, zuVordruckDaten } from "../../web/src/spalten.js";
 
 describe("zuVordruckDaten", () => {
     it("übernimmt Auswahlwerte unabhängig von Schreibweise", () => {
@@ -140,5 +140,41 @@ describe("druckbar", () => {
         const { daten, fehler } = zuVordruckDaten({ inhalt: "Lage км 3" });
         expect(daten.inhalt).toBe("Lage ?? 3");
         expect(fehler[0]).toMatch(/„к“, „м“/);
+    });
+});
+
+describe("Plausibilität", () => {
+    it("meldet falsche Abfassungszeit, Uhrzeit und Datum als Hinweis, nicht als Fehler", () => {
+        const { hinweise, fehler, daten } = zuVordruckDaten({
+            abfassungszeit: "4.10. 14 Uhr", annahmeUhrzeit: "25:00", annahmeDatum: "4.10.", aufnahmeDatum: "32.1."
+        });
+        expect(fehler).toEqual([]);
+        expect(hinweise).toHaveLength(3);
+        expect(hinweise[0]).toMatch(/Abfassungszeit/);
+        expect(daten.abfassungszeit).toBe("4.10. 14 Uhr");
+    });
+
+    it("lässt übliche Schreibweisen durch", () => {
+        const { hinweise } = zuVordruckDaten({
+            abfassungszeit: "041416okt26", annahmeUhrzeit: "1416", quittungUhrzeit: "9:05", annahmeDatum: "04.10.2026"
+        });
+        expect(hinweise).toEqual([]);
+    });
+
+    it("meldet doppelte Nummern und Zeilen ohne Text", () => {
+        const { zeilen } = leseTabelle([["Nr", "Inhalt"], ["5", "a"], ["5", "b"], ["6", ""]]);
+        expect(zeilen.map(zeile => zeile.hinweise)).toEqual([
+            ["Nr. 5 steht auch in Zeile 3"], ["Nr. 5 steht auch in Zeile 2"], ["kein Text"]
+        ]);
+    });
+});
+
+describe("ausExcel", () => {
+    it("holt Zahlen aus Excel in die Schreibweise des Vordrucks", () => {
+        expect(ausExcel("annahmeUhrzeit", "0.59375")).toBe("14:15");
+        expect(ausExcel("annahmeDatum", "46299")).toBe("04.10.");
+        expect(ausExcel("abfassungszeit", "46299.59375")).toBe("041415okt26");
+        expect(ausExcel("abfassungszeit", "04.10.2026 14:15")).toBe("041415okt26");
+        expect(ausExcel("nummer", "46299")).toBe("46299");
     });
 });

@@ -47,8 +47,38 @@ describe("A4 hoch", () => {
 
 describe("Herkunftszeile", () => {
     it("steht auf Nachrichten- und Meldevordruck", () => {
-        const pdf = erzeugePdf([new VordruckDaten()], { vordruck: "beide", blatt: "a5", ohneHintergrund: true });
+        const pdf = erzeugePdf([new VordruckDaten()], { vordruck: "beide", blatt: "a5", ohneHintergrund: false });
         const inhalt = pdf.output();
         expect(inhalt.match(/Erstellt mit nachrichtenvordruck\.app/g)).toHaveLength(2);
+    });
+
+    it("fehlt beim Druck auf vorgedruckte Bögen", () => {
+        const pdf = erzeugePdf([new VordruckDaten()], { vordruck: "beide", blatt: "a5", ohneHintergrund: true });
+        expect(pdf.output()).not.toMatch(/Erstellt mit/);
+    });
+});
+
+describe("Druckversatz", () => {
+    it("verschiebt ohne Formularbild um den eingestellten Versatz", () => {
+        const pdf = erzeugePdf([new VordruckDaten()], { vordruck: "nachricht", blatt: "a5", ohneHintergrund: true, versatzX: 2, versatzY: -1.5 });
+        // 2 mm = 5,67 pt nach rechts, 1,5 mm = 4,25 pt nach oben
+        expect(pdf.output()).toMatch(/^1\. 0\. 0\. 1\. 5\.66\d* 4\.25\d* cm$/m);
+    });
+
+    it("lässt den Versatz mit Formularbild weg", () => {
+        const pdf = erzeugePdf([new VordruckDaten()], { vordruck: "nachricht", blatt: "a5", ohneHintergrund: false, versatzX: 2 });
+        expect(pdf.output()).not.toMatch(/^1\. 0\. 0\. 1\. 5\.66/m);
+    });
+});
+
+describe("dateiname mit Nummer und Zeit", () => {
+    it("macht Downloads unterscheidbar", () => {
+        const zeit = new Date(2026, 9, 4, 14, 6);
+        expect(dateiname({ vordruck: "nachricht", blatt: "a4", ohneHintergrund: false }, 1, zeit, "17"))
+            .toBe("nachrichtenvordruck_nr17_2026-10-04_1406.pdf");
+        expect(dateiname({ vordruck: "nachricht", blatt: "a4", ohneHintergrund: false }, 3, zeit))
+            .toBe("nachrichtenvordrucke_2026-10-04_1406.pdf");
+        expect(dateiname({ vordruck: "meldung", blatt: "a4", ohneHintergrund: false }, 1, zeit, "17/a b"))
+            .toBe("meldevordruck_nr17ab_2026-10-04_1406.pdf");
     });
 });
