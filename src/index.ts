@@ -22,4 +22,10 @@ export {
     type VordruckTextfeldPosition,
     type Vorrang
 } from "./felder.js";
-export { MELDEVORDRUCK_HINTERGRUND, NACHRICHTENVORDRUCK_HINTERGRUND } from "./hintergrund.js";
+export {
+    zeichneFormular,
+    type Formular,
+    type FormularElement,
+    type FormularOptionen
+} from "./formular.js";
+export { MELDEVORDRUCK_FORMULAR, NACHRICHTENVORDRUCK_FORMULAR } from "./formularGeometrie.js";

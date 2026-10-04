@@ -6,7 +6,8 @@ import {
     VORDRUCK_HOEHE
 } from "./felder.js";
 import type { VordruckDaten } from "./VordruckDaten.js";
-import { NACHRICHTENVORDRUCK_HINTERGRUND } from "./hintergrund.js";
+import { zeichneFormular, type Formular } from "./formular.js";
+import { NACHRICHTENVORDRUCK_FORMULAR } from "./formularGeometrie.js";
 import { zeichneEinzeilig, zeichneInZelle, zeichneMehrzeilig } from "./pdfText.js";
 
 /** Bilddaten, die `jsPDF.addImage` als Formularbild annimmt. */
@@ -16,26 +17,22 @@ export type VordruckHintergrund = string | Uint8Array;
 export interface VordruckRenderOptionen {
     /** Seitenversatz in mm – für zwei Vordrucke auf einem A4-Querformat. */
     offsetX?: number;
-    /** Formularbild weglassen, etwa zum Druck auf vorgedruckte Bögen. */
+    /** Formular (Linien, Kästchen, Beschriftung) weglassen, etwa zum Druck auf vorgedruckte Bögen. */
     ohneHintergrund?: boolean;
     /**
-     * Eigenes Formularbild statt des mitgelieferten, etwa ein Bogen mit
+     * Eigenes Formularbild statt des gezeichneten Formulars, etwa ein Bogen mit
      * Wappen oder eine andere Auflage. Data-URL, Base64 oder PNG-Bytes;
      * gezeichnet wird es auf 148 × 210 mm.
      */
     hintergrund?: VordruckHintergrund;
+    /** Farbe des gezeichneten Formulars, z. B. `"#ff0000"`. Standard Schwarz. */
+    formularfarbe?: string;
     /** Titel, Hinweis und Herkunftszeile weglassen. */
     ohneRahmen?: boolean;
 }
 
 /** Schriftgröße des „x" in den Ankreuzfeldern. */
 const ANKREUZ_SCHRIFTGROESSE = 16;
-
-/**
- * Name, unter dem jsPDF das mitgelieferte Formularbild ablegt. Mit festem Namen
- * landet es nur einmal in der PDF, auch wenn hundert Vordrucke es benutzen.
- */
-const HINTERGRUND_ALIAS = "bos-nachrichtenvordruck";
 
 /**
  * Zeichnet einen Nachrichtenvordruck aus `VordruckDaten` auf die aktuelle Seite.
@@ -51,7 +48,7 @@ export function zeichneNachrichtenvordruck(
 ): void {
     const offsetX = optionen.offsetX ?? 0;
 
-    zeichneHintergrund(pdf, optionen, NACHRICHTENVORDRUCK_HINTERGRUND, HINTERGRUND_ALIAS);
+    zeichneHintergrund(pdf, optionen, NACHRICHTENVORDRUCK_FORMULAR);
 
     for (const feld of daten.ankreuzfelder()) {
         const position = NACHRICHTENVORDRUCK_ANKREUZFELDER[feld];
@@ -132,15 +129,13 @@ export function zeichneNachrichtenvordruck(
 }
 
 /**
- * Legt das Formularbild auf die Seite – das mitgelieferte oder das aus
- * `optionen.hintergrund`. Ein eigenes Bild bekommt keinen festen Alias, damit es
- * nicht mit dem mitgelieferten verwechselt wird.
+ * Zeichnet das Formular als Vektorgrafik oder legt stattdessen das Bild aus
+ * `optionen.hintergrund` auf die Seite.
  */
 export function zeichneHintergrund(
     pdf: jsPDF,
     optionen: VordruckRenderOptionen,
-    standard: string,
-    standardAlias: string
+    formular: Formular
 ): void {
     if (optionen.ohneHintergrund) {
         return;
@@ -150,7 +145,7 @@ export function zeichneHintergrund(
         pdf.addImage(optionen.hintergrund, "PNG", offsetX, 0, VORDRUCK_BREITE, VORDRUCK_HOEHE);
         return;
     }
-    pdf.addImage(standard, "PNG", offsetX, 0, VORDRUCK_BREITE, VORDRUCK_HOEHE, standardAlias);
+    zeichneFormular(pdf, formular, { offsetX, farbe: optionen.formularfarbe });
 }
 
 /**

@@ -1,6 +1,6 @@
 # bos-nachrichtenvordruck
 
-Füllt den BOS-Nachrichtenvordruck (4fach-Satz) und den Meldevordruck mit jsPDF als PDF aus. Die Formularbilder sind eingebettet, eine Anwendung muss keine Dateien kopieren oder ausliefern. Beide Vordrucke haben das Format A5 hoch (148 × 210 mm), zwei passen nebeneinander auf ein A4-Querformat.
+Füllt den BOS-Nachrichtenvordruck (4fach-Satz) und den Meldevordruck mit jsPDF als PDF aus. Das Formular selbst, also Rahmen, Linien, Kästchen, graue Flächen und Beschriftung, zeichnet die Bibliothek als Vektorgrafik; ein Formularbild braucht sie nicht. Die Geometrie stammt aus den InDesign-Vorlagen in `assets/` und ist auf 0,01 mm genau übernommen, damit die Felder auch auf einem Nadeldrucker an der richtigen Stelle landen. Beide Vordrucke haben das Format A5 hoch (148 × 210 mm), zwei passen nebeneinander auf ein A4-Querformat.
 
 Herausgelöst aus [sprechfunk-uebung](https://github.com/wattnpapa/sprechfunk-uebung), wo es die Vordrucke für Übungsteilnehmer und Übungsleitung erzeugt.
 
@@ -57,15 +57,18 @@ Nicht gesetzte Felder bleiben leer. `VordruckDaten` kennt jedes Feld des Nachric
 | Option | Wirkung |
 | --- | --- |
 | `offsetX` | Versatz in mm, z. B. `148.5` für die rechte Hälfte eines A4-Querformats |
-| `ohneHintergrund` | Formularbild weglassen, zum Bedrucken vorgedruckter Bögen |
-| `hintergrund` | eigenes Formularbild (Data-URL, Base64 oder PNG-Bytes) statt des mitgelieferten |
+| `ohneHintergrund` | Formular weglassen, zum Bedrucken vorgedruckter Bögen |
+| `hintergrund` | eigenes Formularbild (Data-URL, Base64 oder PNG-Bytes) statt des gezeichneten Formulars |
+| `formularfarbe` | Farbe des gezeichneten Formulars, z. B. `"#ff0000"`; Standard Schwarz |
 | `ohneRahmen` | Titel, Hinweis und Fußzeile am Blattrand weglassen |
 
-Das mitgelieferte Bild landet unter festem Namen in der PDF und wird deshalb nur einmal gespeichert, auch bei vielen Seiten.
+Die Beschriftung des Formulars steht in Helvetica, der Standardschrift jeder PDF, in der Schriftgröße der Vorlage (8 pt, Titel des Meldevordrucks 10 pt fett). Die Vorlage ist in Verdana gesetzt, die sich nicht frei mitliefern lässt; der Zeichenabstand jeder Beschriftung wird deshalb so angepasst, dass sie dieselbe Breite einnimmt wie in der Vorlage.
 
 ### Feldgeometrie
 
 `NACHRICHTENVORDRUCK_ANKREUZFELDER` und `NACHRICHTENVORDRUCK_TEXTFELDER` enthalten die vermessenen Anker in Millimetern. Wer ein eigenes Formularbild mit anderer Aufteilung verwendet, kann sie zum Prüfen heranziehen.
+
+`NACHRICHTENVORDRUCK_FORMULAR` und `MELDEVORDRUCK_FORMULAR` beschreiben das Formular selbst als Liste von Flächen, Linien, Rahmen und Beschriftungen in Millimetern. `zeichneFormular(pdf, formular, { offsetX, farbe, flaechen })` zeichnet sie einzeln, etwa als Strichbild über ein eingescanntes Formular.
 
 ## Entwicklung
 
@@ -76,13 +79,13 @@ npm run typecheck
 npm run build       # dist/
 ```
 
-Die Formularbilder liegen in `assets/` und werden als Data-URL nach `src/hintergrund.ts` geschrieben. Nach einer Änderung an einem PNG:
+In `assets/` liegen die InDesign-Vorlagen (PDF) und daraus erzeugte Formularbilder (PNG, 200 dpi). Sie gehören nicht zum Paket, sondern dienen als Referenz für `src/formularGeometrie.ts`. Zum Abgleich:
 
 ```bash
-npm run bilder
+npm run vergleich
 ```
 
-Ein Test schlägt fehl, wenn `src/hintergrund.ts` nicht zu den PNGs passt.
+Das schreibt `vergleich/vergleich.pdf`: die Formularbilder mit dem gezeichneten Formular in Rot darüber. Sieht neben einer roten Linie Grau oder Schwarz hervor, weicht die Geometrie ab.
 
 ## Lizenz
 

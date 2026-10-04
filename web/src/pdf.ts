@@ -13,7 +13,7 @@ export type Blattformat = "a4" | "a4hoch" | "a5";
 export interface PdfOptionen {
     vordruck: VordruckWahl;
     blatt: Blattformat;
-    /** Formularbild weglassen, zum Bedrucken vorgedruckter Bögen. */
+    /** Formular weglassen, zum Bedrucken vorgedruckter Bögen. */
     ohneHintergrund: boolean;
 }
 
@@ -72,7 +72,7 @@ export function erzeugePdf(alle: readonly VordruckDaten[], optionen: PdfOptionen
 /**
  * Zeichnet den Vordruck um den Rand von A4 hoch versetzt. Die Renderer kennen
  * nur einen waagerechten Versatz; die Transformationsmatrix verschiebt alles
- * gleichermaßen, Formularbild wie Text. Sie rechnet in Punkt, mit dem
+ * gleichermaßen, Formular wie Eintragungen. Sie rechnet in Punkt, mit dem
  * Ursprung unten links: nach unten verschieben heißt negatives y.
  */
 function mittig(pdf: jsPDF, zeichnen: () => void): void {

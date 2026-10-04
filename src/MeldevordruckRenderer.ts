@@ -1,15 +1,12 @@
 import type { jsPDF } from "jspdf";
 import type { VordruckDaten } from "./VordruckDaten.js";
-import { MELDEVORDRUCK_HINTERGRUND } from "./hintergrund.js";
+import { MELDEVORDRUCK_FORMULAR } from "./formularGeometrie.js";
 import { zeichneAngepasst, zeichneMehrzeilig } from "./pdfText.js";
 import {
     zeichneHintergrund,
     zeichneRahmen,
     type VordruckRenderOptionen
 } from "./NachrichtenvordruckRenderer.js";
-
-/** Siehe `HINTERGRUND_ALIAS` im Nachrichtenvordruck. */
-const HINTERGRUND_ALIAS = "bos-meldevordruck";
 
 /**
  * Empfängerfeld des Meldevordrucks, am Formularbild gemessen: die Zelle reicht
@@ -41,7 +38,7 @@ export function zeichneMeldevordruck(
 ): void {
     const offsetX = optionen.offsetX ?? 0;
 
-    zeichneHintergrund(pdf, optionen, MELDEVORDRUCK_HINTERGRUND, HINTERGRUND_ALIAS);
+    zeichneHintergrund(pdf, optionen, MELDEVORDRUCK_FORMULAR);
 
     // FM Zentrale
     pdf.setFontSize(16);

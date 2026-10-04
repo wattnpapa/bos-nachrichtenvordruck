@@ -1,7 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
     NACHRICHTENVORDRUCK_ANKREUZFELDER,
-    NACHRICHTENVORDRUCK_HINTERGRUND,
     NACHRICHTENVORDRUCK_TEXTFELDER,
     VordruckDaten,
     zeichneNachrichtenvordruck
@@ -28,33 +28,46 @@ function volleDaten(): VordruckDaten {
 }
 
 describe("zeichneNachrichtenvordruck", () => {
-    it("legt das mitgelieferte Formularbild unter festem Alias", () => {
-        const { pdf, bilder } = protokollPdf();
+    it("zeichnet das Formular selbst, ohne Bild", () => {
+        const { pdf, texte, bilder } = protokollPdf();
 
-        zeichneNachrichtenvordruck(pdf, volleDaten());
+        zeichneNachrichtenvordruck(pdf, volleDaten(), { offsetX: 148 });
 
-        expect(bilder).toHaveLength(1);
-        expect(bilder[0]?.daten).toBe(NACHRICHTENVORDRUCK_HINTERGRUND);
-        expect(bilder[0]?.alias).toBe("bos-nachrichtenvordruck");
+        expect(bilder).toHaveLength(0);
+        expect(texte).toContainEqual({ text: "Aufnahmevermerk", x: 148 + 19.69, y: 16.87 });
     });
 
-    it("nimmt ein eigenes Formularbild ohne den festen Alias", () => {
-        const { pdf, bilder } = protokollPdf();
-        const eigenes = NACHRICHTENVORDRUCK_HINTERGRUND.replace("data:image/png;base64,", "");
+    it("legt ein eigenes Formularbild statt des gezeichneten Formulars", () => {
+        const { pdf, texte, bilder } = protokollPdf();
+        const eigenes = new Uint8Array(readFileSync(new URL("../assets/nachrichtenvordruck4fach.png", import.meta.url)));
 
         zeichneNachrichtenvordruck(pdf, volleDaten(), { hintergrund: eigenes });
 
+        expect(bilder).toHaveLength(1);
         expect(bilder[0]?.daten).toBe(eigenes);
-        expect(bilder[0]?.alias).toBeUndefined();
+        expect(texte.map(t => t.text)).not.toContain("Aufnahmevermerk");
     });
 
-    it("lässt Bild und Rahmen auf Wunsch weg", () => {
+    it("lässt Formular und Rahmen auf Wunsch weg", () => {
         const { pdf, texte, bilder } = protokollPdf();
 
         zeichneNachrichtenvordruck(pdf, volleDaten(), { ohneHintergrund: true, ohneRahmen: true });
 
         expect(bilder).toHaveLength(0);
         expect(texte.map(t => t.text)).not.toContain("Testübung");
+        expect(texte.map(t => t.text)).not.toContain("Aufnahmevermerk");
+    });
+
+    it("färbt das Formular, nicht aber die Eintragungen", () => {
+        const { pdf } = protokollPdf();
+
+        zeichneNachrichtenvordruck(pdf, volleDaten(), { formularfarbe: "#ff0000", ohneRahmen: true });
+
+        expect(pdf.getTextColor()).toBe("#000000");
+        expect(pdf.getDrawColor()).toBe("#000000");
+        const seite = pdf.output();
+        expect(seite).toContain("1. 0. 0. RG");
+        expect(seite).toContain("1. 0. 0. rg");
     });
 
     it("kreuzt jedes Feld aus den Daten an der vermessenen Stelle an", () => {
@@ -88,7 +101,6 @@ describe("zeichneNachrichtenvordruck", () => {
         zeichneNachrichtenvordruck(ohne.pdf, volleDaten());
         zeichneNachrichtenvordruck(mit.pdf, volleDaten(), { offsetX: 148 });
 
-        expect(mit.bilder[0]?.x).toBe(148);
         expect(mit.texte).toHaveLength(ohne.texte.length);
         mit.texte.forEach((aufruf, i) => {
             expect(aufruf.x).toBeCloseTo((ohne.texte[i]?.x ?? 0) + 148, 5);
