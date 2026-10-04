@@ -3,6 +3,11 @@ import { SPALTEN, schluesselZuKopf } from "./spalten.js";
 
 // ExcelJS ist groß (rund 1 MB). Es wird erst geladen, wenn jemand die Vorlage
 // holt oder eine Excel-Datei einliest – die Eingabemaske braucht es nie.
+/** Lädt die Excel-Bibliothek vorab, damit ein Fehlen sofort und verständlich auffällt. */
+export async function excelBereit(): Promise<void> {
+    await excel();
+}
+
 async function excel(): Promise<typeof import("exceljs")> {
     const modul = await import("exceljs");
     return (modul as unknown as { default?: typeof import("exceljs") }).default ?? modul;

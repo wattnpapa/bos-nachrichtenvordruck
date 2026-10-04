@@ -1370,7 +1370,10 @@ let ersetztText = "";
  */
 async function excelTeil(): Promise<typeof import("./excel.js")> {
     try {
-        return await import("./excel.js");
+        const teil = await import("./excel.js");
+        // Auch die Bibliothek selbst ist ein eigener Teil; fehlt sie, dieselbe Meldung.
+        await teil.excelBereit();
+        return teil;
     } catch {
         throw new Error("Der Excel-Teil ist auf diesem Gerät gerade nicht verfügbar. Seite neu laden oder die Tabelle als CSV speichern und einlesen; „CSV-Vorlage“ geht immer.");
     }
@@ -1945,7 +1948,14 @@ einstellungenZeigen();
 felderFuerVordruckZeigen();
 verlaufZeigen();
 element<HTMLParagraphElement>("laedt").hidden = true;
-(window as Window & { bnvGestartet?: boolean }).bnvGestartet = true;
+{
+    // Gestartet: die Ladefrist abbrechen und eine schon gezeigte Meldung wieder entfernen
+    // (bei sehr langsamem Netz startet die App auch nach den 12 s noch).
+    const fenster = window as Window & { bnvGestartet?: boolean; bnvLadeUhr?: number };
+    fenster.bnvGestartet = true;
+    clearTimeout(fenster.bnvLadeUhr);
+    document.getElementById("laedt-nicht")?.remove();
+}
 if (wiederhergestellt || verlauf.length > 0) {
     document.documentElement.classList.add("wiederkehrend");
 }
@@ -1966,9 +1976,37 @@ for (const knopf of document.querySelectorAll<HTMLButtonElement>("button[data-sp
 // Excel-Weg nur zusagen, wenn der Offline-Speicher die Seite steuert.
 function netzZeigen(): void {
     element<HTMLParagraphElement>("netz-stand").hidden = navigator.onLine;
-    element<HTMLSpanElement>("netz-excel").hidden = !navigator.serviceWorker?.controller;
+    const excel = element<HTMLSpanElement>("netz-excel");
+    excel.hidden = true;
+    // Den Excel-Weg nur zusagen, wenn die Excel-Bibliothek tatsächlich im Offline-Speicher liegt.
+    if (!navigator.onLine && navigator.serviceWorker?.controller && "caches" in globalThis) {
+        void caches.keys()
+            .then(namen => Promise.all(namen.map(name => caches.open(name).then(speicher => speicher.keys()))))
+            .then(listen => {
+                excel.hidden = !listen.flat().some(anfrage => /exceljs/i.test(anfrage.url));
+            })
+            .catch(() => undefined);
+    }
+    // Netz wieder da: Läuft die gespeicherte Fassung, prüfen, ob der Server wieder antwortet.
+    if (navigator.onLine && !element<HTMLParagraphElement>("speicher-stand").hidden) {
+        // HEAD geht am Offline-Dienst vorbei (er bedient nur GET) und fragt wirklich den Server.
+        void fetch("./manifest.webmanifest", { method: "HEAD", cache: "no-store" })
+            .then(antwort => {
+                if (antwort.ok) {
+                    const hinweis = element<HTMLParagraphElement>("speicher-stand");
+                    hinweis.textContent = "Der Server ist wieder erreichbar. Neu laden holt die aktuelle Fassung.";
+                }
+            })
+            .catch(() => undefined);
+    }
 }
 addEventListener("online", netzZeigen);
+// Auch ohne Netzwechsel kann der Server zurückkommen: einmal pro Minute nachsehen.
+setInterval(() => {
+    if (!element<HTMLParagraphElement>("speicher-stand").hidden) {
+        netzZeigen();
+    }
+}, 60_000);
 addEventListener("offline", netzZeigen);
 netzZeigen();
 zeigeReiter(location.hash === "#tabelle" ? "tabelle" : "einzeln", false, "ersetzen");
@@ -2000,7 +2038,7 @@ try {
 }
 
 // Fassung im Fuß, damit bei Rückfragen klar ist, welcher Stand läuft.
-element<HTMLSpanElement>("fassung").textContent = `Fassung ${__FASSUNG__}`;
+element<HTMLSpanElement>("fassung").textContent = `Fassung ${__FASSUNG__} UTC`;
 
 // Nach dem ersten Aufruf startet die Seite aus dem Cache, auch ohne Netz.
 // Der Dienst entsteht erst beim Bauen (web/vite.config.ts), im Entwicklungsserver gibt es ihn nicht.
@@ -2030,7 +2068,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
         }
         if (stand.ausSpeicher) {
             const hinweis = element<HTMLParagraphElement>("speicher-stand");
-            hinweis.textContent = `Server nicht erreichbar: Es läuft die auf diesem Gerät gespeicherte Fassung ${__FASSUNG__}.`;
+            hinweis.textContent = `Server nicht erreichbar: Es läuft die auf diesem Gerät gespeicherte Fassung ${__FASSUNG__} UTC.`;
             hinweis.hidden = false;
         }
     });
