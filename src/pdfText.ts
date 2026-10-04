@@ -119,60 +119,53 @@ export function zeichneInZelle(pdf: jsPDF, options: {
     pdf.setFontSize(maxFontSize);
 }
 
-/** Zeilenzahl, die `zeichneMehrzeilig` für den Text braucht, Leerzeilen mitgezählt. */
-function zeilenImBlock(pdf: jsPDF, text: string, maxWidth: number): number {
-    return String(text).replace(/\\n/g, "\n").split("\n").reduce((summe, absatz) =>
-        summe + (absatz.trim() === "" ? 1 : (pdf.splitTextToSize(absatz, maxWidth) as string[]).length), 0);
+/**
+ * Bricht den Text so um, wie `zeichneMehrzeilig` ihn setzt: Absätze an
+ * Zeilenumbrüchen (auch als Text geschriebenen), leere Absätze als leere Zeile.
+ */
+export function umbrechen(pdf: jsPDF, text: string, maxWidth: number, fontSize: number): string[] {
+    pdf.setFontSize(fontSize);
+    return String(text).replace(/\\n/g, "\n").split("\n").flatMap(absatz =>
+        absatz.trim() === "" ? [""] : pdf.splitTextToSize(absatz, maxWidth) as string[]);
 }
 
 /**
- * Rechnet aus, wie `zeichneImBlock` den Text setzt: in `fontSize`, solange die
- * letzte Grundlinie nicht unter `letzteGrundlinie` rutscht, sonst kleiner, mit
- * dem Zeilenabstand im gleichen Verhältnis, bis 4 pt.
+ * Setzt den Text wie `zeichneMehrzeilig` in fester Schriftgröße auf die Linien
+ * des Formulars, aber höchstens `maxZeilen` Zeilen. Was darüber hinausgeht,
+ * fällt weg; die letzte Zeile endet dann mit „…“, damit auf dem Papier zu sehen
+ * ist, dass Text fehlt. Verkleinert wird nicht: kleinere Schrift läge zwischen
+ * den Linien und wäre schlecht lesbar.
  */
-export function schriftFuerBlock(pdf: jsPDF, options: {
-    text: string;
-    y: number;
-    maxWidth: number;
-    lineHeight: number;
-    fontSize: number;
-    letzteGrundlinie: number;
-}): Omit<Schriftanpassung, "zeilen"> & { zeilenhoehe: number } {
-    const { text, y, maxWidth, lineHeight, fontSize, letzteGrundlinie } = options;
-    const vorher = pdf.getFontSize();
-    let groesse = fontSize;
-    let hoehe = lineHeight;
-    pdf.setFontSize(groesse);
-    let passt = y + (zeilenImBlock(pdf, text, maxWidth) - 1) * hoehe <= letzteGrundlinie;
-    while (!passt && groesse > 4) {
-        groesse = Math.max(4, groesse - 0.2);
-        hoehe = lineHeight * (groesse / fontSize);
-        pdf.setFontSize(groesse);
-        passt = y + (zeilenImBlock(pdf, text, maxWidth) - 1) * hoehe <= letzteGrundlinie;
-    }
-    pdf.setFontSize(vorher);
-    return { schriftgroesse: groesse, zeilenhoehe: hoehe, passt };
-}
-
-/**
- * Wie `zeichneMehrzeilig`, aber mit Unterkante: reicht der Platz bis
- * `letzteGrundlinie` nicht, wird die Schrift verkleinert, statt dass der Text
- * über die Felder darunter und den Blattrand läuft. Kein Text fällt weg.
- */
-export function zeichneImBlock(pdf: jsPDF, options: {
+export function zeichneZeilenBegrenzt(pdf: jsPDF, options: {
     text: string;
     x: number;
     y: number;
     maxWidth: number;
     lineHeight: number;
     fontSize: number;
-    letzteGrundlinie: number;
-}): void {
-    if (!options.text) {
-        return;
+    maxZeilen: number;
+}): { zeilen: number; gezeichnet: number } {
+    const { text, x, y, maxWidth, lineHeight, fontSize, maxZeilen } = options;
+    if (!text) {
+        return { zeilen: 0, gezeichnet: 0 };
     }
-    const { schriftgroesse, zeilenhoehe } = schriftFuerBlock(pdf, options);
-    zeichneMehrzeilig(pdf, { ...options, fontSize: schriftgroesse, lineHeight: zeilenhoehe, lineSpacing: 0 });
+    const zeilen = umbrechen(pdf, text, maxWidth, fontSize);
+    const sichtbar = zeilen.slice(0, maxZeilen);
+    if (zeilen.length > maxZeilen && sichtbar.length > 0) {
+        let letzte = (sichtbar[sichtbar.length - 1] ?? "").trimEnd();
+        while (letzte && pdf.getTextWidth(`${letzte} …`) > maxWidth) {
+            letzte = letzte.slice(0, -1).trimEnd();
+        }
+        sichtbar[sichtbar.length - 1] = letzte ? `${letzte} …` : "…";
+    }
+    let currentY = y;
+    for (const zeile of sichtbar) {
+        if (zeile !== "") {
+            pdf.text(zeile, x, currentY);
+        }
+        currentY += lineHeight;
+    }
+    return { zeilen: zeilen.length, gezeichnet: sichtbar.length };
 }
 
 /**

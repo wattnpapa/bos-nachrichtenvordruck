@@ -114,11 +114,12 @@ describe("zeichneNachrichtenvordruck", () => {
 
         const erste = texte.find(t => t.text === "Erkundung abgeschlossen.");
         const zweite = texte.find(t => t.text === "Zufahrt ist frei.");
-        expect(erste?.y).toBe(77);
-        expect(zweite?.y).toBeCloseTo(83.3, 5);
+        // 1,3 mm über den Linien bei 78,41 und 84,91 mm.
+        expect(erste?.y).toBeCloseTo(77.11, 5);
+        expect(zweite?.y).toBeCloseTo(83.6, 1);
     });
 
-    it("verkleinert langen Inhalt, statt in den Fußblock zu laufen", () => {
+    it("schneidet langen Inhalt ab, statt in den Fußblock zu laufen", () => {
         const { pdf, texte } = protokollPdf();
         const daten = volleDaten();
         daten.inhalt = Array.from({ length: 40 }, (_, i) => `Zeile ${i + 1} eines langen Fernschreibens.`).join("\n");
@@ -127,7 +128,7 @@ describe("zeichneNachrichtenvordruck", () => {
 
         const inhalt = texte.filter(t => t.text.includes("langen Fernschreibens"));
         expect(inhalt.length).toBeGreaterThan(0);
-        inhalt.forEach(zeile => expect(zeile.y).toBeLessThanOrEqual(148));
+        inhalt.forEach(zeile => expect(zeile.y).toBeLessThan(149.84));
     });
 
     it("lässt leere Felder aus", () => {

@@ -1,21 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { istKritisch, pruefeTextlaenge } from "../../web/src/textlaenge.js";
+import { istKritisch, pruefeTextlaenge, textlaengeMeldung } from "../../web/src/textlaenge.js";
+
+const satz = "Lage unverändert, keine weiteren Kräfte nötig. ";
 
 describe("Textlänge", () => {
-    it("warnt, sobald der Nachrichtenvordruck verkleinern muss: der Text läuft dann über die Linien", () => {
-        const laenge = pruefeTextlaenge("Lage unverändert, keine weiteren Kräfte nötig. ".repeat(15), "nachricht");
-        expect(laenge?.stufe).toBe("ueber-linien");
-        expect(istKritisch(laenge)).toBe(true);
+    it("meldet nichts, solange reichlich Platz ist", () => {
+        expect(pruefeTextlaenge("Kurz.", "beide")).toBeNull();
     });
 
-    it("bleibt beim Meldevordruck bei leichter Verkleinerung ein Hinweis", () => {
-        const laenge = pruefeTextlaenge("Lage unverändert, keine weiteren Kräfte nötig. ".repeat(40), "meldung");
-        expect(laenge?.stufe).toBe("verkleinert");
+    it("warnt, wenn der Text auf dem Nachrichtenvordruck abgeschnitten wird", () => {
+        const laenge = pruefeTextlaenge(satz.repeat(20), "nachricht");
+        expect(laenge?.stufe).toBe("abgeschnitten");
+        expect(laenge?.maxZeilen).toBe(12);
+        expect(istKritisch(laenge)).toBe(true);
+        expect(textlaengeMeldung(laenge!)).toMatch(/Gedruckt werden nur die ersten 12/);
+    });
+
+    it("sagt Bescheid, wenn es knapp wird, ohne nachzufragen", () => {
+        const knapp = Array.from({ length: 11 }, (_, i) => `Zeile ${i + 1}`).join("\n");
+        const laenge = pruefeTextlaenge(knapp, "nachricht");
+        expect(laenge?.stufe).toBe("knapp");
         expect(istKritisch(laenge)).toBe(false);
     });
 
-    it("bewertet bei „beide“ den Nachrichtenvordruck mit, auch wenn der Meldevordruck kleiner wird", () => {
-        expect(pruefeTextlaenge("Kurz.", "beide")).toBeNull();
-        expect(pruefeTextlaenge("Lage unverändert, keine weiteren Kräfte nötig. ".repeat(15), "beide")?.stufe).toBe("ueber-linien");
+    it("nimmt bei „beide“ den engeren Vordruck", () => {
+        expect(pruefeTextlaenge(satz.repeat(20), "beide")?.vordruck).toBe("Nachrichtenvordruck");
+        expect(pruefeTextlaenge(satz.repeat(20), "meldung")).toBeNull();
     });
 });

@@ -2,7 +2,7 @@ import type { jsPDF } from "jspdf";
 import type { VordruckDaten } from "./VordruckDaten.js";
 import type { Uebermittlungsweg } from "./felder.js";
 import { MELDEVORDRUCK_FORMULAR } from "./formularGeometrie.js";
-import { schriftFuerBlock, zeichneAngepasst, zeichneImBlock } from "./pdfText.js";
+import { umbrechen, zeichneAngepasst, zeichneZeilenBegrenzt } from "./pdfText.js";
 import {
     zeichneHintergrund,
     zeichneRahmen,
@@ -41,8 +41,8 @@ const MELDEVORDRUCK_WEG: Partial<Record<Uebermittlungsweg, { x: number; y: numbe
 
 /**
  * Inhaltsfeld des Meldevordrucks, am Formularbild gemessen: das Raster reicht
- * von 51,2 bis 185,7 mm, darunter beginnen Verfasser und Abfassungszeit.
- * `letzteGrundlinie` lässt Platz für die Unterlängen der letzten Zeile.
+ * von 51,2 bis 185,7 mm, darunter beginnen Verfasser und Abfassungszeit. Ab
+ * der Grundlinie bei 55 mm passen im Abstand von 5 mm 26 Zeilen.
  */
 const INHALT_FELD = {
     x: 20,
@@ -50,24 +50,19 @@ const INHALT_FELD = {
     maxBreite: 120,
     zeilenhoehe: 5,
     schriftgroesse: 11.5,
-    letzteGrundlinie: 184.5
+    zeilen: 26
 };
 
 /**
- * Schriftgröße, mit der der Meldevordruck `inhalt` setzt, und ob der Text
- * selbst in der kleinsten Größe ins Inhaltsfeld passt. Für Hinweise vor dem
+ * Wie viele Zeilen `inhalt` auf dem Meldevordruck braucht und wie viele Platz
+ * haben. Mehr als `maxZeilen` wird abgeschnitten. Für Hinweise vor dem
  * Erzeugen; zeichnet nichts.
  */
-export function meldevordruckInhaltSchrift(pdf: jsPDF, inhalt: string): { schriftgroesse: number; passt: boolean } {
-    const { schriftgroesse, passt } = schriftFuerBlock(pdf, {
-        text: inhalt,
-        y: INHALT_FELD.y,
-        maxWidth: INHALT_FELD.maxBreite,
-        lineHeight: INHALT_FELD.zeilenhoehe,
-        fontSize: INHALT_FELD.schriftgroesse,
-        letzteGrundlinie: INHALT_FELD.letzteGrundlinie
-    });
-    return { schriftgroesse, passt };
+export function meldevordruckInhaltZeilen(pdf: jsPDF, inhalt: string): { zeilen: number; maxZeilen: number } {
+    const vorher = pdf.getFontSize();
+    const zeilen = inhalt ? umbrechen(pdf, inhalt, INHALT_FELD.maxBreite, INHALT_FELD.schriftgroesse).length : 0;
+    pdf.setFontSize(vorher);
+    return { zeilen, maxZeilen: INHALT_FELD.zeilen };
 }
 
 /**
@@ -104,16 +99,16 @@ export function zeichneMeldevordruck(
     pdf.setFontSize(12);
     zeichneAngepasst(pdf, { text: daten.verfasser, maxWidth: 40, x: offsetX + 37, y: 192 });
 
-    // Langer Inhalt wird verkleinert, statt über Verfasser, Abfassungszeit und
-    // den Blattrand zu laufen.
-    zeichneImBlock(pdf, {
+    // Langer Inhalt wird abgeschnitten statt verkleinert und läuft nicht über
+    // Verfasser, Abfassungszeit und den Blattrand.
+    zeichneZeilenBegrenzt(pdf, {
         text: daten.inhalt,
         x: offsetX + INHALT_FELD.x,
         y: INHALT_FELD.y,
         maxWidth: INHALT_FELD.maxBreite,
         lineHeight: INHALT_FELD.zeilenhoehe,
         fontSize: INHALT_FELD.schriftgroesse,
-        letzteGrundlinie: INHALT_FELD.letzteGrundlinie
+        maxZeilen: INHALT_FELD.zeilen
     });
 
     if (!optionen.ohneRahmen) {

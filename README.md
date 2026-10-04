@@ -52,7 +52,7 @@ Nicht gesetzte Felder bleiben leer. `VordruckDaten` kennt jedes Feld des Nachric
 
 `titel`, `hinweis` und `fusszeile` stehen außerhalb des Formulars am Blattrand.
 
-Langer Inhalt wird auf beiden Vordrucken verkleinert, bis er ins Inhaltsfeld passt, beim Nachrichtenvordruck bis 3 pt, beim Meldevordruck bis 4 pt. `nachrichtenvordruckInhaltSchrift(pdf, inhalt)` und `meldevordruckInhaltSchrift(pdf, inhalt)` geben vorab die Schriftgröße zurück und ob der Text überhaupt passt, etwa um vor dem Erzeugen zu warnen.
+Die Schrift im Inhaltsfeld wird nie verkleinert: Der Nachrichtenvordruck schreibt 12 Zeilen in 12 pt auf die Linien, der Meldevordruck 26 Zeilen in 11,5 pt ins Raster. Was darüber hinausgeht, wird abgeschnitten, die letzte gedruckte Zeile endet dann mit „…“. `nachrichtenvordruckInhaltZeilen(pdf, inhalt)` und `meldevordruckInhaltZeilen(pdf, inhalt)` geben vorab `{ zeilen, maxZeilen }` zurück, etwa um vor dem Erzeugen zu warnen.
 
 ### Optionen
 

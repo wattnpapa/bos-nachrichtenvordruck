@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { jsPDF } from "jspdf";
-import { meldevordruckInhaltSchrift, zeichneMeldevordruck } from "../src/MeldevordruckRenderer.js";
-import { nachrichtenvordruckInhaltSchrift } from "../src/NachrichtenvordruckRenderer.js";
+import { meldevordruckInhaltZeilen, zeichneMeldevordruck } from "../src/MeldevordruckRenderer.js";
+import { nachrichtenvordruckInhaltZeilen, zeichneNachrichtenvordruck } from "../src/NachrichtenvordruckRenderer.js";
 import { VordruckDaten } from "../src/VordruckDaten.js";
 
 /** Zeichnet ohne Formularbild und protokolliert jeden Textaufruf. */
@@ -89,42 +89,56 @@ describe("Meldevordruck: Empfängerfeld", () => {
 describe("Meldevordruck: Inhaltsfeld", () => {
     const lang = "Deich bricht bei Kilometer 3, Bereich sofort räumen. ".repeat(60);
 
-    it("bleibt mit langem Text über Verfasser und Blattrand", () => {
+    it("setzt langen Text in voller Größe und schneidet nach 26 Zeilen mit „…“ ab", () => {
         const daten = baueDaten(["Heros Jever 21/10"]);
         daten.inhalt = lang;
 
         const protokoll = zeichneUndProtokolliere(daten);
-        const inhalt = protokoll.filter(e => e.text.includes("Deich") || e.text.includes("räumen"));
+        const inhalt = protokoll.filter(e => e.y >= 55 && e.y <= 184.5 && (e.text.includes("Deich") || e.text.includes("räumen") || e.text.endsWith("…")));
 
-        // Raster am Formularbild gemessen: endet bei 185,7 mm, darunter Verfasser.
-        expect(inhalt.length).toBeGreaterThan(26);
-        inhalt.forEach(zeile => expect(zeile.y).toBeLessThanOrEqual(184.5));
-        // Kein Text fällt weg.
-        expect(inhalt.map(e => e.text).join(" ").split("Deich").length - 1).toBe(60);
+        expect(inhalt).toHaveLength(26);
+        // Die Zeilen bleiben im Abstand von 5 mm auf dem Raster.
+        expect(inhalt.map(e => e.y)).toEqual(Array.from({ length: 26 }, (_, i) => 55 + i * 5));
+        expect(inhalt.at(-1)?.text.endsWith(" …")).toBe(true);
+        expect(protokoll.some(e => e.y > 184.5 && e.text.includes("Deich"))).toBe(false);
     });
 
-    it("meldet die Schriftgröße, mit der gesetzt wird", () => {
+    it("meldet, wie viele Zeilen der Text braucht und wie viele Platz haben", () => {
         const pdf = new jsPDF("p", "mm", "a5");
 
-        expect(meldevordruckInhaltSchrift(pdf, "Sind einsatzbereit.")).toEqual({ schriftgroesse: 11.5, passt: true });
-        const verkleinert = meldevordruckInhaltSchrift(pdf, lang);
-        expect(verkleinert.schriftgroesse).toBeLessThan(11.5);
-        expect(verkleinert.passt).toBe(true);
-        expect(meldevordruckInhaltSchrift(pdf, lang.repeat(20)).passt).toBe(false);
+        expect(meldevordruckInhaltZeilen(pdf, "Sind einsatzbereit.")).toEqual({ zeilen: 1, maxZeilen: 26 });
+        expect(meldevordruckInhaltZeilen(pdf, lang).zeilen).toBeGreaterThan(26);
     });
 });
 
-describe("Nachrichtenvordruck: Schriftgröße des Inhalts", () => {
-    it("bleibt bei einem Funkspruch auf 12 pt und verkleinert langen Text", () => {
+describe("Nachrichtenvordruck: Inhaltsfeld", () => {
+    it("bleibt bei 12 pt auf den zwölf Linien und schneidet längeren Text ab", () => {
         const pdf = new jsPDF("p", "mm", "a5");
         pdf.setFontSize(16);
+        const lang = "Lage unverändert, keine weiteren Kräfte nötig. ".repeat(40);
 
-        expect(nachrichtenvordruckInhaltSchrift(pdf, "Erkundung abgeschlossen.")).toEqual({ schriftgroesse: 12, passt: true });
-        const lang = nachrichtenvordruckInhaltSchrift(pdf, "Lage unverändert, keine weiteren Kräfte nötig. ".repeat(40));
-        expect(lang.schriftgroesse).toBeLessThan(12);
-        expect(lang.passt).toBe(true);
+        expect(nachrichtenvordruckInhaltZeilen(pdf, "Erkundung abgeschlossen.")).toEqual({ zeilen: 1, maxZeilen: 12 });
+        expect(nachrichtenvordruckInhaltZeilen(pdf, lang).zeilen).toBeGreaterThan(12);
         // Ändert die Schriftgröße des Dokuments nicht.
         expect(pdf.getFontSize()).toBe(16);
+
+        const daten = baueDaten([]);
+        daten.inhalt = lang;
+        const protokoll: { text: string; y: number; groesse: number }[] = [];
+        const zeichnen = new jsPDF("p", "mm", "a5");
+        const text = zeichnen.text.bind(zeichnen);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (zeichnen as any).text = (inhalt: string, x: number, y: number, optionen?: unknown) => {
+            protokoll.push({ text: String(inhalt), y, groesse: zeichnen.getFontSize() });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (text as any)(inhalt, x, y, optionen);
+        };
+        zeichneNachrichtenvordruck(zeichnen, daten, { ohneHintergrund: true, ohneRahmen: true });
+        const zeilen = protokoll.filter(e => e.text.includes("Lage") || e.text.includes("Kräfte") || e.text.endsWith("…"));
+        expect(zeilen).toHaveLength(12);
+        expect(zeilen.every(e => e.groesse === 12)).toBe(true);
+        expect(zeilen.map(e => Math.round(e.y * 10) / 10)).toEqual(Array.from({ length: 12 }, (_, i) => Math.round((77.11 + i * (149.84 - 78.41) / 11) * 10) / 10));
+        expect(zeilen.at(-1)?.text.endsWith(" …")).toBe(true);
     });
 });
 

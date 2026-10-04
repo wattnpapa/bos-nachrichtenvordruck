@@ -8,7 +8,7 @@ import {
 import type { VordruckDaten } from "./VordruckDaten.js";
 import { zeichneFormular, type Formular } from "./formular.js";
 import { NACHRICHTENVORDRUCK_FORMULAR } from "./formularGeometrie.js";
-import { schriftFuerZelle, zeichneEinzeilig, zeichneInZelle, zeichneMehrzeilig } from "./pdfText.js";
+import { umbrechen, zeichneEinzeilig, zeichneInZelle, zeichneZeilenBegrenzt } from "./pdfText.js";
 
 /** Bilddaten, die `jsPDF.addImage` als Formularbild annimmt. */
 export type VordruckHintergrund = string | Uint8Array;
@@ -104,65 +104,39 @@ export function zeichneNachrichtenvordruck(
         height: 16.5
     });
 
-    // Inhalt ab 77 mm bis zum Fußblock bei 148 mm. Funksprüche passen in
-    // Normalgröße; lange Ausdrucke und E-Mails einer Führungsstellen-Übung
-    // werden verkleinert, statt in den Fußblock zu laufen.
-    const inhalt = String(daten.inhalt).replace(/\\n/g, "\n");
-    if (passtInNormalgroesse(pdf, inhalt)) {
-        zeichneMehrzeilig(pdf, {
-            text: daten.inhalt,
-            x: offsetX + 17,
-            y: 77,
-            maxWidth: INHALT_FELD.breite,
-            lineHeight: INHALT_FELD.zeilenhoehe,
-            fontSize: INHALT_FELD.schriftgroesse,
-            lineSpacing: 0
-        });
-    } else {
-        zeichneInZelle(pdf, {
-            text: inhalt,
-            x: offsetX + 17,
-            y: 77,
-            width: INHALT_FELD.breite,
-            height: INHALT_FELD.hoehe
-        });
-    }
+    // Inhalt auf den zwölf Linien des Formulars (78,41–149,84 mm), je 1,3 mm über
+    // der Linie. Längerer Text wird abgeschnitten, nicht verkleinert.
+    zeichneZeilenBegrenzt(pdf, {
+        text: daten.inhalt,
+        x: offsetX + 17,
+        y: INHALT_FELD.y,
+        maxWidth: INHALT_FELD.breite,
+        lineHeight: INHALT_FELD.zeilenhoehe,
+        fontSize: INHALT_FELD.schriftgroesse,
+        maxZeilen: INHALT_FELD.zeilen
+    });
 
     if (!optionen.ohneRahmen) {
         zeichneRahmen(pdf, daten, offsetX);
     }
 }
 
-/** Inhaltsfeld des Nachrichtenvordrucks: 120 mm breit, 71 mm hoch. */
-const INHALT_FELD = { breite: 120, hoehe: 71, zeilenhoehe: 6.3, schriftgroesse: 12 };
-
-/** Setzt die Schrift auf Normalgröße und prüft, ob der Inhalt darin passt. */
-function passtInNormalgroesse(pdf: jsPDF, inhalt: string): boolean {
-    pdf.setFontSize(INHALT_FELD.schriftgroesse);
-    const zeilen: string[] = pdf.splitTextToSize(inhalt, INHALT_FELD.breite);
-    return zeilen.length * INHALT_FELD.zeilenhoehe <= INHALT_FELD.hoehe;
-}
+/**
+ * Inhaltsfeld des Nachrichtenvordrucks: 120 mm breit, zwölf Linien von 78,41 bis
+ * 149,84 mm, also im Abstand von 6,4936 mm.
+ */
+const INHALT_FELD = { y: 77.11, breite: 120, zeilen: 12, zeilenhoehe: (149.84 - 78.41) / 11, schriftgroesse: 12 };
 
 /**
- * Schriftgröße, mit der der Nachrichtenvordruck `inhalt` setzt, und ob der
- * Text selbst in der kleinsten Größe ins Inhaltsfeld passt. Für Hinweise vor
- * dem Erzeugen; zeichnet nichts.
+ * Wie viele Zeilen `inhalt` auf dem Nachrichtenvordruck braucht und wie viele
+ * Platz haben. Mehr als `maxZeilen` wird abgeschnitten. Für Hinweise vor dem
+ * Erzeugen; zeichnet nichts.
  */
-export function nachrichtenvordruckInhaltSchrift(pdf: jsPDF, inhalt: string): { schriftgroesse: number; passt: boolean } {
+export function nachrichtenvordruckInhaltZeilen(pdf: jsPDF, inhalt: string): { zeilen: number; maxZeilen: number } {
     const vorher = pdf.getFontSize();
-    const text = String(inhalt).replace(/\\n/g, "\n");
-    if (passtInNormalgroesse(pdf, text)) {
-        pdf.setFontSize(vorher);
-        return { schriftgroesse: INHALT_FELD.schriftgroesse, passt: true };
-    }
-    const { schriftgroesse, passt } = schriftFuerZelle(pdf, {
-        text,
-        width: INHALT_FELD.breite,
-        height: INHALT_FELD.hoehe,
-        maxFontSize: INHALT_FELD.schriftgroesse
-    });
+    const zeilen = inhalt ? umbrechen(pdf, inhalt, INHALT_FELD.breite, INHALT_FELD.schriftgroesse).length : 0;
     pdf.setFontSize(vorher);
-    return { schriftgroesse, passt };
+    return { zeilen, maxZeilen: INHALT_FELD.zeilen };
 }
 
 /**
