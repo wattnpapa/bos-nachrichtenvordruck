@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { jsPDF } from "jspdf";
-import { zeichneMeldevordruck } from "../src/MeldevordruckRenderer.js";
+import { meldevordruckInhaltSchrift, zeichneMeldevordruck } from "../src/MeldevordruckRenderer.js";
+import { nachrichtenvordruckInhaltSchrift } from "../src/NachrichtenvordruckRenderer.js";
 import { VordruckDaten } from "../src/VordruckDaten.js";
 
 /** Zeichnet ohne Formularbild und protokolliert jeden Textaufruf. */
@@ -82,5 +83,47 @@ describe("Meldevordruck: Empfängerfeld", () => {
         const protokoll = zeichneUndProtokolliere(baueDaten([]));
 
         expect(protokoll.some(e => e.y >= 40 && e.y <= 45.9)).toBe(false);
+    });
+});
+
+describe("Meldevordruck: Inhaltsfeld", () => {
+    const lang = "Deich bricht bei Kilometer 3, Bereich sofort räumen. ".repeat(60);
+
+    it("bleibt mit langem Text über Verfasser und Blattrand", () => {
+        const daten = baueDaten(["Heros Jever 21/10"]);
+        daten.inhalt = lang;
+
+        const protokoll = zeichneUndProtokolliere(daten);
+        const inhalt = protokoll.filter(e => e.text.includes("Deich") || e.text.includes("räumen"));
+
+        // Raster am Formularbild gemessen: endet bei 185,7 mm, darunter Verfasser.
+        expect(inhalt.length).toBeGreaterThan(26);
+        inhalt.forEach(zeile => expect(zeile.y).toBeLessThanOrEqual(184.5));
+        // Kein Text fällt weg.
+        expect(inhalt.map(e => e.text).join(" ").split("Deich").length - 1).toBe(60);
+    });
+
+    it("meldet die Schriftgröße, mit der gesetzt wird", () => {
+        const pdf = new jsPDF("p", "mm", "a5");
+
+        expect(meldevordruckInhaltSchrift(pdf, "Sind einsatzbereit.")).toEqual({ schriftgroesse: 11.5, passt: true });
+        const verkleinert = meldevordruckInhaltSchrift(pdf, lang);
+        expect(verkleinert.schriftgroesse).toBeLessThan(11.5);
+        expect(verkleinert.passt).toBe(true);
+        expect(meldevordruckInhaltSchrift(pdf, lang.repeat(20)).passt).toBe(false);
+    });
+});
+
+describe("Nachrichtenvordruck: Schriftgröße des Inhalts", () => {
+    it("bleibt bei einem Funkspruch auf 12 pt und verkleinert langen Text", () => {
+        const pdf = new jsPDF("p", "mm", "a5");
+        pdf.setFontSize(16);
+
+        expect(nachrichtenvordruckInhaltSchrift(pdf, "Erkundung abgeschlossen.")).toEqual({ schriftgroesse: 12, passt: true });
+        const lang = nachrichtenvordruckInhaltSchrift(pdf, "Lage unverändert, keine weiteren Kräfte nötig. ".repeat(40));
+        expect(lang.schriftgroesse).toBeLessThan(12);
+        expect(lang.passt).toBe(true);
+        // Ändert die Schriftgröße des Dokuments nicht.
+        expect(pdf.getFontSize()).toBe(16);
     });
 });

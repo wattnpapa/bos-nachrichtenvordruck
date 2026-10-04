@@ -1,10 +1,11 @@
 export { VordruckDaten, type VordruckQuittung, type VordruckVermerk } from "./VordruckDaten.js";
 export {
+    nachrichtenvordruckInhaltSchrift,
     zeichneNachrichtenvordruck,
     type VordruckHintergrund,
     type VordruckRenderOptionen
 } from "./NachrichtenvordruckRenderer.js";
-export { zeichneMeldevordruck } from "./MeldevordruckRenderer.js";
+export { meldevordruckInhaltSchrift, zeichneMeldevordruck } from "./MeldevordruckRenderer.js";
 export {
     BETRIEBSBUCH_RICHTUNG,
     KOPF_UEBERMITTLUNGSWEG,

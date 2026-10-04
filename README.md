@@ -6,7 +6,7 @@ Herausgelöst aus [sprechfunk-uebung](https://github.com/wattnpapa/sprechfunk-ue
 
 ## Web-App
 
-Unter `web/` liegt eine Web-App, die auf GitHub Pages läuft. Sie füllt einen einzelnen Vordruck über eine Eingabemaske mit Live-Vorschau aus oder erzeugt viele auf einmal aus einer Excel- oder CSV-Tabelle. Eine Excel-Vorlage mit Auswahllisten und eine CSV-Vorlage gibt es dort zum Herunterladen. Alles läuft im Browser, nichts wird hochgeladen.
+Unter `web/` liegt eine Web-App, die auf GitHub Pages läuft. Sie füllt einen einzelnen Vordruck über eine Eingabemaske mit Live-Vorschau aus oder erzeugt viele auf einmal aus einer Excel- oder CSV-Tabelle. Eine Excel-Vorlage mit Auswahllisten und eine CSV-Vorlage gibt es dort zum Herunterladen. Alles läuft im Browser, nichts wird hochgeladen. Nach dem ersten Aufruf startet die App auch ohne Netz: Beim Bauen entsteht `sw.js` aus der Vorlage `web/offline/sw.js` mit allen Dateien der App.
 
 ```bash
 npm run web          # Entwicklungsserver
@@ -51,6 +51,8 @@ pdf.save("vordrucke.pdf");
 Nicht gesetzte Felder bleiben leer. `VordruckDaten` kennt jedes Feld des Nachrichtenvordrucks: Übermittlungsweg (Kopfzeile und Spruchkopf), Richtung im Technischen Betriebsbuch, Aufnahme-, Annahme- und Beförderungsvermerk, Art, Vorrang, Gesprächsnotiz, Abfassungszeit, Zeichen, Funktion, Quittung, Vermerke und über `weitereAnkreuzfelder` das Verteilerraster. Der Meldevordruck nutzt davon nur Nummer, Absender, Empfänger, Verfasser und Inhalt.
 
 `titel`, `hinweis` und `fusszeile` stehen außerhalb des Formulars am Blattrand.
+
+Langer Inhalt wird auf beiden Vordrucken verkleinert, bis er ins Inhaltsfeld passt, beim Nachrichtenvordruck bis 3 pt, beim Meldevordruck bis 4 pt. `nachrichtenvordruckInhaltSchrift(pdf, inhalt)` und `meldevordruckInhaltSchrift(pdf, inhalt)` geben vorab die Schriftgröße zurück und ob der Text überhaupt passt, etwa um vor dem Erzeugen zu warnen.
 
 ### Optionen
 

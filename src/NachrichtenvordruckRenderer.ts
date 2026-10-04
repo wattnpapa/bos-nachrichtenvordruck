@@ -7,7 +7,7 @@ import {
 } from "./felder.js";
 import type { VordruckDaten } from "./VordruckDaten.js";
 import { NACHRICHTENVORDRUCK_HINTERGRUND } from "./hintergrund.js";
-import { zeichneEinzeilig, zeichneInZelle, zeichneMehrzeilig } from "./pdfText.js";
+import { schriftFuerZelle, zeichneEinzeilig, zeichneInZelle, zeichneMehrzeilig } from "./pdfText.js";
 
 /** Bilddaten, die `jsPDF.addImage` als Formularbild annimmt. */
 export type VordruckHintergrund = string | Uint8Array;
@@ -103,32 +103,62 @@ export function zeichneNachrichtenvordruck(
     // Inhalt ab 77 mm bis zum Fußblock bei 148 mm. Funksprüche passen in
     // Normalgröße; lange Ausdrucke und E-Mails einer Führungsstellen-Übung
     // werden verkleinert, statt in den Fußblock zu laufen.
-    const inhaltHoehe = 71;
-    pdf.setFontSize(12);
-    const inhaltZeilen: string[] = pdf.splitTextToSize(String(daten.inhalt).replace(/\\n/g, "\n"), 120);
-    if (inhaltZeilen.length * 6.3 <= inhaltHoehe) {
+    const inhalt = String(daten.inhalt).replace(/\\n/g, "\n");
+    if (passtInNormalgroesse(pdf, inhalt)) {
         zeichneMehrzeilig(pdf, {
             text: daten.inhalt,
             x: offsetX + 17,
             y: 77,
-            maxWidth: 120,
-            lineHeight: 6.3,
-            fontSize: 12,
+            maxWidth: INHALT_FELD.breite,
+            lineHeight: INHALT_FELD.zeilenhoehe,
+            fontSize: INHALT_FELD.schriftgroesse,
             lineSpacing: 0
         });
     } else {
         zeichneInZelle(pdf, {
-            text: String(daten.inhalt).replace(/\\n/g, "\n"),
+            text: inhalt,
             x: offsetX + 17,
             y: 77,
-            width: 120,
-            height: inhaltHoehe
+            width: INHALT_FELD.breite,
+            height: INHALT_FELD.hoehe
         });
     }
 
     if (!optionen.ohneRahmen) {
         zeichneRahmen(pdf, daten, offsetX);
     }
+}
+
+/** Inhaltsfeld des Nachrichtenvordrucks: 120 mm breit, 71 mm hoch. */
+const INHALT_FELD = { breite: 120, hoehe: 71, zeilenhoehe: 6.3, schriftgroesse: 12 };
+
+/** Setzt die Schrift auf Normalgröße und prüft, ob der Inhalt darin passt. */
+function passtInNormalgroesse(pdf: jsPDF, inhalt: string): boolean {
+    pdf.setFontSize(INHALT_FELD.schriftgroesse);
+    const zeilen: string[] = pdf.splitTextToSize(inhalt, INHALT_FELD.breite);
+    return zeilen.length * INHALT_FELD.zeilenhoehe <= INHALT_FELD.hoehe;
+}
+
+/**
+ * Schriftgröße, mit der der Nachrichtenvordruck `inhalt` setzt, und ob der
+ * Text selbst in der kleinsten Größe ins Inhaltsfeld passt. Für Hinweise vor
+ * dem Erzeugen; zeichnet nichts.
+ */
+export function nachrichtenvordruckInhaltSchrift(pdf: jsPDF, inhalt: string): { schriftgroesse: number; passt: boolean } {
+    const vorher = pdf.getFontSize();
+    const text = String(inhalt).replace(/\\n/g, "\n");
+    if (passtInNormalgroesse(pdf, text)) {
+        pdf.setFontSize(vorher);
+        return { schriftgroesse: INHALT_FELD.schriftgroesse, passt: true };
+    }
+    const { schriftgroesse, passt } = schriftFuerZelle(pdf, {
+        text,
+        width: INHALT_FELD.breite,
+        height: INHALT_FELD.hoehe,
+        maxFontSize: INHALT_FELD.schriftgroesse
+    });
+    pdf.setFontSize(vorher);
+    return { schriftgroesse, passt };
 }
 
 /**

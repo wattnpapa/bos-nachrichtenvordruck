@@ -1,7 +1,7 @@
 import type { jsPDF } from "jspdf";
 import type { VordruckDaten } from "./VordruckDaten.js";
 import { MELDEVORDRUCK_HINTERGRUND } from "./hintergrund.js";
-import { zeichneAngepasst, zeichneMehrzeilig } from "./pdfText.js";
+import { schriftFuerBlock, zeichneAngepasst, zeichneImBlock } from "./pdfText.js";
 import {
     zeichneHintergrund,
     zeichneRahmen,
@@ -27,6 +27,37 @@ const EMPFAENGER_ZELLE = {
     zeilenhoehe: 5,
     schriftgroesse: 8
 };
+
+/**
+ * Inhaltsfeld des Meldevordrucks, am Formularbild gemessen: das Raster reicht
+ * von 51,2 bis 185,7 mm, darunter beginnen Verfasser und Abfassungszeit.
+ * `letzteGrundlinie` lässt Platz für die Unterlängen der letzten Zeile.
+ */
+const INHALT_FELD = {
+    x: 20,
+    y: 55,
+    maxBreite: 120,
+    zeilenhoehe: 5,
+    schriftgroesse: 11.5,
+    letzteGrundlinie: 184.5
+};
+
+/**
+ * Schriftgröße, mit der der Meldevordruck `inhalt` setzt, und ob der Text
+ * selbst in der kleinsten Größe ins Inhaltsfeld passt. Für Hinweise vor dem
+ * Erzeugen; zeichnet nichts.
+ */
+export function meldevordruckInhaltSchrift(pdf: jsPDF, inhalt: string): { schriftgroesse: number; passt: boolean } {
+    const { schriftgroesse, passt } = schriftFuerBlock(pdf, {
+        text: inhalt,
+        y: INHALT_FELD.y,
+        maxWidth: INHALT_FELD.maxBreite,
+        lineHeight: INHALT_FELD.zeilenhoehe,
+        fontSize: INHALT_FELD.schriftgroesse,
+        letzteGrundlinie: INHALT_FELD.letzteGrundlinie
+    });
+    return { schriftgroesse, passt };
+}
 
 /**
  * Zeichnet einen Meldevordruck aus `VordruckDaten` auf die aktuelle Seite.
@@ -58,14 +89,16 @@ export function zeichneMeldevordruck(
     pdf.setFontSize(12);
     zeichneAngepasst(pdf, { text: daten.verfasser, maxWidth: 40, x: offsetX + 37, y: 192 });
 
-    zeichneMehrzeilig(pdf, {
+    // Langer Inhalt wird verkleinert, statt über Verfasser, Abfassungszeit und
+    // den Blattrand zu laufen.
+    zeichneImBlock(pdf, {
         text: daten.inhalt,
-        x: offsetX + 20,
-        y: 55,
-        maxWidth: 120,
-        lineHeight: 5,
-        fontSize: 11.5,
-        lineSpacing: 0
+        x: offsetX + INHALT_FELD.x,
+        y: INHALT_FELD.y,
+        maxWidth: INHALT_FELD.maxBreite,
+        lineHeight: INHALT_FELD.zeilenhoehe,
+        fontSize: INHALT_FELD.schriftgroesse,
+        letzteGrundlinie: INHALT_FELD.letzteGrundlinie
     });
 
     if (!optionen.ohneRahmen) {
