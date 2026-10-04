@@ -255,6 +255,8 @@ fieldset.wahl legend {
   text-transform: uppercase; color: var(--text-2); padding: 0; margin-bottom: var(--r-1);
 }
 fieldset.wahl label.inline { display: flex; margin-right: 0; }
+fieldset.wahl.richtung { flex: 0 1 auto; }
+fieldset.wahl.richtung label.inline { display: inline-flex; margin-right: var(--r-4); }
 .einstellungen .zeile { align-items: flex-start; gap: var(--r-3) var(--r-5); }
 
 details.karte > summary {
@@ -276,9 +278,18 @@ details.karte[open] > summary { margin-bottom: 0; }
 .arbeitsflaeche { display: grid; gap: 0 var(--r-4); }
 @media (min-width: 64rem) {
   .arbeitsflaeche { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-  .vorschau { position: sticky; top: var(--r-4); }
+  .arbeitsflaeche > .maske { grid-column: 1; grid-row: 1; }
+  .arbeitsflaeche > .abschluss { grid-column: 1; grid-row: 2; }
+  .vorschau { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: var(--r-4); }
+  /* Neben dem Formular ganz sichtbar bleiben, auch mit zwei Vordrucken untereinander. */
+  .vorschau .bildvorschau { width: auto; max-width: 100%; max-height: calc(100vh - 9rem); margin-inline: auto; }
 }
-.maske .aktionen { margin-top: 0; margin-bottom: var(--r-4); }
+.abschluss .aktionen { margin-top: 0; margin-bottom: var(--r-2); }
+.abschluss { margin-bottom: var(--r-4); }
+.bildvorschau {
+  display: block; width: 100%; margin-top: var(--r-2);
+  border: var(--strich) solid var(--linie); background: var(--vorschau-fond);
+}
 .kopfzeile { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.4rem 1rem; }
 .vorschau iframe {
   display: block; width: 100%; border: var(--strich) solid var(--linie);
@@ -420,7 +431,8 @@ footer.seite {
   --vorschau-fond: #17150f;
 }
 /* Das weiße Formular in der Vorschau wäre nachts die hellste Fläche im Bild. */
-.nacht-modus .vorschau iframe { filter: brightness(0.55) sepia(0.5); }
+.dunkel-modus .vorschau iframe, .dunkel-modus .bildvorschau { filter: brightness(0.8); }
+.nacht-modus .vorschau iframe, .nacht-modus .bildvorschau { filter: brightness(0.55) sepia(0.5); }
 .dunkel-modus body, .nacht-modus body { letter-spacing: 0.006em; line-height: 1.55; }
 
 @media (prefers-reduced-motion: reduce) {

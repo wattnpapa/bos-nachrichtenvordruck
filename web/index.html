@@ -98,13 +98,13 @@
                     <option selected>Funk</option><option>Telefon</option><option>Telefax</option><option>DFÜ</option><option>Kurier</option>
                   </select>
                 </label>
-                <label class="feld mittel" data-nur="nachricht">Richtung
-                  <select name="richtung">
-                    <option value="">–</option>
-                    <option>Eingang</option><option selected>Ausgang</option>
-                  </select>
-                </label>
+                <fieldset class="wahl richtung" data-nur="nachricht">
+                  <legend>Richtung</legend>
+                  <label class="inline"><input type="radio" name="richtung" value="Eingang" /> Eingang</label>
+                  <label class="inline"><input type="radio" name="richtung" value="Ausgang" /> Ausgang</label>
+                </fieldset>
               </div>
+              <p class="hinweis" id="richtung-hinweis" data-nur="nachricht">Richtung nicht gewählt: Im Betriebsbuch wird weder Eingang noch Ausgang angekreuzt.</p>
             </section>
 
             <section class="karte">
@@ -125,14 +125,15 @@
                 <label class="inline unten"><input type="checkbox" name="gespraechsnotiz" value="ja" /> Gesprächsnotiz</label>
               </div>
               <div class="zeile">
-                <label class="feld">Empfänger (Rufname)
+                <label class="feld"><span id="empfaenger-titel">Rufname der Gegenstelle</span>
                   <input name="empfaenger" placeholder="z. B. Heros Jever 21/10" />
                 </label>
                 <label class="feld" data-nur="nachricht">Anschrift
                   <input name="anschrift" placeholder="z. B. Technische Einsatzleitung" />
                 </label>
               </div>
-              <p class="hinweis">Mehrere Empfänger oder Anschriften mit Semikolon trennen.</p>
+              <p class="hinweis" data-nur="nachricht">Gegenstelle: bei Ausgang die Station, an die gesendet wird, bei Eingang die Station, von der die Nachricht kommt.</p>
+              <p class="hinweis">Mehrere Rufnamen oder Anschriften mit Semikolon trennen.</p>
             </section>
 
             <section class="karte">
@@ -209,13 +210,6 @@
               </div>
             </details>
 
-            <div class="aktionen">
-              <button type="button" class="primaer" id="einzeln-pdf">PDF herunterladen</button>
-              <button type="button" id="einzeln-naechster">Nächster Vordruck</button>
-              <button type="button" id="einzeln-leeren">Felder leeren</button>
-            </div>
-            <p class="nebentext" id="einzeln-status" role="status"></p>
-            <p class="fehler" id="einzeln-fehler" role="alert" hidden></p>
           </form>
 
           <section class="karte vorschau" aria-labelledby="vorschau-titel">
@@ -224,8 +218,20 @@
               <button type="button" class="link" id="einzeln-oeffnen">In neuem Tab öffnen</button>
             </div>
             <iframe id="einzeln-vorschau" title="Vorschau des Vordrucks"></iframe>
-            <p class="nebentext" id="vorschau-ersatz" hidden>Dieser Browser zeigt PDFs nicht eingebettet. „In neuem Tab öffnen“ zeigt den Vordruck, wie er gedruckt wird.</p>
+            <canvas id="einzeln-bild" class="bildvorschau" role="img" aria-label="Vorschau des Vordrucks" hidden></canvas>
+            <p class="nebentext" id="vorschau-ersatz" hidden>Bildvorschau: die Schrift weicht leicht ab. „In neuem Tab öffnen“ zeigt die PDF, wie sie gedruckt wird.</p>
           </section>
+
+          <!-- Nach der Vorschau, damit am Telefon erst geprüft und dann heruntergeladen wird. -->
+          <div class="abschluss">
+            <p class="fehler" id="einzeln-fehler" role="alert" hidden></p>
+            <div class="aktionen">
+              <button type="button" class="primaer" id="einzeln-pdf">PDF herunterladen</button>
+              <button type="button" id="einzeln-naechster">Nächster Vordruck</button>
+              <button type="button" id="einzeln-leeren">Felder leeren</button>
+            </div>
+            <p class="nebentext" id="einzeln-status" role="status"></p>
+          </div>
         </div>
       </section>
 
@@ -260,7 +266,7 @@
           <div class="alarm-kasten" id="ergebnis-fehler" hidden></div>
           <div class="tabellen-scroll">
             <table class="uebersicht" id="ergebnis-tabelle">
-              <thead><tr><th>Zeile</th><th>Nr.</th><th>Empfänger</th><th>Inhalt</th><th>Absender</th></tr></thead>
+              <thead><tr><th>Zeile</th><th>Nr.</th><th>Vorrang</th><th>Richtung</th><th>Gegenstelle</th><th>Inhalt</th><th>Absender</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>

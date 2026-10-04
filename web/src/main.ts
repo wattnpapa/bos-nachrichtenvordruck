@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import "./seite.js";
-import { schreibeCsv, leseCsv } from "./csv.js";
+import { zeichneBildvorschau } from "./bildvorschau.js";
+import { dekodiereCsv, schreibeCsv, leseCsv } from "./csv.js";
 import { dateiname, erzeugePdf, type Blattformat, type PdfOptionen, type VordruckWahl } from "./pdf.js";
 import { pruefeTextlaenge, textlaengeMeldung } from "./textlaenge.js";
 import {
@@ -118,6 +119,17 @@ function felderFuerVordruckZeigen(): void {
         const nur = bereich.dataset["nur"];
         bereich.hidden = vordruck !== "beide" && nur !== vordruck;
     }
+    // Der Nachrichtenvordruck fragt nach der Gegenstelle, der Meldevordruck nach dem Empfänger.
+    element<HTMLSpanElement>("empfaenger-titel").textContent =
+        vordruck === "meldung" ? "Empfänger" : "Rufname der Gegenstelle";
+    richtungPruefen();
+}
+
+/** Ohne gewählte Richtung bleibt im Betriebsbuch beides leer; das soll auffallen. */
+function richtungPruefen(): void {
+    const gewaehlt = document.querySelector<HTMLInputElement>('input[name="richtung"]:checked');
+    const hinweis = element<HTMLParagraphElement>("richtung-hinweis");
+    hinweis.hidden = Boolean(gewaehlt) || optionen().vordruck === "meldung";
 }
 
 function einstellungenLaden(): void {
@@ -195,7 +207,9 @@ function maskeSchreiben(eingabe: Eingabe): void {
         if (wert === undefined) {
             continue;
         }
-        if (feld instanceof HTMLInputElement && feld.type === "checkbox") {
+        if (feld instanceof HTMLInputElement && feld.type === "radio") {
+            feld.checked = feld.value === wert;
+        } else if (feld instanceof HTMLInputElement && feld.type === "checkbox") {
             feld.checked = feld.name === "verteiler"
                 ? wert.split(",").map(teil => teil.trim()).includes(feld.value)
                 : wert === feld.value;
@@ -282,20 +296,28 @@ const einzelnStatus = element<HTMLParagraphElement>("einzeln-status");
 let vorschauUrl = "";
 let vorschauTimer: ReturnType<typeof setTimeout> | undefined;
 
-function einzelPdf() {
+/** Liest die Maske und hält Fehler- und Längenhinweise aktuell. */
+function einzelPruefen() {
     const { daten, fehler } = zuVordruckDaten(maskeLesen());
+    richtungPruefen();
     einzelnFehler.hidden = fehler.length === 0;
     einzelnFehler.textContent = fehler.join(" · ");
     const laenge = pruefeTextlaenge(daten.inhalt, optionen().vordruck);
     textlaenge.hidden = !laenge;
     textlaenge.textContent = laenge ? textlaengeMeldung(laenge) : "";
     textlaenge.className = `textlaenge ${laenge && laenge.stufe !== "verkleinert" ? "warnung" : "hinweis"}`;
-    return erzeugePdf([daten], optionen());
+    return daten;
 }
 
-// Telefone zeigen eine PDF im iframe meist gar nicht an. Dann bleibt nur der Weg über den neuen Tab.
+function einzelPdf() {
+    return erzeugePdf([einzelPruefen()], optionen());
+}
+
+// Telefone zeigen eine PDF im iframe meist gar nicht an. Dann zeigt ein Bild den Vordruck.
 const eingebettet = (navigator as Navigator & { pdfViewerEnabled?: boolean }).pdfViewerEnabled !== false;
+const bildvorschau = element<HTMLCanvasElement>("einzeln-bild");
 vorschau.hidden = !eingebettet;
+bildvorschau.hidden = eingebettet;
 element<HTMLElement>("vorschau-ersatz").hidden = eingebettet;
 
 function vorschauAktualisieren(): void {
@@ -303,8 +325,7 @@ function vorschauAktualisieren(): void {
         return;
     }
     if (!eingebettet) {
-        // Fehlermeldungen zu ungültigen Werten trotzdem aktuell halten.
-        einzelPdf();
+        void zeichneBildvorschau(bildvorschau, einzelPruefen(), optionen());
         return;
     }
     const pdf = einzelPdf();
@@ -428,6 +449,15 @@ async function dateiEinlesen(datei: File): Promise<void> {
     element<HTMLElement>("ergebnis").hidden = false;
     zusammenfassung.textContent = `${datei.name} wird gelesen…`;
     dateiName = datei.name;
+    // Bis die neue Datei gelesen ist, gibt es nichts herunterzuladen; sonst
+    // käme eine leere PDF oder die der vorigen Datei.
+    ergebnis = null;
+    element<HTMLButtonElement>("tabelle-pdf").disabled = true;
+    element<HTMLButtonElement>("tabelle-pdf").textContent = "PDF herunterladen";
+    element<HTMLButtonElement>("tabelle-oeffnen").disabled = true;
+    element<HTMLElement>("ergebnis-warnung").hidden = true;
+    element<HTMLElement>("ergebnis-fehler").hidden = true;
+    element<HTMLTableElement>("ergebnis-tabelle").tBodies[0]?.replaceChildren();
     try {
         let tabelle: string[][];
         if (/\.xlsx$/i.test(datei.name)) {
@@ -436,7 +466,7 @@ async function dateiEinlesen(datei: File): Promise<void> {
         } else if (/\.xls$/i.test(datei.name)) {
             throw new Error("Das alte Excel-Format .xls wird nicht gelesen. Bitte in Excel als .xlsx oder CSV speichern.");
         } else {
-            tabelle = leseCsv(await datei.text());
+            tabelle = leseCsv(dekodiereCsv(await datei.arrayBuffer()));
         }
         ergebnis = leseTabelle(tabelle);
     } catch (fehler) {
@@ -446,9 +476,6 @@ async function dateiEinlesen(datei: File): Promise<void> {
             `${datei.name} ließ sich nicht lesen: ${fehler instanceof Error ? fehler.message : String(fehler)}`;
         zusammenfassung.textContent = "";
         element<HTMLElement>("ergebnis-warnung").hidden = true;
-        element<HTMLTableElement>("ergebnis-tabelle").tBodies[0]?.replaceChildren();
-        element<HTMLButtonElement>("tabelle-pdf").disabled = true;
-        element<HTMLButtonElement>("tabelle-oeffnen").disabled = true;
         return;
     }
     tabelleAnzeigen();
@@ -464,7 +491,7 @@ function tabelleAnzeigen(): void {
     if (!ergebnis) {
         return;
     }
-    const { zeilen, unbekannteSpalten } = ergebnis;
+    const { zeilen, unbekannteSpalten, beispielZeilen } = ergebnis;
     const mitFehler = zeilen.filter(zeile => zeile.fehler.length > 0);
     const { vordruck } = optionen();
     const art = { nachricht: "Nachrichtenvordrucke", meldung: "Meldevordrucke", beide: "Nachrichten- und Meldevordrucke" }[vordruck];
@@ -479,6 +506,11 @@ function tabelleAnzeigen(): void {
         return laenge && laenge.stufe !== "verkleinert" ? [`Zeile ${zeile.zeile}: ${textlaengeMeldung(laenge)}`] : [];
     });
     warnung.replaceChildren();
+    if (beispielZeilen.length > 0) {
+        const satz = document.createElement("p");
+        satz.textContent = `${beispielZeilen.length === 1 ? "Zeile" : "Zeilen"} ${beispielZeilen.join(", ")} ist die unveränderte Beispielzeile aus der Vorlage und wird nicht gedruckt.`;
+        warnung.append(satz);
+    }
     if (unbekannteSpalten.length > 0) {
         const satz = document.createElement("p");
         satz.textContent = `Diese Spalten sind unbekannt und werden ignoriert: ${unbekannteSpalten.join(", ")}.`;
@@ -500,7 +532,7 @@ function tabelleAnzeigen(): void {
     fehlerKasten.replaceChildren();
     if (mitFehler.length > 0) {
         const satz = document.createElement("p");
-        satz.textContent = `${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} ungültige Werte. Diese Felder bleiben auf dem Vordruck leer; besser in der Datei korrigieren und neu einlesen.`;
+        satz.textContent = `${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} Fehler, in der Übersicht mit ⚠ markiert. Ungültige Auswahlwerte bleiben auf dem Vordruck leer, nicht druckbare Zeichen werden ersetzt. Besser in der Datei korrigieren und neu einlesen.`;
         const liste = document.createElement("ul");
         for (const zeile of mitFehler.slice(0, 20)) {
             const punkt = document.createElement("li");
@@ -519,9 +551,13 @@ function tabelleAnzeigen(): void {
     tbody?.replaceChildren(...zeilen.map(zeile => {
         const tr = document.createElement("tr");
         tr.classList.toggle("mit-fehler", zeile.fehler.length > 0);
+        // Gelesene Auswahlwerte, damit ein verworfener Vorrang hier als leer auffällt.
+        const auswahl = (wert: string | undefined) => wert ? wert.charAt(0).toUpperCase() + wert.slice(1) : "–";
         const zellen = [
-            [String(zeile.zeile), "zahl"],
+            [zeile.fehler.length > 0 ? `${zeile.zeile} ⚠` : String(zeile.zeile), "zahl"],
             [zeile.daten.nummer, "zahl"],
+            [auswahl(zeile.daten.vorrang), ""],
+            [auswahl(zeile.daten.richtung), ""],
             [zeile.daten.empfaenger.join(", "), ""],
             [kurz(zeile.daten.inhalt, 90), "inhalt"],
             [zeile.daten.absender, ""]
@@ -549,6 +585,14 @@ function tabellenPdf() {
 
 element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", ereignis => {
     const knopf = ereignis.currentTarget as HTMLButtonElement;
+    const mitFehler = (ergebnis?.zeilen ?? []).filter(zeile => zeile.fehler.length > 0);
+    const erste = mitFehler[0];
+    if (erste && !confirm(
+        `${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} Fehler, etwa Zeile ${erste.zeile}: ${erste.fehler[0]}.\n\n`
+        + "Betroffene Felder bleiben leer oder werden ersetzt. Trotzdem die PDF erzeugen?"
+    )) {
+        return;
+    }
     void mitArbeit(knopf, "PDF wird erstellt…", async () => {
         // Einen Takt warten, damit der Knopf seinen Arbeitszustand zeigt, bevor jsPDF rechnet.
         await new Promise(fertig => setTimeout(fertig, 30));
