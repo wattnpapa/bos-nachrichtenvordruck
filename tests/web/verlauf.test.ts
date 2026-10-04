@@ -10,7 +10,10 @@ const liste: Eintrag[] = [
 
 describe("Liste erstellter Vordrucke", () => {
     it("lässt sich als CSV im Format der Vorlage wieder einlesen", () => {
-        const { zeilen } = leseTabelle(leseCsv(verlaufAlsCsv(liste)));
+        const csv = verlaufAlsCsv(liste);
+        expect(csv.split("\r\n")[0]).toMatch(/^\uFEFF?Erstellt;Nr;/);
+        const { zeilen, unbekannteSpalten } = leseTabelle(leseCsv(csv));
+        expect(unbekannteSpalten).toEqual([]);
         expect(zeilen.map(zeile => [zeile.daten.nummer, zeile.daten.inhalt, zeile.daten.vorrang])).toEqual([
             ["17", "Lage; unverändert", "blitz"],
             ["18", "Zweite\nZeile", undefined]

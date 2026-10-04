@@ -343,6 +343,37 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 }
 .sprungleiste button { width: 100%; }
 @media (min-width: 64rem) { .sprungleiste { display: none; } }
+/* Beim Tippen (Tastatur offen) und im flachen Querformat nimmt die Leiste zu viel Platz und fängt Tipps ab. */
+.maske:focus-within .sprungleiste { display: none; }
+@media (max-height: 30rem) { .sprungleiste { display: none; } }
+/* Querformat am Telefon: Vorschau auf Bildschirmhöhe, sonst liegt der Download Bildschirme tiefer. */
+@media (orientation: landscape) and (max-height: 30rem) {
+  .vorschau .bildvorschau { width: auto; max-width: 100%; max-height: calc(100vh - 2rem); margin-inline: auto; }
+}
+
+/* Wer die App schon kennt, braucht die Einleitung am Telefon nicht über der Maske. */
+@media (max-width: 40rem) { .wiederkehrend .einleitung { display: none; } }
+
+/* Kurzmeldung am unteren Rand, über der Sprungleiste. */
+.kurzmeldung {
+  position: fixed; left: 50%; bottom: 5.5rem; z-index: 3; transform: translateX(-50%);
+  width: min(30rem, calc(100vw - 2rem)); padding: var(--r-3);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--r-2) var(--r-3);
+  color: var(--text); background: var(--flaeche); border: var(--strich-stark) solid var(--linie-stark);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: var(--t-s);
+}
+.kurzmeldung[hidden] { display: none; }
+.kurzmeldung > span:first-child { flex: 1 1 14rem; }
+.kurzmeldung-knoepfe { display: flex; gap: var(--r-2); }
+@media (min-width: 64rem) { .kurzmeldung { bottom: var(--r-4); } }
+
+/* Prüfübersicht: hoher Vorrang fällt auf, leere Auswahl ist als „leer“ gedämpft. */
+table.uebersicht td.vorrang-hoch { font-weight: 700; color: var(--alarm); }
+table.uebersicht td.leer { color: var(--text-3); font-style: italic; }
+
+/* Hinweis nur in den dunklen Modi. */
+.nur-dunkel { display: none; }
+.dunkel-modus .nur-dunkel, .nacht-modus .nur-dunkel { display: inline; }
 .laedt { font-size: var(--t-s); color: var(--text-2); }
 .netz { margin: 0 0 var(--r-4); }
 .abschluss { margin-bottom: var(--r-4); }
@@ -494,8 +525,9 @@ footer.seite {
   --vorschau-fond: #17150f;
 }
 /* Das weiße Formular in der Vorschau wäre nachts die hellste Fläche im Bild. */
-.dunkel-modus .vorschau iframe, .dunkel-modus .bildvorschau { filter: brightness(0.8); }
-.nacht-modus .vorschau iframe, .nacht-modus .bildvorschau { filter: brightness(0.55) sepia(0.5); }
+/* Abdunkeln allein lässt ein helles Blatt; umgekehrt sind die Linien hell auf dunklem Grund. */
+.dunkel-modus .vorschau iframe, .dunkel-modus .bildvorschau { filter: invert(0.9) hue-rotate(180deg); }
+.nacht-modus .vorschau iframe, .nacht-modus .bildvorschau { filter: invert(0.92) sepia(0.7) brightness(0.75); }
 .dunkel-modus body, .nacht-modus body { letter-spacing: 0.006em; line-height: 1.55; }
 /* Nachts ist man meist draußen: die großen Tippziele des Feld-Modus gelten mit. */
 .nacht-modus { --ziel: 0.25rem; }
@@ -541,7 +573,7 @@ footer.seite {
   table.uebersicht, table.uebersicht tbody, table.uebersicht tr, table.uebersicht td { display: block; width: 100%; }
   table.uebersicht tr { border: var(--strich) solid var(--linie); margin-bottom: var(--r-2); padding: var(--r-1) 0; }
   table.uebersicht td { border: none; display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: var(--r-2); padding: 0.2rem 0.5rem; }
-  table.uebersicht td::before { content: attr(data-beschriftung); font-family: var(--schrift); font-weight: 600; color: var(--text-2); }
+  table.uebersicht td::before { content: attr(data-beschriftung); font-family: var(--schrift); font-weight: 600; font-style: normal; color: var(--text-2); }
 }
 
 /* ---- Rückfrage ---------------------------------------------------- */

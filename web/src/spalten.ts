@@ -112,6 +112,14 @@ for (const [alias, schluessel] of [
     KOPF_ZU_SCHLUESSEL.set(normiere(alias), schluessel);
 }
 
+/**
+ * Spalten, die diese App selbst schreibt, die aber kein Feld des Vordrucks
+ * sind: „Erstellt“ aus der Liste erstellter Vordrucke. Sie werden beim
+ * Einlesen still übergangen statt als unbekannt gemeldet.
+ */
+export const ERSTELLT_SPALTE = "Erstellt";
+const UEBERGANGEN = new Set([normiere(ERSTELLT_SPALTE)]);
+
 /** Ordnet einen Spaltenkopf einem Feld zu; unbekannte Köpfe ergeben `undefined`. */
 export function schluesselZuKopf(kopf: string): Schluessel | undefined {
     return KOPF_ZU_SCHLUESSEL.get(normiere(kopf));
@@ -394,7 +402,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
     const [kopf = [], ...rest] = tabelle;
     const zuordnung = kopf.map(zelle => schluesselZuKopf(zelle));
     const unbekannteSpalten = kopf
-        .filter((zelle, index) => zelle.trim() && !zuordnung[index])
+        .filter((zelle, index) => zelle.trim() && !zuordnung[index] && !UEBERGANGEN.has(normiere(zelle)))
         .map(zelle => zelle.trim());
 
     const zeilen: TabellenErgebnis["zeilen"] = [];
@@ -419,6 +427,9 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         const { daten, fehler, hinweise } = zuVordruckDaten(eingabe);
         if (!daten.inhalt) {
             hinweise.push("kein Text");
+        }
+        if ("nummer" in eingabe && !daten.nummer) {
+            hinweise.push("keine Nr.");
         }
         if ("empfaenger" in eingabe && daten.empfaenger.length === 0) {
             hinweise.push("keine Gegenstelle bzw. kein Empfänger");

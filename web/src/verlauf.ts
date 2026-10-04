@@ -1,5 +1,5 @@
 import { schreibeCsv } from "./csv.js";
-import { SPALTEN, type Eingabe } from "./spalten.js";
+import { ERSTELLT_SPALTE, SPALTEN, type Eingabe } from "./spalten.js";
 
 // Liste der erzeugten Einzelvordrucke auf diesem Gerät: zum Abgleich mit dem
 // Betriebsbuch und als CSV wieder einlesbar, falls die PDF verloren geht.
@@ -44,6 +44,13 @@ export function merkeVordrucke(eingaben: readonly Eingabe[], zeit = new Date()):
     return liste;
 }
 
+/** Schreibt eine ganze Liste zurück, etwa nach „Liste löschen“ und „Wiederherstellen“. */
+export function setzeVerlauf(liste: readonly Eintrag[]): Eintrag[] {
+    const gekuerzt = liste.slice(-HOECHSTENS);
+    speicher()?.setItem(SCHLUESSEL, JSON.stringify(gekuerzt));
+    return gekuerzt;
+}
+
 export function loescheVerlauf(): void {
     speicher()?.removeItem(SCHLUESSEL);
 }
@@ -54,10 +61,18 @@ export function mitNummer(liste: readonly Eintrag[], nummer: string): Eintrag[] 
     return gesucht ? liste.filter(eintrag => (eintrag.eingabe.nummer ?? "").trim() === gesucht) : [];
 }
 
-/** CSV im Format der Vorlage, damit sie im Reiter „Aus Excel oder CSV“ wieder eingelesen werden kann. */
+/**
+ * CSV im Format der Vorlage, damit sie im Reiter „Aus Excel oder CSV“ wieder
+ * eingelesen werden kann; vorn steht, wann der Vordruck erstellt wurde.
+ */
 export function verlaufAlsCsv(liste: readonly Eintrag[]): string {
+    const zwei = (zahl: number) => String(zahl).padStart(2, "0");
+    const zeitpunkt = (iso: string) => {
+        const zeit = new Date(iso);
+        return `${zwei(zeit.getDate())}.${zwei(zeit.getMonth() + 1)}.${zeit.getFullYear()} ${zwei(zeit.getHours())}:${zwei(zeit.getMinutes())}`;
+    };
     return schreibeCsv([
-        SPALTEN.map(spalte => spalte.titel),
-        ...liste.map(eintrag => SPALTEN.map(spalte => eintrag.eingabe[spalte.schluessel] ?? ""))
+        [ERSTELLT_SPALTE, ...SPALTEN.map(spalte => spalte.titel)],
+        ...liste.map(eintrag => [zeitpunkt(eintrag.zeit), ...SPALTEN.map(spalte => eintrag.eingabe[spalte.schluessel] ?? "")])
     ]);
 }

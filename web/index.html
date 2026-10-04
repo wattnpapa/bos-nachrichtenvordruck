@@ -14,6 +14,7 @@
     html.nacht-modus { background: #0d0c08; color: #d9cdb6; }
   </style>
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <script>
     // Anzeigemodus vor dem ersten Malen anwenden, sonst blitzt die Seite
@@ -69,14 +70,14 @@
     <main id="inhalt" tabindex="-1">
       <p class="einleitung">BOS-Nachrichtenvordruck und Meldevordruck als PDF: einen einzelnen am Bildschirm ausfüllen oder viele auf einmal aus einer Tabelle erzeugen.</p>
       <p class="laedt" id="laedt">Die Seite lädt noch. Bei schwachem Netz kann das einige Sekunden dauern.</p>
-      <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.<span id="offline-stand" hidden> Startet nach dem ersten Aufruf auch ohne Netz.</span></p>
+      <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.<span id="offline-stand" hidden> Startet nach dem ersten Aufruf auch ohne Netz. Auf den Startbildschirm gelegt, bleibt sie dafür zuverlässig gespeichert.</span></p>
       <p class="warnung netz" id="netz-stand" role="status" hidden>Kein Netz. Ausfüllen, Vorschau und PDF funktionieren weiter, auch der Excel-Weg.</p>
 
       <!-- Vor den Einstellungen, damit er nach dem Laden ohne Scrollen zu sehen ist. -->
       <div class="warnung entwurf" id="entwurf-hinweis" role="status" hidden>
         <p id="entwurf-text"></p>
         <div class="aktionen">
-          <button type="button" class="primaer" id="entwurf-naechster">Neuer Vordruck</button>
+          <button type="button" class="primaer" id="entwurf-naechster">Nächster Vordruck</button>
           <button type="button" id="entwurf-rueckgaengig" hidden>Rückgängig</button>
           <button type="button" id="entwurf-behalten">Weiter bearbeiten</button>
         </div>
@@ -263,11 +264,11 @@
           <section class="karte vorschau" aria-labelledby="vorschau-titel">
             <div class="kopfzeile">
               <h3 id="vorschau-titel">Vorschau</h3>
-              <button type="button" class="link" id="einzeln-oeffnen">In neuem Tab öffnen</button>
+              <button type="button" class="link" id="einzeln-oeffnen">In neuem Tab öffnen<span class="nur-dunkel"> (helles Blatt)</span></button>
             </div>
             <iframe id="einzeln-vorschau" title="Vorschau des Vordrucks"></iframe>
             <canvas id="einzeln-bild" class="bildvorschau" role="img" aria-label="Vorschau des Vordrucks" hidden></canvas>
-            <p class="nebentext" id="vorschau-ersatz" hidden>Bildvorschau: die Schrift weicht leicht ab. „In neuem Tab öffnen“ zeigt die PDF, wie sie gedruckt wird.</p>
+            <p class="nebentext" id="vorschau-ersatz" hidden>Bildvorschau: die Schrift weicht leicht ab. „In neuem Tab öffnen“ zeigt die PDF, wie sie gedruckt wird.<span class="nur-dunkel"> Die Vorschau ist hier abgedunkelt; die PDF im neuen Tab ist ein helles weißes Blatt.</span></p>
           </section>
 
           <!-- Nach der Vorschau, damit am Telefon erst geprüft und dann heruntergeladen wird. -->
@@ -281,6 +282,7 @@
               <button type="button" class="abgesetzt" id="einzeln-leeren">Felder leeren</button>
             </div>
             <p class="nebentext" id="einzeln-status" role="status"><span id="einzeln-status-text"></span> <button type="button" class="link" id="einzeln-rueckgaengig" hidden>Rückgängig</button></p>
+            <p class="hinweis">„Nächster Vordruck“ behält Übermittlungsweg und Richtung, nach einem Ausgang auch Absender, Zeichen und Funktion, und zählt die Nr. hoch. „Felder leeren“ leert alles.</p>
             <p class="nebentext" id="entwurf-stand"></p>
             <p><button type="button" class="link" id="leere-vordrucke">Leere Vordrucke zum Ausfüllen von Hand herunterladen</button></p>
 
@@ -295,9 +297,10 @@
               </div>
               <div class="aktionen">
                 <button type="button" id="verlauf-csv">Liste als CSV</button>
-                <button type="button" id="verlauf-loeschen">Liste löschen</button>
+                <button type="button" class="abgesetzt" id="verlauf-loeschen">Liste löschen</button>
               </div>
             </details>
+            <p class="nebentext" id="verlauf-geloescht" role="status" hidden>Liste gelöscht. <button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button></p>
           </div>
         </div>
       </section>
@@ -334,7 +337,7 @@
           <div class="alarm-kasten" id="ergebnis-fehler" hidden></div>
           <div class="tabellen-scroll">
             <table class="uebersicht" id="ergebnis-tabelle">
-              <thead><tr><th>Zeile</th><th>Nr.</th><th>Vorrang</th><th>Richtung</th><th>Gegenstelle</th><th>Inhalt</th><th>Absender</th></tr></thead>
+              <thead><tr><th>Zeile</th><th>Nr.</th><th>Vorrang</th><th>Art</th><th>Weg</th><th>Richtung</th><th>Zeit</th><th>Gegenstelle</th><th>Inhalt</th><th>Absender</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -345,6 +348,14 @@
         </section>
       </section>
     </main>
+
+    <div class="kurzmeldung" id="kurzmeldung" role="status" hidden>
+      <span id="kurzmeldung-text"></span>
+      <span class="kurzmeldung-knoepfe">
+        <button type="button" id="kurzmeldung-rueckgaengig" hidden>Rückgängig</button>
+        <button type="button" id="kurzmeldung-schliessen" aria-label="Meldung schließen">OK</button>
+      </span>
+    </div>
 
     <dialog class="frage" id="frage" aria-labelledby="frage-text">
       <form method="dialog">
