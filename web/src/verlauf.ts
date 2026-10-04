@@ -37,6 +37,13 @@ export function merkeVordruck(eingabe: Eingabe, zeit = new Date()): Eintrag[] {
     return liste;
 }
 
+/** Mehrere auf einmal, etwa alle Zeilen einer Tabellen-PDF. */
+export function merkeVordrucke(eingaben: readonly Eingabe[], zeit = new Date()): Eintrag[] {
+    const liste = [...ladeVerlauf(), ...eingaben.map(eingabe => ({ zeit: zeit.toISOString(), eingabe }))].slice(-HOECHSTENS);
+    speicher()?.setItem(SCHLUESSEL, JSON.stringify(liste));
+    return liste;
+}
+
 export function loescheVerlauf(): void {
     speicher()?.removeItem(SCHLUESSEL);
 }

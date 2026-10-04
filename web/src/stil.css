@@ -332,6 +332,8 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 .aktionen > .abgesetzt { margin-left: var(--r-4); }
 @media (max-width: 40rem) { .aktionen > .abgesetzt { margin: var(--r-4) 0 0; } }
 .abschluss button.link { min-height: calc(var(--ziel-basis) + var(--ziel)); }
+/* Abstand zu „Felder leeren“: ein Tipp daneben soll nicht den anderen Knopf treffen. */
+#einzeln-status { margin-top: var(--r-4); }
 .verlauf { margin-top: var(--r-3); }
 .verlauf > summary { font-size: var(--t-m); }
 /* Am Telefon liegt der Download weit unten: der Sprung dorthin bleibt am unteren Rand. */

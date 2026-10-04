@@ -182,3 +182,28 @@ describe("ausExcel", () => {
         expect(ausExcel("nummer", "46299")).toBe("46299");
     });
 });
+
+describe("Runde 2", () => {
+    it("liest eine Zeitgruppe ohne Monat nicht als Excel-Datum", () => {
+        expect(ausExcel("abfassungszeit", "041416")).toBe("041416");
+        expect(ausExcel("abfassungszeit", "051230")).toBe("051230");
+        expect(zuVordruckDaten({ abfassungszeit: "041416" }).daten.abfassungszeit).toBe("041416");
+    });
+
+    it("erkennt verrutschte Zeilen auch, wenn die letzten Spalten leer sind", () => {
+        const { zeilen } = leseTabelle([
+            ["Nr", "Empfänger", "Inhalt", "Absender", "Hinweis"],
+            ["1", "Heros 1", "Heros 2", "Text", "Heros 3", ""]
+        ]);
+        expect(zeilen[0]?.fehler[0]).toMatch(/6 Felder, aber nur 5 Spalten/);
+    });
+
+    it("lässt Dateien mit Trennzeichen am Zeilenende in Ruhe", () => {
+        const { zeilen } = leseTabelle([
+            ["Nr", "Inhalt"],
+            ["1", "a", ""],
+            ["2", "b", ""]
+        ]);
+        expect(zeilen.every(zeile => zeile.fehler.length === 0)).toBe(true);
+    });
+});

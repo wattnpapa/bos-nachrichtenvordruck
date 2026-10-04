@@ -34,4 +34,17 @@ describe("CSV", () => {
         const windows = new Uint8Array([0x45, 0x6d, 0x70, 0x66, 0xe4, 0x6e, 0x67, 0x65, 0x72, 0x3b, 0x80]);
         expect(dekodiereCsv(windows)).toBe("Empfänger;€");
     });
+
+    it("liest UTF-16 mit Byte-Order-Mark (Excel „Unicode-Text“)", () => {
+        const text = "Nr\tEmpfänger\n1\tHeros";
+        const le = new Uint8Array([0xff, 0xfe, ...Array.from(text).flatMap(z => [z.charCodeAt(0) & 0xff, z.charCodeAt(0) >> 8])]);
+        expect(dekodiereCsv(le)).toBe(text);
+    });
+
+    it("meldet ein Anführungszeichen, das erst eine Zeile später schließt", () => {
+        const hinweise: string[] = [];
+        const zeilen = leseCsv("Nr;Inhalt\n1;\"offen\n2;B;zweite\"\n3;dritte\n", undefined, hinweise);
+        expect(zeilen).toHaveLength(3);
+        expect(hinweise[0]).toMatch(/^Ab Zeile 2 umfasst ein Feld/);
+    });
 });

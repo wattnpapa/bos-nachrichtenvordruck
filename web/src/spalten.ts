@@ -240,7 +240,10 @@ export function ausExcel(schluessel: Schluessel, wert: string): string {
         return `${zwei(zeit.getUTCDate())}.${zwei(zeit.getUTCMonth() + 1)}.`;
     }
     if (schluessel === "abfassungszeit") {
-        if (zahl >= 20_000 && zahl < 80_000) {
+        // Nur mit Nachkommastellen: Datum und Uhrzeit aus Excel. Eine getippte
+        // Zeitgruppe ohne Monat wie „041416“ ist auch eine Zahl in diesem
+        // Bereich und muss bleiben, wie sie ist.
+        if (zahl >= 20_000 && zahl < 80_000 && /[.,]\d/.test(wert)) {
             const zeit = excelZeit(zahl);
             return datumZeitGruppe(new Date(zeit.getUTCFullYear(), zeit.getUTCMonth(), zeit.getUTCDate(), zeit.getUTCHours(), zeit.getUTCMinutes()));
         }
@@ -396,6 +399,9 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
 
     const zeilen: TabellenErgebnis["zeilen"] = [];
     const beispielZeilen: number[] = [];
+    const gefuellt = rest.filter(werte => werte.some(wert => wert.trim()));
+    const trennerAmZeilenende = gefuellt.length > 1
+        && gefuellt.every(werte => werte.length === kopf.length + 1 && !(werte.at(-1) ?? "").trim());
     rest.forEach((werte, index) => {
         const eingabe: Eingabe = {};
         zuordnung.forEach((schluessel, spalte) => {
@@ -420,8 +426,11 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         // Mehr gefüllte Zellen als Spalten im Kopf: meist ein Trennzeichen im
         // Text, etwa mehrere Empfänger mit Semikolon in einer CSV ohne
         // Anführungszeichen. Dann ist alles danach verrutscht.
-        const ueberzaehlig = werte.slice(kopf.length).filter(wert => wert.trim()).length;
-        if (ueberzaehlig > 0) {
+        // Auch wenn die letzten Spalten leer sind, wie in der Vorlage üblich:
+        // dann ist die überzählige Zelle leer, die Werte davor sind trotzdem
+        // verrutscht. Ausgenommen sind Dateien, die jede Zeile mit einem
+        // Trennzeichen abschließen.
+        if (werte.length > kopf.length && !trennerAmZeilenende) {
             fehler.unshift(`${werte.length} Felder, aber nur ${kopf.length} Spalten im Kopf. Steht ein Semikolon im Text? Dann die Zelle in Anführungszeichen setzen; die Werte sind sonst verrutscht`);
         }
         zeilen.push({ zeile: index + 2, eingabe, daten, fehler, hinweise });

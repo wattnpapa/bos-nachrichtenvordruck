@@ -9,6 +9,14 @@
  * Spalten wie „Empfänger“ nicht erkannt.
  */
 export function dekodiereCsv(bytes: ArrayBuffer | Uint8Array): string {
+    const anfang = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    // Excel „Unicode-Text“: UTF-16 mit Byte-Order-Mark, meist mit Tabulator getrennt.
+    if (anfang[0] === 0xff && anfang[1] === 0xfe) {
+        return new TextDecoder("utf-16le").decode(bytes);
+    }
+    if (anfang[0] === 0xfe && anfang[1] === 0xff) {
+        return new TextDecoder("utf-16be").decode(bytes);
+    }
     try {
         return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     } catch {
@@ -38,7 +46,12 @@ export function erkenneTrenner(text: string): string {
     return bester;
 }
 
-export function leseCsv(text: string, trenner = erkenneTrenner(text)): string[][] {
+/**
+ * `hinweise` sammelt Felder in Anführungszeichen, die über mehrere Zeilen
+ * reichen und dort Trennzeichen enthalten: meist fehlt ein schließendes
+ * Anführungszeichen, und die folgende Tabellenzeile steckt im Feld.
+ */
+export function leseCsv(text: string, trenner = erkenneTrenner(text), hinweise: string[] = []): string[][] {
     const quelle = text.replace(/^﻿/, "");
     const zeilen: string[][] = [];
     let zeile: string[] = [];
@@ -60,6 +73,9 @@ export function leseCsv(text: string, trenner = erkenneTrenner(text)): string[][
                     i++;
                 } else {
                     inAnfuehrung = false;
+                    if (feld.split(/\r?\n/).slice(1).some(zeile => zeile.includes(trenner))) {
+                        hinweise.push(`Ab Zeile ${anfuehrungAb} umfasst ein Feld in Anführungszeichen mehrere Zeilen mit Trennzeichen. Fehlt dort ein schließendes Anführungszeichen? Dann ist die folgende Zeile im Feld verschwunden.`);
+                    }
                 }
             } else {
                 feld += zeichen;
