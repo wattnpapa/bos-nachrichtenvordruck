@@ -49,7 +49,7 @@ export const SPALTEN: readonly Spalte[] = [
     { schluessel: "nummer", titel: "Nr", beschreibung: "Laufende Nummer im Betriebsbuch.", beispiel: "17", breite: 6 },
     { schluessel: "art", titel: "Art", beschreibung: "Spruch oder Durchsage. Leer: nichts angekreuzt.", beispiel: "Spruch", auswahl: ART_AUSWAHL, breite: 11, nurNachricht: true },
     { schluessel: "vorrang", titel: "Vorrang", beschreibung: "Sofort oder Blitz. Leer: ohne Vorrang.", beispiel: "Sofort", auswahl: VORRANG_AUSWAHL, breite: 9, nurNachricht: true },
-    { schluessel: "weg", titel: "Übermittlungsweg", beschreibung: "Funk, Telefon, Telefax, DFÜ oder Kurier. Wird in Kopfzeile und Spruchkopf angekreuzt.", beispiel: "Funk", auswahl: WEG_AUSWAHL, breite: 16, nurNachricht: true },
+    { schluessel: "weg", titel: "Übermittlungsweg", beschreibung: "Funk, Telefon, Telefax, DFÜ oder Kurier. Wird in Kopfzeile und Spruchkopf angekreuzt.", beispiel: "Funk", auswahl: WEG_AUSWAHL, breite: 16 },
     { schluessel: "richtung", titel: "Richtung", beschreibung: "Eingang oder Ausgang im Technischen Betriebsbuch.", beispiel: "Ausgang", auswahl: RICHTUNG_AUSWAHL, breite: 10, nurNachricht: true },
     { schluessel: "gespraechsnotiz", titel: "Gesprächsnotiz", beschreibung: "ja: Kästchen „Gesprächsnotiz“ ankreuzen.", beispiel: "nein", auswahl: JA_NEIN, breite: 14, nurNachricht: true },
     { schluessel: "empfaenger", titel: "Gegenstelle", beschreibung: "Rufname der Gegenstelle (Nachrichtenvordruck) bzw. Empfänger (Meldevordruck). Mehrere mit Semikolon trennen. Die Spalte darf auch „Empfänger“ heißen.", beispiel: "Heros Jever 21/10", breite: 24 },
@@ -57,21 +57,21 @@ export const SPALTEN: readonly Spalte[] = [
     { schluessel: "inhalt", titel: "Inhalt", beschreibung: "Nachrichtentext. Zeilenumbrüche in der Zelle (Alt+Enter) werden übernommen.", beispiel: "Erkundung abgeschlossen. Zufahrt ist frei.", breite: 50 },
     { schluessel: "absender", titel: "Absender", beschreibung: "Rufname des Absenders.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
     { schluessel: "verfasser", titel: "Verfasser", beschreibung: "Verfasser; nur der Meldevordruck hat dafür ein Feld.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
-    { schluessel: "abfassungszeit", titel: "Abfassungszeit", beschreibung: "Datum-Zeit-Gruppe, z. B. TTHHMMmonJJ.", beispiel: "031415okt26", breite: 15, nurNachricht: true },
+    { schluessel: "abfassungszeit", titel: "Abfassungszeit", beschreibung: "Datum-Zeit-Gruppe, z. B. TTHHMMmonJJ.", beispiel: "031415okt26", breite: 15 },
     { schluessel: "zeichen", titel: "Zeichen", beschreibung: "Handzeichen des Verfassers.", beispiel: "JR", breite: 9, nurNachricht: true },
     { schluessel: "funktion", titel: "Funktion", beschreibung: "Funktion des Verfassers.", beispiel: "S 2", breite: 10, nurNachricht: true },
     { schluessel: "quittungUhrzeit", titel: "Quittung Uhrzeit", beschreibung: "Uhrzeit der Quittung.", beispiel: "", breite: 10, nurNachricht: true },
     { schluessel: "quittungZeichen", titel: "Quittung Zeichen", beschreibung: "Zeichen der Quittung.", beispiel: "", breite: 10, nurNachricht: true },
     { schluessel: "quittungStelle", titel: "Quittung Stelle", beschreibung: "Stelle der Quittung.", beispiel: "", breite: 10, nurNachricht: true },
     { schluessel: "vermerke", titel: "Vermerke", beschreibung: "Freitext im Feld „Vermerke“.", beispiel: "", breite: 14, nurNachricht: true },
-    { schluessel: "aufnahmeDatum", titel: "Aufnahme Datum", beschreibung: "Aufnahmevermerk (Eingang): Datum.", beispiel: "", breite: 10, nurNachricht: true },
-    { schluessel: "aufnahmeUhrzeit", titel: "Aufnahme Uhrzeit", beschreibung: "Aufnahmevermerk: Uhrzeit.", beispiel: "", breite: 10, nurNachricht: true },
+    { schluessel: "aufnahmeDatum", titel: "Aufnahme Datum", beschreibung: "Aufnahmevermerk (Eingang): Datum. Auf dem Meldevordruck unter „Eingang“.", beispiel: "", breite: 10 },
+    { schluessel: "aufnahmeUhrzeit", titel: "Aufnahme Uhrzeit", beschreibung: "Aufnahmevermerk: Uhrzeit. Auf dem Meldevordruck unter „Eingang“.", beispiel: "", breite: 10 },
     { schluessel: "aufnahmeHdz", titel: "Aufnahme Hdz", beschreibung: "Aufnahmevermerk: Handzeichen.", beispiel: "", breite: 8, nurNachricht: true },
-    { schluessel: "annahmeDatum", titel: "Annahme Datum", beschreibung: "Annahmevermerk (Ausgang): Datum.", beispiel: "03.10.", breite: 10, nurNachricht: true },
-    { schluessel: "annahmeUhrzeit", titel: "Annahme Uhrzeit", beschreibung: "Annahmevermerk: Uhrzeit.", beispiel: "14:16", breite: 10, nurNachricht: true },
+    { schluessel: "annahmeDatum", titel: "Annahme Datum", beschreibung: "Annahmevermerk (Ausgang): Datum. Auf dem Meldevordruck unter „Ausgang“, wenn keine Beförderung angegeben ist.", beispiel: "03.10.", breite: 10 },
+    { schluessel: "annahmeUhrzeit", titel: "Annahme Uhrzeit", beschreibung: "Annahmevermerk: Uhrzeit. Auf dem Meldevordruck unter „Ausgang“, wenn keine Beförderung angegeben ist.", beispiel: "14:16", breite: 10 },
     { schluessel: "annahmeHdz", titel: "Annahme Hdz", beschreibung: "Annahmevermerk: Handzeichen.", beispiel: "MK", breite: 8, nurNachricht: true },
-    { schluessel: "befoerderungDatum", titel: "Beförderung Datum", beschreibung: "Beförderungsvermerk (Ausgang): Datum.", beispiel: "", breite: 10, nurNachricht: true },
-    { schluessel: "befoerderungUhrzeit", titel: "Beförderung Uhrzeit", beschreibung: "Beförderungsvermerk: Uhrzeit.", beispiel: "", breite: 10, nurNachricht: true },
+    { schluessel: "befoerderungDatum", titel: "Beförderung Datum", beschreibung: "Beförderungsvermerk (Ausgang): Datum. Auf dem Meldevordruck unter „Ausgang“.", beispiel: "", breite: 10 },
+    { schluessel: "befoerderungUhrzeit", titel: "Beförderung Uhrzeit", beschreibung: "Beförderungsvermerk: Uhrzeit. Auf dem Meldevordruck unter „Ausgang“.", beispiel: "", breite: 10 },
     { schluessel: "befoerderungHdz", titel: "Beförderung Hdz", beschreibung: "Beförderungsvermerk: Handzeichen.", beispiel: "", breite: 8, nurNachricht: true },
     { schluessel: "verteiler", titel: "Verteiler", beschreibung: "Kreuze im Verteilerraster: „Leiter“ sowie Zeile/Spalte wie S1/1, S2/3 (Zeilen S1–S4, S6; Spalten 1–3). Mit Komma trennen.", beispiel: "Leiter, S3/1", breite: 16, nurNachricht: true },
     { schluessel: "titel", titel: "Titel", beschreibung: "Überschrift am oberen Blattrand, außerhalb des Formulars.", beispiel: "", breite: 16 },
@@ -264,6 +264,9 @@ export function ausExcel(schluessel: Schluessel, wert: string): string {
     return wert;
 }
 
+/** Kennwort unmöglicher Zeit- und Datumswerte; vor dem Erzeugen wird bei ihnen nachgefragt. */
+export const UNMOEGLICH = "kein möglicher Wert";
+
 /** Prüft die Schreibweise von Zeiten und Daten; gedruckt wird trotzdem, was dasteht. */
 function pruefeFormat(eingabe: Eingabe, hinweise: string[]): void {
     const dtg = (eingabe.abfassungszeit ?? "").trim();
@@ -280,15 +283,19 @@ function pruefeFormat(eingabe: Eingabe, hinweise: string[]): void {
     for (const schluessel of UHRZEIT_FELDER) {
         const wert = (eingabe[schluessel] ?? "").trim();
         const teile = /^(\d{1,2})[:.]?(\d{2})$/.exec(wert);
-        if (wert && !(teile && Number(teile[1]) <= 23 && Number(teile[2]) <= 59)) {
+        if (wert && !teile) {
             hinweise.push(`${feldName(schluessel)} „${wert}“ ist keine Uhrzeit (z. B. 14:16)`);
+        } else if (teile && !(Number(teile[1]) <= 23 && Number(teile[2]) <= 59)) {
+            hinweise.push(`${feldName(schluessel)} „${wert}“ ist ${UNMOEGLICH} (Stunde 0–23, Minute 0–59)`);
         }
     }
     for (const schluessel of DATUM_FELDER) {
         const wert = (eingabe[schluessel] ?? "").trim();
         const teile = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})?$/.exec(wert);
-        if (wert && !(teile && Number(teile[1]) >= 1 && Number(teile[1]) <= 31 && Number(teile[2]) >= 1 && Number(teile[2]) <= 12)) {
+        if (wert && !teile) {
             hinweise.push(`${feldName(schluessel)} „${wert}“ ist kein Datum (z. B. 04.10.)`);
+        } else if (teile && !(Number(teile[1]) >= 1 && Number(teile[1]) <= 31 && Number(teile[2]) >= 1 && Number(teile[2]) <= 12)) {
+            hinweise.push(`${feldName(schluessel)} „${wert}“ ist ${UNMOEGLICH} (Tag 1–31, Monat 1–12)`);
         }
     }
 }
@@ -306,6 +313,11 @@ export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     const eingabe = Object.fromEntries(Object.entries(roh)
         .map(([schluessel, wert]) => [schluessel, druckbar(ausExcel(schluessel as Schluessel, wert ?? ""), fremd)])) as Eingabe;
     pruefeFormat(eingabe, hinweise);
+    // Eine Excel-Zahl, die als Datum und Uhrzeit gelesen wurde, soll nachvollziehbar bleiben.
+    const abfassung = (roh.abfassungszeit ?? "").trim();
+    if (abfassung && eingabe.abfassungszeit !== abfassung && /^\d/.test(abfassung)) {
+        hinweise.push(`Abfassungszeit „${abfassung}“ in Datum-Zeit-Gruppe umgerechnet: ${eingabe.abfassungszeit ?? ""}`);
+    }
     if (fremd.size > 0) {
         fehler.push(`Zeichen ${[...fremd].slice(0, 10).map(zeichen => `„${zeichen}“`).join(", ")} kann der Vordruck nicht darstellen, sie werden als „?“ gedruckt`);
     }
@@ -413,7 +425,9 @@ export function findeKopfzeile(tabelle: readonly string[][]): number {
             treffer = anzahl;
         }
     });
-    return beste;
+    // Eine spätere Zeile gilt nur mit mindestens zwei erkannten Spalten als Kopf:
+    // Ein einzelnes „Text“ in einer Datenzeile macht sie nicht dazu.
+    return beste > 0 && treffer < 2 ? 0 : beste;
 }
 
 export function leseTabelle(tabelle: string[][]): TabellenErgebnis {

@@ -1,8 +1,25 @@
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 
 const OEFFENTLICH = new URL("./public/", import.meta.url);
+
+/**
+ * Fassung zum Anzeigen: Bauzeit in UTC und, wenn vorhanden, der Commit. Zwei
+ * Auslieferungen am selben Tag lassen sich so unterscheiden.
+ */
+function fassung(): string {
+    let commit = "";
+    try {
+        commit = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    } catch {
+        commit = "";
+    }
+    const zeit = new Date().toISOString().slice(0, 16).replace("T", " ");
+    return commit ? `${zeit} (${commit})` : zeit;
+}
+const FASSUNG = fassung();
 
 /**
  * Legt beim Bauen sw.js an: die Vorlage aus web/offline/ mit der Liste aller
@@ -37,6 +54,7 @@ function offline(): Plugin {
                 fileName: "sw.js",
                 source: vorlage
                     .replace("__VERSION__", hash.digest("hex").slice(0, 16))
+                .replace("__FASSUNG__", FASSUNG)
                     .replace("__DATEIEN__", JSON.stringify(liste, null, 4))
             });
         }
@@ -50,8 +68,8 @@ export default defineConfig({
     root: "web",
     base: "./",
     plugins: [offline()],
-    // Fassung zum Anzeigen im Fuß: Tag des Bauens.
-    define: { __FASSUNG__: JSON.stringify(new Date().toISOString().slice(0, 10)) },
+    // Fassung zum Anzeigen im Fuß, dieselbe steht im Dienst.
+    define: { __FASSUNG__: JSON.stringify(FASSUNG) },
     build: {
         outDir: "../dist-web",
         emptyOutDir: true,

@@ -15,7 +15,7 @@
   --text-3:      #6b7488;
   --linie-fein:  #d7dce7;
   --linie:       #bcc3d3;
-  --linie-stark: #8b94a9;
+  --linie-stark: #7a8398;
 
   --akzent:      #12275e;
   --akzent-hell: #1d3d8f;
@@ -217,7 +217,7 @@ button.link {
 
 /* ---- Karten und Formular ----------------------------------------- */
 .karte {
-  background: var(--flaeche); border: var(--strich) solid var(--linie); border-radius: var(--radius);
+  background: var(--flaeche); border: var(--strich) solid var(--linie-stark); border-radius: var(--radius);
   padding: var(--r-4) min(var(--r-4), 18px); margin: 0 0 var(--r-4);
 }
 .karten-paar { display: grid; gap: var(--r-4); margin-bottom: var(--r-4); }
@@ -308,7 +308,7 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 .verteiler table { border-collapse: collapse; margin-top: var(--r-1); }
 .verteiler th, .verteiler td { padding: 0 var(--r-2) 0 0; text-align: center; font-size: var(--t-s); }
 .verteiler th[scope="row"] { text-align: left; font-family: var(--schrift-daten); color: var(--text-2); padding-right: var(--r-3); }
-.verteiler td { padding: 4px var(--r-1) 4px 0; }
+.verteiler td { padding: 4px var(--r-2) 4px 0; }
 .verteiler td label {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: calc(var(--ziel-basis) + var(--ziel)); min-height: calc(var(--ziel-basis) + var(--ziel)); cursor: pointer;
@@ -343,9 +343,14 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 }
 .sprungleiste button { width: 100%; }
 @media (min-width: 64rem) { .sprungleiste { display: none; } }
-/* Beim Tippen (Tastatur offen) und im flachen Querformat nimmt die Leiste zu viel Platz und fängt Tipps ab. */
-.maske:focus-within .sprungleiste { display: none; }
-@media (max-height: 30rem) { .sprungleiste { display: none; } }
+/* Beim Tippen (Tastatur offen) nimmt die Leiste zu viel Platz und fängt Tipps ab.
+   Nur Textfelder zählen: Ein Tipp auf die Leiste selbst oder ein Kästchen blendet sie nicht aus. */
+.maske:has(textarea:focus, input:focus:not([type=radio], [type=checkbox], [type=button], [type=file])) .sprungleiste { display: none; }
+/* Im flachen Querformat als kleiner Knopf in der Ecke statt als Leiste über die ganze Breite. */
+@media (max-height: 30rem) {
+  .sprungleiste { position: fixed; right: var(--r-3); bottom: var(--r-3); left: auto; padding: 0; background: none; z-index: 5; }
+  .sprungleiste button { width: auto; box-shadow: 0 0 0 4px var(--grund); }
+}
 /* Querformat am Telefon: Vorschau auf Bildschirmhöhe, sonst liegt der Download Bildschirme tiefer. */
 @media (orientation: landscape) and (max-height: 30rem) {
   .vorschau .bildvorschau { width: auto; max-width: 100%; max-height: calc(100vh - 2rem); margin-inline: auto; }
@@ -354,22 +359,26 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 /* Wer die App schon kennt, braucht die Einleitung am Telefon nicht über der Maske. */
 @media (max-width: 40rem) { .wiederkehrend .einleitung { display: none; } }
 
-/* Kurzmeldung am unteren Rand, über der Sprungleiste. */
+/* Kurzmeldung ganz unten, über der Sprungleiste statt über den Feldern; sie schließt beim ersten Tippen. */
 .kurzmeldung {
-  position: fixed; left: 50%; bottom: 5.5rem; z-index: 3; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: var(--r-2); z-index: 6; transform: translateX(-50%);
   width: min(30rem, calc(100vw - 2rem)); padding: var(--r-3);
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--r-2) var(--r-3);
-  color: var(--text); background: var(--flaeche); border: var(--strich-stark) solid var(--linie-stark);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: var(--t-s);
+  color: var(--text); background: var(--flaeche); border: var(--strich-stark) solid var(--akzent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 4px var(--grund); font-size: var(--t-s);
 }
 .kurzmeldung[hidden] { display: none; }
 .kurzmeldung > span:first-child { flex: 1 1 14rem; }
-.kurzmeldung-knoepfe { display: flex; gap: var(--r-2); }
+.kurzmeldung-knoepfe { display: flex; gap: var(--r-4); }
 @media (min-width: 64rem) { .kurzmeldung { bottom: var(--r-4); } }
 
 /* Prüfübersicht: hoher Vorrang fällt auf, leere Auswahl ist als „leer“ gedämpft. */
-table.uebersicht td.vorrang-hoch { font-weight: 700; color: var(--alarm); }
+/* Rot bleibt den Fehlern vorbehalten; hoher Vorrang ist fett, Blitz zusätzlich mit Zeichen und Rahmen. */
+table.uebersicht td.vorrang-hoch { font-weight: 700; }
+table.uebersicht td.vorrang-blitz { font-weight: 800; letter-spacing: 0.04em; outline: var(--strich-stark) solid var(--text); outline-offset: -3px; }
 table.uebersicht td.leer { color: var(--text-3); font-style: italic; }
+table.uebersicht td.ohne { color: var(--text-3); }
+table.uebersicht td.zu-lang { box-shadow: inset 0 -3px 0 var(--warnung-rand, var(--akzent)); }
 
 /* Hinweis nur in den dunklen Modi. */
 .nur-dunkel { display: none; }
@@ -556,9 +565,11 @@ footer.seite {
 
 /* Alle Werkzeuge in einer Zeile ganz unten, durch Punkte getrennt. */
 .werkzeuge {
-  display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--r-3);
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--r-3); row-gap: var(--r-2);
   padding-top: var(--r-3); border-top: var(--strich) solid var(--linie-fein);
 }
+/* Externe Ziele verlassen die App: mit Pfeil gekennzeichnet. */
+.werkzeuge a::after { content: " ↗"; text-decoration: none; }
 .werkzeuge a {
   display: inline-flex; align-items: center; min-height: calc(var(--ziel-basis) + var(--ziel));
   color: var(--text-2); font-family: var(--schrift-daten); font-size: var(--t-xs);
@@ -571,9 +582,12 @@ footer.seite {
 @media (max-width: 40rem) {
   table.uebersicht thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   table.uebersicht, table.uebersicht tbody, table.uebersicht tr, table.uebersicht td { display: block; width: 100%; }
-  table.uebersicht tr { border: var(--strich) solid var(--linie); margin-bottom: var(--r-2); padding: var(--r-1) 0; }
-  table.uebersicht td { border: none; display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: var(--r-2); padding: 0.2rem 0.5rem; }
-  table.uebersicht td::before { content: attr(data-beschriftung); font-family: var(--schrift); font-weight: 600; font-style: normal; color: var(--text-2); }
+  /* Zwei Spalten je Karte: kurze Werte nebeneinander, Gegenstelle und Inhalt über die volle Breite. */
+  table.uebersicht tr { display: grid; grid-template-columns: 1fr 1fr; border: var(--strich) solid var(--linie); margin-bottom: var(--r-2); padding: var(--r-1) 0; }
+  table.uebersicht td { border: none; display: block; width: auto; padding: 0.15rem 0.5rem; }
+  table.uebersicht td::before { content: attr(data-beschriftung); display: block; font-family: var(--schrift); font-size: var(--t-xs); font-weight: 600; font-style: normal; letter-spacing: 0; color: var(--text-2); }
+  table.uebersicht td.inhalt, table.uebersicht td[data-beschriftung="Gegenstelle"], table.uebersicht td[data-beschriftung="Absender"] { grid-column: 1 / -1; min-width: 0; }
+  table.uebersicht td:empty { display: none; }
 }
 
 /* ---- Rückfrage ---------------------------------------------------- */
@@ -582,24 +596,53 @@ dialog.frage {
   color: var(--text); background: var(--flaeche); border: var(--strich-stark) solid var(--linie-stark);
 }
 dialog.frage::backdrop { background: rgba(0, 0, 0, 0.55); }
-dialog.frage p { margin: 0 0 var(--r-3); }
+dialog.frage p { margin: 0 0 var(--r-3); white-space: pre-line; }
 dialog.frage .aktionen { margin-top: 0; }
 
 /* Sprungziele nicht an den oberen Rand kleben. */
 #vorschau-titel, #abschluss { scroll-margin-top: var(--r-4); }
 
 /* Fehlerkarte am Telefon: kräftiger Rand, nicht nur Tönung; Zahlenzellen voll breit. */
-table.uebersicht tr.mit-fehler { box-shadow: inset 6px 0 0 var(--alarm); }
+table.uebersicht tr.mit-fehler td:first-child { box-shadow: inset 6px 0 0 var(--alarm); }
 @media (max-width: 40rem) {
-  table.uebersicht td.zahl { width: 100%; }
+  table.uebersicht tr.mit-fehler { border-left: 6px solid var(--alarm); }
+  table.uebersicht tr.mit-fehler td:first-child { box-shadow: none; }
+}
+@media (max-width: 40rem) {
+  table.uebersicht td.zahl { width: auto; }
 }
 
 /* ---- Nacht und Dunkel: Feinschliff --------------------------------- */
-.nacht-modus { --strich: 2px; }
+.nacht-modus { --strich: 2px; --strich-stark: 2px; }
 .nacht-modus button:disabled { opacity: 0.7; }
 .nacht-modus .karte, .dunkel-modus .karte { border-color: var(--linie-stark); }
 .dunkel-modus button.primaer { filter: brightness(0.85); }
-/* Die Sprungleiste steht dauernd im Bild: nachts als Rahmenknopf statt heller Fläche. */
-.nacht-modus .sprungleiste button.primaer {
+/* Die Sprungleiste steht dauernd im Bild: im Dunkeln als Rahmenknopf statt heller Fläche. */
+.nacht-modus .sprungleiste button.primaer, .dunkel-modus .sprungleiste button.primaer {
   background: var(--flaeche); color: var(--akzent-hell); border-color: var(--akzent); filter: none;
 }
+
+/* Hinweise vor dem Download: eine Zeile je Hinweis, was falsch gedruckt würde, zuerst und fett. */
+#einzeln-hinweise ul { margin: 0; padding-left: 1.2rem; }
+#einzeln-hinweise li + li { margin-top: var(--r-1); }
+#einzeln-hinweise li.wichtig { font-weight: 700; }
+#entwurf-text .nebentext { display: block; margin-top: var(--r-1); font-weight: 400; }
+
+/* Vermerke: der zur Richtung gehörende ist hervorgehoben, die anderen treten zurück. */
+.vermerk { padding-left: var(--r-3); border-left: 4px solid transparent; }
+#weitere[data-richtung="Eingang"] .vermerk[data-vermerk="aufnahme"],
+#weitere[data-richtung="Ausgang"] .vermerk[data-vermerk="annahme"],
+#weitere[data-richtung="Ausgang"] .vermerk[data-vermerk="befoerderung"] { border-left-color: var(--akzent); }
+#weitere[data-richtung="Eingang"] .vermerk:not([data-vermerk="aufnahme"]) h4::after,
+#weitere[data-richtung="Ausgang"] .vermerk[data-vermerk="aufnahme"] h4::after { content: " – gehört nicht zu dieser Richtung"; font-weight: 400; color: var(--text-3); }
+dialog.frage .aktionen { gap: var(--r-4); }
+/* Wiederkehrend am Telefon: der grüne Kasten nur einzeilig, die Maske rückt nach oben. */
+@media (max-width: 40rem) {
+  .wiederkehrend .offline-badge { font-size: var(--t-xs); padding-block: var(--r-1); margin-bottom: var(--r-3); }
+  .wiederkehrend .offline-badge #offline-stand { display: none; }
+}
+/* PDF-Rahmen, der nur zum Drucken geladen bleibt, während die Bildvorschau zu sehen ist. */
+iframe.nur-zum-drucken { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* Löschen ist kein gewöhnlicher Knopf: roter Rand und Schrift. */
+button.gefahr { color: var(--alarm); border-color: var(--alarm); }
+.leere-zeile { margin-bottom: var(--r-4); }

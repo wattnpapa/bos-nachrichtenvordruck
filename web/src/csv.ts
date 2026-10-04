@@ -73,6 +73,13 @@ export function leseCsv(text: string, trenner = erkenneTrenner(text), hinweise: 
                     i++;
                 } else {
                     inAnfuehrung = false;
+                    // Geht der Text nach dem schließenden Zeichen weiter („"Zitat" und weiter“),
+                    // war das Feld nicht in Anführungszeichen gefasst: sie gehören zum Inhalt.
+                    const danach = quelle[i + 1];
+                    if (danach !== undefined && danach !== trenner && danach !== "\n" && danach !== "\r") {
+                        feld = `"${feld}"`;
+                        continue;
+                    }
                     if (feld.split(/\r?\n/).slice(1).some(zeile => zeile.includes(trenner))) {
                         hinweise.push(`Ab Zeile ${anfuehrungAb} umfasst ein Feld in Anführungszeichen mehrere Zeilen mit Trennzeichen. Fehlt dort ein schließendes Anführungszeichen? Dann ist die folgende Zeile im Feld verschwunden.`);
                     }

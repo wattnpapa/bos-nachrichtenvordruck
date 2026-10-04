@@ -25,3 +25,21 @@ describe("Liste erstellter Vordrucke", () => {
         expect(mitNummer(liste, "")).toEqual([]);
     });
 });
+
+describe("Merken", () => {
+    it("trägt denselben Stand mit demselben Vordruck nur einmal ein, mit anderem Vordruck getrennt", async () => {
+        const daten = new Map<string, string>();
+        globalThis.localStorage = {
+            getItem: (k: string) => daten.get(k) ?? null,
+            setItem: (k: string, v: string) => void daten.set(k, v),
+            removeItem: (k: string) => void daten.delete(k)
+        } as Storage;
+        const { merkeVordrucke, merkeVordruck } = await import("../../web/src/verlauf.js");
+        const zeilen = [{ nummer: "1" }, { nummer: "2" }];
+        expect(merkeVordrucke(zeilen, new Date(), "nachricht").neu).toBe(2);
+        const zweimal = merkeVordrucke(zeilen, new Date(), "nachricht");
+        expect(zweimal.neu).toBe(0);
+        expect(zweimal.liste).toHaveLength(2);
+        expect(merkeVordruck({ nummer: "1" }, new Date(), "meldung").liste).toHaveLength(3);
+    });
+});

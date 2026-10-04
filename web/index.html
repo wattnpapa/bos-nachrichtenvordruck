@@ -26,9 +26,14 @@
         bnvModus = "dunkel";
       if (bnvModus === "feld" || bnvModus === "nacht" || bnvModus === "dunkel")
         document.documentElement.classList.add(bnvModus + "-modus");
-      if (bnvModus === "nacht")
-        document.querySelector('meta[name="theme-color"]').setAttribute("content", "#221f16");
+      if (bnvModus === "nacht" || bnvModus === "dunkel")
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", bnvModus === "nacht" ? "#221f16" : "#0f1116");
     } catch (e) { /* Privatmodus: Standard-Darstellung */ }
+    // Mit gespeichertem Entwurf steht oben ein Hinweis; der Browser soll nicht an die alte Stelle springen.
+    try {
+      if (sessionStorage.getItem("bnv.entwurf.v1") || localStorage.getItem("bnv.entwurf.v1"))
+        history.scrollRestoration = "manual";
+    } catch (e) { /* ohne Speicher kein Entwurf */ }
   </script>
   <!-- Reichweitenmessung, siehe datenschutz.html Punkt 5. Widerspruch über
        localStorage „skipgc“, den count.js selbst auswertet. -->
@@ -54,8 +59,8 @@
           <h1>Nachrichtenvordruck</h1>
           <div class="anzeige-schalter" role="group" aria-label="Anzeige">
             <button type="button" data-modus="standard" title="Normale, helle Darstellung">Standard</button>
-            <button type="button" data-modus="dunkel" title="Heller Text auf dunklem Grund">Dunkel</button>
             <button type="button" data-modus="feld" title="Große Tippziele und hoher Kontrast für draußen">Feld</button>
+            <button type="button" data-modus="dunkel" title="Heller Text auf dunklem Grund">Dunkel</button>
             <button type="button" data-modus="nacht" title="Gedimmte, warme Darstellung für Nachteinsätze">Nacht</button>
           </div>
         </div>
@@ -70,8 +75,23 @@
     <main id="inhalt" tabindex="-1">
       <p class="einleitung">BOS-Nachrichtenvordruck und Meldevordruck als PDF: einen einzelnen am Bildschirm ausfüllen oder viele auf einmal aus einer Tabelle erzeugen.</p>
       <p class="laedt" id="laedt">Die Seite lädt noch. Bei schwachem Netz kann das einige Sekunden dauern.</p>
+      <div class="alarm-kasten" id="laedt-nicht" role="alert" hidden>
+        <p>Die App konnte nicht vollständig geladen werden; Eingaben hier werden weder gespeichert noch gedruckt. Seite neu laden: Ohne Netz startet dann die gespeicherte Fassung. Notfalls den Papiervordruck nehmen.</p>
+        <button type="button" class="primaer" onclick="location.reload()">Neu laden</button>
+      </div>
+      <script>
+        // Startet das Programm nicht innerhalb von 12 s (Netz brach mitten im Laden ab), das klar sagen.
+        setTimeout(function () {
+          if (!window.bnvGestartet) {
+            document.getElementById("laedt").hidden = true;
+            document.getElementById("laedt-nicht").hidden = false;
+            document.documentElement.classList.add("nicht-gestartet");
+          }
+        }, 12000);
+      </script>
       <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.<span id="offline-stand" hidden> Startet nach dem ersten Aufruf auch ohne Netz. Auf den Startbildschirm gelegt, bleibt sie dafür zuverlässig gespeichert.</span></p>
-      <p class="warnung netz" id="netz-stand" role="status" hidden>Kein Netz. Ausfüllen, Vorschau und PDF funktionieren weiter, auch der Excel-Weg.</p>
+      <p class="warnung netz" id="netz-stand" role="status" hidden>Kein Netz. Ausfüllen, Vorschau und PDF funktionieren weiter<span id="netz-excel">, auch der Excel-Weg</span>.</p>
+      <p class="nebentext" id="speicher-stand" role="status" hidden></p>
 
       <!-- Vor den Einstellungen, damit er nach dem Laden ohne Scrollen zu sehen ist. -->
       <div class="warnung entwurf" id="entwurf-hinweis" role="status" hidden>
@@ -190,46 +210,54 @@
               </div>
             </section>
 
-            <section class="karte" data-nur="nachricht">
+            <section class="karte">
               <h3>Abfassung</h3>
               <div class="zeile">
                 <label class="feld">Abfassungszeit
                   <input name="abfassungszeit" placeholder="TTHHMMmonJJ" class="daten" />
                 </label>
                 <button type="button" id="jetzt" aria-describedby="geraetezeit">Jetzt</button>
-                <label class="feld schmal">Zeichen
+                <label class="feld schmal" data-nur="nachricht">Zeichen
                   <input name="zeichen" />
                 </label>
-                <label class="feld schmal">Funktion
+                <label class="feld schmal" data-nur="nachricht">Funktion
                   <input name="funktion" />
                 </label>
               </div>
               <p class="hinweis" id="geraetezeit">Datum-Zeit-Gruppe: Tag, Stunde, Minute, Monat, Jahr, z. B. 041416okt26.</p>
             </section>
 
-            <details class="karte weitere" id="weitere" data-nur="nachricht">
-              <summary>Vermerke, Quittung und Verteiler <span class="zaehler" id="weitere-zahl" hidden></span></summary>
-              <h4>Aufnahmevermerk (Eingang)</h4>
-              <div class="zeile">
-                <label class="feld schmal">Datum <input name="aufnahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
-                <label class="feld schmal">Uhrzeit <input name="aufnahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
-                <button type="button" class="jetzt" data-jetzt="aufnahme" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
-                <label class="feld schmal">Hdz. <input name="aufnahmeHdz" /></label>
+            <details class="karte weitere" id="weitere">
+              <summary><span data-nur="nachricht">Vermerke, Quittung und Verteiler</span><span data-nur="meldung">Ausgang und Eingang</span> <span class="zaehler" id="weitere-zahl" hidden></span></summary>
+              <p class="hinweis" data-nur="meldung">Auf dem Meldevordruck stehen Datum und Uhrzeit unter „Ausgang“ (Beförderung, sonst Annahme) und „Eingang“ (Aufnahme).</p>
+              <div class="vermerk" data-vermerk="aufnahme">
+                <h4>Aufnahmevermerk (Eingang)</h4>
+                <div class="zeile">
+                  <label class="feld schmal">Datum <input name="aufnahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
+                  <label class="feld schmal">Uhrzeit <input name="aufnahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
+                  <label class="feld schmal" data-nur="nachricht">Hdz. <input name="aufnahmeHdz" /></label>
+                  <button type="button" class="jetzt" data-jetzt="aufnahme">Datum/Zeit jetzt</button>
+                </div>
               </div>
-              <h4>Annahmevermerk (Ausgang)</h4>
-              <div class="zeile">
-                <label class="feld schmal">Datum <input name="annahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
-                <label class="feld schmal">Uhrzeit <input name="annahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
-                <button type="button" class="jetzt" data-jetzt="annahme" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
-                <label class="feld schmal">Hdz. <input name="annahmeHdz" /></label>
+              <div class="vermerk" data-vermerk="annahme">
+                <h4>Annahmevermerk (Ausgang)</h4>
+                <div class="zeile">
+                  <label class="feld schmal">Datum <input name="annahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
+                  <label class="feld schmal">Uhrzeit <input name="annahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
+                  <label class="feld schmal" data-nur="nachricht">Hdz. <input name="annahmeHdz" /></label>
+                  <button type="button" class="jetzt" data-jetzt="annahme">Datum/Zeit jetzt</button>
+                </div>
               </div>
-              <h4>Beförderungsvermerk (Ausgang)</h4>
-              <div class="zeile">
-                <label class="feld schmal">Datum <input name="befoerderungDatum" inputmode="decimal" placeholder="TT.MM." /></label>
-                <label class="feld schmal">Uhrzeit <input name="befoerderungUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
-                <button type="button" class="jetzt" data-jetzt="befoerderung" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
-                <label class="feld schmal">Hdz. <input name="befoerderungHdz" /></label>
+              <div class="vermerk" data-vermerk="befoerderung">
+                <h4>Beförderungsvermerk (Ausgang)</h4>
+                <div class="zeile">
+                  <label class="feld schmal">Datum <input name="befoerderungDatum" inputmode="decimal" placeholder="TT.MM." /></label>
+                  <label class="feld schmal">Uhrzeit <input name="befoerderungUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
+                  <label class="feld schmal" data-nur="nachricht">Hdz. <input name="befoerderungHdz" /></label>
+                  <button type="button" class="jetzt" data-jetzt="befoerderung">Datum/Zeit jetzt</button>
+                </div>
               </div>
+              <div data-nur="nachricht">
               <h4>Quittung</h4>
               <div class="zeile">
                 <label class="feld schmal">Uhrzeit <input name="quittungUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
@@ -247,6 +275,7 @@
                   <thead><tr><th scope="col"><span class="nur-sr">Zeile</span></th><th scope="col">1</th><th scope="col">2</th><th scope="col">3</th></tr></thead>
                   <tbody id="verteiler-raster"></tbody>
                 </table>
+              </div>
               </div>
             </details>
 
@@ -287,20 +316,20 @@
             <p class="nebentext" id="einzeln-status" role="status"><span id="einzeln-status-text"></span> <button type="button" class="link" id="einzeln-rueckgaengig" hidden>Rückgängig</button></p>
             <p class="hinweis">„Nächster Vordruck“ behält Übermittlungsweg und Richtung, nach einem Ausgang auch Absender, Zeichen und Funktion, und zählt die Nr. hoch. „Felder leeren“ leert alles.</p>
             <p class="nebentext" id="entwurf-stand"></p>
-            <p><button type="button" class="link" id="leere-vordrucke">Leere Vordrucke zum Ausfüllen von Hand herunterladen</button></p>
+            <p class="leere-zeile"><button type="button" class="link" id="leere-vordrucke">Leere Vordrucke zum Ausfüllen von Hand herunterladen</button></p>
 
             <details class="verlauf" id="verlauf" hidden>
               <summary>Erstellte Vordrucke <span class="stand" id="verlauf-zahl"></span></summary>
-              <p class="nebentext">Liste auf diesem Gerät, zum Abgleich mit dem Betriebsbuch. Es bleiben die letzten 200; als CSV lässt sie sich sichern und wieder einlesen.</p>
+              <p class="nebentext">Liste auf diesem Gerät, zum Abgleich mit dem Betriebsbuch; maßgeblich bleibt der Papierbogen. Eingetragen wird, was heruntergeladen oder gedruckt wurde, nicht das Ansehen in einem neuen Tab. Es bleiben die letzten 1000; als CSV lässt sie sich sichern und wieder einlesen.</p>
               <div class="tabellen-scroll">
                 <table class="uebersicht">
-                  <thead><tr><th>Zeit</th><th>Nr.</th><th>Gegenstelle</th><th>Inhalt</th></tr></thead>
+                  <thead><tr><th>Zeit</th><th>Nr.</th><th>Richtung</th><th>Vorrang</th><th>Gegenstelle</th><th>Inhalt</th></tr></thead>
                   <tbody id="verlauf-liste"></tbody>
                 </table>
               </div>
               <div class="aktionen">
                 <button type="button" id="verlauf-csv">Liste als CSV</button>
-                <button type="button" class="abgesetzt" id="verlauf-loeschen">Liste löschen</button>
+                <button type="button" class="abgesetzt gefahr" id="verlauf-loeschen">Liste löschen</button>
               </div>
             </details>
             <p class="nebentext" id="verlauf-geloescht" role="status" hidden>Liste gelöscht. <button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button></p>
@@ -342,8 +371,9 @@
           <!-- Vor der Übersicht: bei vielen Zeilen stünden die Knöpfe sonst Bildschirme tiefer. -->
           <div class="aktionen">
             <button type="button" class="primaer" id="tabelle-pdf">PDF herunterladen</button>
-            <button type="button" id="tabelle-oeffnen">Vorschau öffnen</button>
+            <button type="button" id="tabelle-oeffnen">Vorschau öffnen<span class="nur-dunkel"> (helles Blatt)</span></button>
           </div>
+          <p class="nebentext" id="tabelle-erstellt" role="status" hidden></p>
           <div class="tabellen-scroll">
             <table class="uebersicht" id="ergebnis-tabelle">
               <thead><tr><th>Zeile</th><th>Nr.</th><th>Vorrang</th><th>Art</th><th>Weg</th><th>Richtung</th><th>Zeit</th><th>Gegenstelle</th><th>Inhalt</th><th>Absender</th></tr></thead>
@@ -367,6 +397,7 @@
         <p id="frage-text"></p>
         <div class="aktionen">
           <button value="nein" class="primaer" id="frage-nein">Abbrechen</button>
+          <button value="dritte" id="frage-dritte" hidden>Aufteilen</button>
           <button value="ja" id="frage-ja">OK</button>
         </div>
       </form>
@@ -388,10 +419,10 @@
       </div>
       <p class="fuss-marke">Lizenz EUPL-1.2. Ohne Anmeldung, ohne Speicherung auf einem Server. <span id="fassung"></span></p>
       <nav class="werkzeuge" aria-label="Weitere Werkzeuge">
-        <a href="https://erfassungsbogen.app/">erfassungsbogen.app</a><span aria-hidden="true">·</span>
-        <a href="https://fmbauplaner.app/">fmbauplaner.app</a><span aria-hidden="true">·</span>
-        <a href="https://nachrichtenvordruck.app/">nachrichtenvordruck.app</a><span aria-hidden="true">·</span>
-        <a href="https://sprechfunk-uebung.de/">sprechfunk-uebung.de</a>
+        <a href="https://erfassungsbogen.app/" rel="noopener" title="Externe Seite">erfassungsbogen.app</a><span aria-hidden="true">·</span>
+        <a href="https://fmbauplaner.app/" rel="noopener" title="Externe Seite">fmbauplaner.app</a><span aria-hidden="true">·</span>
+        <a href="https://nachrichtenvordruck.app/" rel="noopener" title="Externe Seite">nachrichtenvordruck.app</a><span aria-hidden="true">·</span>
+        <a href="https://sprechfunk-uebung.de/" rel="noopener" title="Externe Seite">sprechfunk-uebung.de</a>
       </nav>
     </footer>
   </div>

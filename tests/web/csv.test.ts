@@ -52,3 +52,10 @@ describe("CSV", () => {
         expect(leseCsv("Nr;Inhalt\n1;Text mit \"Zitat\" drin\n")).toEqual([["Nr", "Inhalt"], ["1", "Text mit \"Zitat\" drin"]]);
     });
 });
+
+describe("Anführungszeichen am Feldanfang", () => {
+    it("behält ein Zitat am Anfang, wenn der Text danach weitergeht", () => {
+        expect(leseCsv('Nr;Inhalt\n1;"Zitat am Anfang" und weiter\n', ";")).toEqual([["Nr", "Inhalt"], ["1", '"Zitat am Anfang" und weiter']]);
+        expect(leseCsv('Nr;Inhalt\n1;"ganz; gefasst"\n', ";")).toEqual([["Nr", "Inhalt"], ["1", "ganz; gefasst"]]);
+    });
+});

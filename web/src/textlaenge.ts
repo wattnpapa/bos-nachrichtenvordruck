@@ -1,5 +1,14 @@
 import { jsPDF } from "jspdf";
-import { meldevordruckInhaltZeilen, nachrichtenvordruckInhaltZeilen } from "../../src/index.js";
+import {
+    meldevordruckGekuerzt,
+    meldevordruckInhaltTeilen,
+    meldevordruckInhaltZeilen,
+    nachrichtenvordruckGekuerzt,
+    nachrichtenvordruckInhaltTeilen,
+    nachrichtenvordruckInhaltZeilen,
+    type VordruckDaten
+} from "../../src/index.js";
+import { SPALTEN } from "./spalten.js";
 import type { VordruckWahl } from "./pdf.js";
 
 export interface Textlaenge {
@@ -58,4 +67,36 @@ export function textlaengeMeldung(laenge: Textlaenge): string {
     }
     const frei = laenge.maxZeilen - laenge.zeilen;
     return `${laenge.zeilen} von ${laenge.maxZeilen} Zeilen auf dem ${laenge.vordruck} belegt${frei === 1 ? ", noch eine frei" : ", keine mehr frei"}.`;
+}
+
+/** Feldnamen der Bibliothek, die keine eigene Spalte haben. */
+const FELDNAMEN: Record<string, string> = {
+    ausgang: "Ausgang (Datum, Uhrzeit)",
+    eingang: "Eingang (Datum, Uhrzeit)"
+};
+
+/**
+ * Einzeilige Felder, die nicht ganz aufs Blatt passen und mit „…“ gekürzt
+ * gedruckt würden, als Satz; leer, wenn alles passt.
+ */
+export function gekuerztMeldung(daten: VordruckDaten, vordruck: VordruckWahl): string {
+    messPdf ??= new jsPDF("p", "mm", "a5");
+    const namen = [
+        ...(vordruck !== "meldung" ? nachrichtenvordruckGekuerzt(messPdf, daten) : []),
+        ...(vordruck !== "nachricht" ? meldevordruckGekuerzt(messPdf, daten) : [])
+    ].map(name => FELDNAMEN[name] ?? SPALTEN.find(spalte => spalte.schluessel === name.replace("vermerk", ""))?.titel ?? name);
+    const eindeutig = [...new Set(namen)];
+    if (eindeutig.length === 0) {
+        return "";
+    }
+    return `Zu lang für den Vordruck, wird mit „…“ gekürzt gedruckt: ${eindeutig.join(", ")}`;
+}
+
+/**
+ * Teilt den Inhalt auf Folgebögen: so viele Stücke, dass auf dem engsten der
+ * gewählten Vordrucke nichts abgeschnitten wird.
+ */
+export function teileInhalt(inhalt: string, vordruck: VordruckWahl): string[] {
+    messPdf ??= new jsPDF("p", "mm", "a5");
+    return vordruck === "meldung" ? meldevordruckInhaltTeilen(messPdf, inhalt) : nachrichtenvordruckInhaltTeilen(messPdf, inhalt);
 }

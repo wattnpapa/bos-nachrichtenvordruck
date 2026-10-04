@@ -26,7 +26,7 @@ function aktuellerModus(): Modus {
 // Der title-Hinweis erscheint beim Antippen nicht; die Erklärung steht deshalb sichtbar unter dem Schalter.
 const ERKLAERUNG: Record<Modus, string> = {
     standard: "Feld: große Knöpfe, hoher Kontrast für draußen. Nacht: gedimmt, schont die Augen im Dunkeln.",
-    dunkel: "Dunkel: heller Text auf dunklem Grund.",
+    dunkel: "Dunkel: heller Text auf dunklem Grund. Für Einsätze im Dunkeln ist „Nacht“ noch gedämpfter.",
     feld: "Feld: große Knöpfe und hoher Kontrast für draußen und Handschuhe.",
     nacht: "Nacht: gedimmt und warm, schont die Dunkelanpassung der Augen."
 };
@@ -46,7 +46,7 @@ function setzeModus(modus: Modus): void {
     for (const knopf of document.querySelectorAll<HTMLButtonElement>(".anzeige-schalter button")) {
         knopf.setAttribute("aria-pressed", String(knopf.dataset["modus"] === modus));
     }
-    const farbe = modus === "nacht" ? "#221f16" : "#12275e";
+    const farbe = modus === "nacht" ? "#221f16" : modus === "dunkel" ? "#0f1116" : "#12275e";
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", farbe);
     erklaeren(modus);
 }

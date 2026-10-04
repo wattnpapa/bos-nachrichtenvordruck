@@ -10,26 +10,40 @@
 // Excel-Teil) auch ohne Netz findet.
 
 const VERSION = "__VERSION__";
+const FASSUNG = "__FASSUNG__";
 const DATEIEN = __DATEIEN__;
 const SPEICHER = `bnv-${VERSION}`;
 const NETZ_WARTEN_MS = 3000;
+// Steht erst im Speicher, wenn alle Dateien darin sind. Ein halb gefüllter
+// Speicher aus einem gescheiterten Einrichten gilt nie als vorige Fassung.
+const VOLLSTAENDIG = "./__vollstaendig__";
+/** Wann zuletzt eine Seite aus dem Speicher statt vom Server kam. */
+let ersatzSeit = 0;
 
 self.addEventListener("install", ereignis => {
     // cache: "reload" geht am HTTP-Cache vorbei. Sonst könnte eine dort noch
     // liegende alte Startseite neben den neuen Programmteilen landen und die
     // App ohne Netz nie fertig laden.
     ereignis.waitUntil(caches.open(SPEICHER)
-        .then(speicher => speicher.addAll(DATEIEN.map(datei => new Request(datei, { cache: "reload" }))))
-        .then(() => self.skipWaiting()));
+        .then(speicher => speicher.addAll(DATEIEN.map(datei => new Request(datei, { cache: "reload" })))
+            .then(() => speicher.put(VOLLSTAENDIG, new Response(FASSUNG))))
+        .then(() => self.skipWaiting())
+        .catch(fehler => caches.delete(SPEICHER).then(() => {
+            throw fehler;
+        })));
 });
 
 self.addEventListener("activate", ereignis => {
-    // Die aktuelle und die vorige Fassung bleiben, ältere fallen weg.
+    // Die aktuelle und die letzte vollständige vorige Fassung bleiben, alles andere fällt weg.
     ereignis.waitUntil(caches.keys()
-        .then(namen => {
-            const eigene = namen.filter(name => name.startsWith("bnv-"));
-            const behalten = new Set([SPEICHER, ...eigene.filter(name => name !== SPEICHER).slice(-1)]);
-            return Promise.all(eigene.filter(name => !behalten.has(name)).map(name => caches.delete(name)));
+        .then(namen => Promise.all(namen
+            .filter(name => name.startsWith("bnv-") && name !== SPEICHER)
+            .map(name => caches.open(name)
+                .then(speicher => speicher.match(VOLLSTAENDIG))
+                .then(marke => ({ name, vollstaendig: Boolean(marke) })))))
+        .then(andere => {
+            const vorige = andere.filter(eintrag => eintrag.vollstaendig).at(-1)?.name;
+            return Promise.all(andere.filter(eintrag => eintrag.name !== vorige).map(eintrag => caches.delete(eintrag.name)));
         })
         .then(() => self.clients.claim()));
 });
@@ -42,7 +56,7 @@ function ausSpeicher(anfrage) {
 }
 
 function seite(anfrage) {
-    const ersatz = () => ausSpeicher(anfrage)
+    const ersatz = () => (ersatzSeit = Date.now(), ausSpeicher(anfrage))
         .then(gefunden => gefunden ?? ausSpeicher(new URL("./index.html", self.registration.scope).href))
         .then(gefunden => gefunden ?? Response.error());
     return new Promise(fertig => {
@@ -60,6 +74,9 @@ function seite(anfrage) {
             .then(antwort => {
                 clearTimeout(uhr);
                 // Eine Fehlerseite des Servers (404, 503 …) soll die gespeicherte App nicht verdrängen.
+                if (antwort.ok && !erledigt) {
+                    ersatzSeit = 0;
+                }
                 ende(antwort.ok ? antwort : ersatz().then(gespeichert => gespeichert.type === "error" ? antwort : gespeichert));
             })
             .catch(() => {
@@ -86,4 +103,12 @@ self.addEventListener("fetch", ereignis => {
         return;
     }
     ereignis.respondWith(anfrage.mode === "navigate" ? seite(anfrage) : programmteil(anfrage));
+});
+
+// Die Seite fragt nach dem Start, welche Fassung der Dienst hat und ob sie
+// selbst aus dem Speicher kam.
+self.addEventListener("message", ereignis => {
+    if (ereignis.data === "stand?") {
+        ereignis.source?.postMessage({ art: "stand", fassung: FASSUNG, ausSpeicher: Date.now() - ersatzSeit < 30_000 });
+    }
 });
