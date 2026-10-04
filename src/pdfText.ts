@@ -168,9 +168,22 @@ export function zeichneZeilenBegrenzt(pdf: jsPDF, options: {
     return { zeilen: zeilen.length, gezeichnet: sichtbar.length };
 }
 
+/** Kürzt `text` mit „…“, bis er in der aktuellen Schriftgröße in `maxWidth` passt. */
+export function kuerzeAufBreite(pdf: jsPDF, text: string, maxWidth: number): string {
+    if (pdf.getTextWidth(text) <= maxWidth) {
+        return text;
+    }
+    let gekuerzt = text.trimEnd();
+    while (gekuerzt && pdf.getTextWidth(`${gekuerzt}…`) > maxWidth) {
+        gekuerzt = gekuerzt.slice(0, -1).trimEnd();
+    }
+    return `${gekuerzt}…`;
+}
+
 /**
  * Schreibt einen einzeiligen Wert ab 12 pt und verkleinert in 0,5-pt-Schritten
- * bis 7 pt, damit er in `maxWidth` passt.
+ * bis 7 pt, damit er in `maxWidth` passt. Reicht auch das nicht, wird er mit
+ * „…“ gekürzt, statt in das Nachbarfeld zu laufen.
  *
  * Wird für die großen Felder des Meldevordrucks gebraucht, deren Schriftbild
  * sich nicht ändern soll.
@@ -188,13 +201,18 @@ export function zeichneAngepasst(pdf: jsPDF, options: {
         fontSize -= 0.5;
         pdf.setFontSize(fontSize);
     }
-    pdf.text(text, x, y);
+    pdf.text(kuerzeAufBreite(pdf, text, maxWidth), x, y);
 }
+
+/** Kleinste Schrift für einzeilige Werte; darunter wird gekürzt statt verkleinert. */
+export const KLEINSTE_SCHRIFT = 6;
 
 /**
  * Schreibt einen einzeiligen Wert und verkleinert die Schrift ab `fontSize`, bis
- * er in `maxWidth` passt. Untergrenze 4 pt, damit auch die 6 mm schmalen
- * Handzeichen-Zellen etwas Lesbares abbekommen.
+ * er in `maxWidth` passt, höchstens bis 6 pt. Was dann noch nicht passt, wird
+ * mit „…“ gekürzt: Nichts läuft über die Zelle hinaus. Die Schriftgröße des
+ * Dokuments ist danach wieder `fontSize`, damit das nächste Feld nicht klein
+ * beginnt.
  */
 export function zeichneEinzeilig(pdf: jsPDF, options: {
     text: string;
@@ -210,9 +228,23 @@ export function zeichneEinzeilig(pdf: jsPDF, options: {
 
     let aktuell = fontSize;
     pdf.setFontSize(aktuell);
-    while (pdf.getTextWidth(text) > maxWidth && aktuell > 4) {
-        aktuell -= 0.2;
+    while (pdf.getTextWidth(text) > maxWidth && aktuell > KLEINSTE_SCHRIFT) {
+        aktuell = Math.max(KLEINSTE_SCHRIFT, aktuell - 0.2);
         pdf.setFontSize(aktuell);
     }
-    pdf.text(text, x, y);
+    pdf.text(kuerzeAufBreite(pdf, text, maxWidth), x, y);
+    pdf.setFontSize(fontSize);
+}
+
+/**
+ * Ob ein einzeiliger Wert gekürzt gedruckt würde: Er passt selbst in der
+ * kleinsten Schrift (6 pt, bei `zeichneAngepasst` 7 pt) nicht in `maxWidth`.
+ * Zeichnet nichts.
+ */
+export function wirdGekuerzt(pdf: jsPDF, text: string, maxWidth: number, kleinste = KLEINSTE_SCHRIFT): boolean {
+    const vorher = pdf.getFontSize();
+    pdf.setFontSize(kleinste);
+    const zuBreit = pdf.getTextWidth(text) > maxWidth;
+    pdf.setFontSize(vorher);
+    return zuBreit;
 }

@@ -16,14 +16,14 @@ describe("Meldevordruck: Formular und Rahmen", () => {
         expect(texte.map(t => t.text)).toEqual(expect.arrayContaining(["Heros Oldenburg 16/11", "Testübung"]));
     });
 
-    it("verkleinert einen langen Absender auf die Feldbreite", () => {
+    it("kürzt einen zu langen Absender, statt in „Ausgang“ zu laufen", () => {
         const { pdf, texte } = protokollPdf();
         const daten = new VordruckDaten();
         daten.absender = "Heros Musterstadt-Langer-Ortsname Fachgruppe Führung/Kommunikation 16/11";
 
         zeichneMeldevordruck(pdf, daten, { ohneHintergrund: true, ohneRahmen: true });
 
-        const absender = texte.find(t => t.text === daten.absender);
-        expect(absender).toBeDefined();
+        const absender = texte.find(t => t.text.startsWith("Heros Musterstadt"));
+        expect(absender?.text.endsWith("…")).toBe(true);
     });
 });

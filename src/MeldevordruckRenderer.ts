@@ -2,8 +2,9 @@ import type { jsPDF } from "jspdf";
 import type { VordruckDaten } from "./VordruckDaten.js";
 import type { Uebermittlungsweg } from "./felder.js";
 import { MELDEVORDRUCK_FORMULAR } from "./formularGeometrie.js";
-import { umbrechen, zeichneAngepasst, zeichneZeilenBegrenzt } from "./pdfText.js";
+import { umbrechen, wirdGekuerzt, zeichneAngepasst, zeichneEinzeilig, zeichneZeilenBegrenzt } from "./pdfText.js";
 import {
+    inhaltTeilen,
     zeichneHintergrund,
     zeichneRahmen,
     type VordruckRenderOptionen
@@ -88,8 +89,8 @@ export function zeichneMeldevordruck(
         pdf.text("x", offsetX + kreuz.x, kreuz.y);
     }
 
-    pdf.setFontSize(12);
-    pdf.text(daten.nummer, offsetX + 80, 12);
+    // Kästchen „Nr.“: 70,0–89,5 mm.
+    zeichneEinzeilig(pdf, { text: daten.nummer, x: offsetX + 72, y: 14, maxWidth: 16.5, fontSize: 12 });
 
     pdf.setFontSize(16);
     zeichneAngepasst(pdf, { text: daten.absender, maxWidth: 70, x: offsetX + 22, y: 25 });
@@ -98,6 +99,14 @@ export function zeichneMeldevordruck(
 
     pdf.setFontSize(12);
     zeichneAngepasst(pdf, { text: daten.verfasser, maxWidth: 40, x: offsetX + 37, y: 192 });
+
+    // Abfassungszeit: Zelle 89,6–141,8 mm unter der Beschriftung.
+    zeichneEinzeilig(pdf, { text: daten.abfassungszeit, x: offsetX + 91.5, y: 193.6, maxWidth: 49, fontSize: 12 });
+
+    // Ausgang und Eingang, je Datum und Uhrzeit auf den Linien 123,1–140,3 mm.
+    for (const [wert, y] of zeitfelder(daten)) {
+        zeichneEinzeilig(pdf, { text: wert, x: offsetX + 123.6, y, maxWidth: 16.4, fontSize: 9 });
+    }
 
     // Langer Inhalt wird abgeschnitten statt verkleinert und läuft nicht über
     // Verfasser, Abfassungszeit und den Blattrand.
@@ -114,6 +123,53 @@ export function zeichneMeldevordruck(
     if (!optionen.ohneRahmen) {
         zeichneRahmen(pdf, daten, offsetX);
     }
+}
+
+/** Wie `nachrichtenvordruckInhaltTeilen`, für die 26 Zeilen des Meldevordrucks. */
+export function meldevordruckInhaltTeilen(pdf: jsPDF, inhalt: string): string[] {
+    return inhaltTeilen(pdf, inhalt, INHALT_FELD.maxBreite, INHALT_FELD.schriftgroesse, INHALT_FELD.zeilen);
+}
+
+/**
+ * Datum und Uhrzeit für „Ausgang“ und „Eingang“ mit ihrer Grundlinie. Ausgang
+ * ist die Beförderung, ohne sie die Annahme; Eingang die Aufnahme.
+ */
+function zeitfelder(daten: VordruckDaten): [string, number][] {
+    const ausgang = daten.befoerderungsvermerk.datum || daten.befoerderungsvermerk.uhrzeit
+        ? daten.befoerderungsvermerk
+        : daten.annahmevermerk;
+    return [
+        [ausgang.datum ?? "", 24.0],
+        [ausgang.uhrzeit ?? "", 29.2],
+        [daten.aufnahmevermerk.datum ?? "", 38.6],
+        [daten.aufnahmevermerk.uhrzeit ?? "", 44.2]
+    ];
+}
+
+/**
+ * Felder des Meldevordrucks, deren Wert nicht ganz auf das Blatt passt und
+ * gekürzt gedruckt würde: `nummer`, `absender`, `verfasser`, `abfassungszeit`,
+ * `ausgang`, `eingang`. Der Inhalt hat eine eigene Prüfung
+ * (`meldevordruckInhaltZeilen`). Zeichnet nichts.
+ */
+export function meldevordruckGekuerzt(pdf: jsPDF, daten: VordruckDaten): string[] {
+    const vorher = pdf.getFontSize();
+    const [ausgangDatum, ausgangUhrzeit, eingangDatum, eingangUhrzeit] = zeitfelder(daten).map(([wert]) => wert);
+    const pruefungen: [string, string, number, number?][] = [
+        ["nummer", daten.nummer, 16.5],
+        ["absender", daten.absender, 70, 7],
+        ["verfasser", daten.verfasser, 40, 7],
+        ["abfassungszeit", daten.abfassungszeit, 49],
+        ["ausgang", `${ausgangDatum}`, 16.4],
+        ["ausgang", `${ausgangUhrzeit}`, 16.4],
+        ["eingang", `${eingangDatum}`, 16.4],
+        ["eingang", `${eingangUhrzeit}`, 16.4]
+    ];
+    const gekuerzt = pruefungen
+        .filter(([, wert, breite, kleinste]) => wert && wirdGekuerzt(pdf, wert, breite, kleinste))
+        .map(([name]) => name);
+    pdf.setFontSize(vorher);
+    return [...new Set(gekuerzt)];
 }
 
 /**

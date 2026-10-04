@@ -54,6 +54,8 @@ Nicht gesetzte Felder bleiben leer. `VordruckDaten` kennt jedes Feld des Nachric
 
 Die Schrift im Inhaltsfeld wird nie verkleinert: Der Nachrichtenvordruck schreibt 12 Zeilen in 12 pt auf die Linien, der Meldevordruck 26 Zeilen in 11,5 pt ins Raster. Was darüber hinausgeht, wird abgeschnitten, die letzte gedruckte Zeile endet dann mit „…“. `nachrichtenvordruckInhaltZeilen(pdf, inhalt)` und `meldevordruckInhaltZeilen(pdf, inhalt)` geben vorab `{ zeilen, maxZeilen }` zurück, etwa um vor dem Erzeugen zu warnen.
 
+Für Folgebögen teilen `nachrichtenvordruckInhaltTeilen(pdf, inhalt)` und `meldevordruckInhaltTeilen(pdf, inhalt)` den Text in Stücke, die je ganz auf einen Vordruck passen. Einzeilige Felder werden bis 6 pt verkleinert und darunter mit „…“ gekürzt, nie über die Zelle hinaus; `nachrichtenvordruckGekuerzt(pdf, daten)` und `meldevordruckGekuerzt(pdf, daten)` nennen vorab die Felder, die gekürzt würden. Vermerke stehen auf dem Nachrichtenvordruck bis zu sechs Zeilen tief in der freien Fläche unter „Vermerke“. Der Meldevordruck druckt die Abfassungszeit sowie Datum und Uhrzeit unter „Ausgang“ (Beförderungsvermerk, sonst Annahmevermerk) und „Eingang“ (Aufnahmevermerk).
+
 ### Optionen
 
 | Option | Wirkung |
