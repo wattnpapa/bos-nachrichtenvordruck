@@ -48,7 +48,7 @@ zeichneMeldevordruck(pdf, daten, { offsetX: 148.5 });
 pdf.save("vordrucke.pdf");
 ```
 
-Nicht gesetzte Felder bleiben leer. `VordruckDaten` kennt jedes Feld des Nachrichtenvordrucks: Übermittlungsweg (Kopfzeile und Spruchkopf), Richtung im Technischen Betriebsbuch, Aufnahme-, Annahme- und Beförderungsvermerk, Art, Vorrang, Gesprächsnotiz, Abfassungszeit, Zeichen, Funktion, Quittung, Vermerke und über `weitereAnkreuzfelder` das Verteilerraster. Der Meldevordruck nutzt davon nur Nummer, Absender, Empfänger, Verfasser und Inhalt.
+Nicht gesetzte Felder bleiben leer. `VordruckDaten` kennt jedes Feld des Nachrichtenvordrucks: Übermittlungsweg (Kopfzeile und Spruchkopf), Richtung im Technischen Betriebsbuch, Aufnahme-, Annahme- und Beförderungsvermerk, Art, Vorrang, Gesprächsnotiz, Abfassungszeit, Zeichen, Funktion, Quittung, Vermerke und über `weitereAnkreuzfelder` das Verteilerraster. Der Meldevordruck nutzt davon nur Nummer, Übermittlungsweg (Funk, Kurier, Telefon, Telefax; DFÜ hat er nicht), Absender, Empfänger, Verfasser und Inhalt.
 
 `titel`, `hinweis` und `fusszeile` stehen außerhalb des Formulars am Blattrand.
 

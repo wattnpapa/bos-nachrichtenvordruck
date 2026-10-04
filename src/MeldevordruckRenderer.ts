@@ -1,5 +1,6 @@
 import type { jsPDF } from "jspdf";
 import type { VordruckDaten } from "./VordruckDaten.js";
+import type { Uebermittlungsweg } from "./felder.js";
 import { MELDEVORDRUCK_HINTERGRUND } from "./hintergrund.js";
 import { schriftFuerBlock, zeichneAngepasst, zeichneImBlock } from "./pdfText.js";
 import {
@@ -26,6 +27,19 @@ const EMPFAENGER_ZELLE = {
     letzteGrundlinie: 45.5,
     zeilenhoehe: 5,
     schriftgroesse: 8
+};
+
+/**
+ * Kästchen „Übermittelt“ am Formularbild gemessen: Funk 109,2–111,8 mm und
+ * Kurier 127,3–130,0 mm in der oberen Zeile (7,1–9,8 mm), Telefon 92,0–94,7 mm
+ * und Fax 109,0–111,7 mm in der unteren (12,7–15,2 mm). `x`/`y` ist die
+ * Grundlinie des Kreuzes in 16 pt.
+ */
+const MELDEVORDRUCK_WEG: Partial<Record<Uebermittlungsweg, { x: number; y: number }>> = {
+    funk: { x: 109.5, y: 10 },
+    kurier: { x: 127.6, y: 10 },
+    telefon: { x: 92.3, y: 15.4 },
+    telefax: { x: 109.3, y: 15.4 }
 };
 
 /**
@@ -74,9 +88,13 @@ export function zeichneMeldevordruck(
 
     zeichneHintergrund(pdf, optionen, MELDEVORDRUCK_HINTERGRUND, HINTERGRUND_ALIAS);
 
-    // FM Zentrale
-    pdf.setFontSize(16);
-    pdf.text("x", offsetX + 109.5, 10);
+    // „Übermittelt“ im Kopf: Funk, Kurier, Telefon, Fax. DFÜ hat der
+    // Meldevordruck nicht; ohne Weg bleibt alles leer.
+    const kreuz = daten.uebermittlungsweg ? MELDEVORDRUCK_WEG[daten.uebermittlungsweg] : undefined;
+    if (kreuz) {
+        pdf.setFontSize(16);
+        pdf.text("x", offsetX + kreuz.x, kreuz.y);
+    }
 
     pdf.setFontSize(12);
     pdf.text(daten.nummer, offsetX + 80, 12);

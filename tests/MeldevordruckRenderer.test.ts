@@ -127,3 +127,27 @@ describe("Nachrichtenvordruck: Schriftgröße des Inhalts", () => {
         expect(pdf.getFontSize()).toBe(16);
     });
 });
+
+describe("Meldevordruck: Übermittelt", () => {
+    function kreuze(weg: VordruckDaten["uebermittlungsweg"]) {
+        const daten = baueDaten([]);
+        if (weg) {
+            daten.uebermittlungsweg = weg;
+        } else {
+            delete daten.uebermittlungsweg;
+        }
+        return zeichneUndProtokolliere(daten).filter(e => e.text === "x");
+    }
+
+    it("kreuzt wie bisher Funk an, wenn nichts anderes gesetzt ist", () => {
+        expect(kreuze("funk")).toEqual([{ text: "x", y: 10 }]);
+        expect(new VordruckDaten().uebermittlungsweg).toBe("funk");
+    });
+
+    it("kreuzt Telefon und Fax in der unteren Zeile an und lässt ohne Weg alles leer", () => {
+        expect(kreuze("telefon")).toEqual([{ text: "x", y: 15.4 }]);
+        expect(kreuze("telefax")).toEqual([{ text: "x", y: 15.4 }]);
+        expect(kreuze("dfue")).toEqual([]);
+        expect(kreuze(undefined)).toEqual([]);
+    });
+});
