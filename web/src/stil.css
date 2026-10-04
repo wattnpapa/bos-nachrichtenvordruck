@@ -154,23 +154,32 @@ p { margin: 0 0 var(--r-2); }
   border: var(--strich) solid var(--kopf-linie);
 }
 /* Im Balken: inaktive Segmente durchsichtig, das gewählte als helle Fläche. */
+/* Gleich breite Segmente: „Feld“ ist sonst das schmalste und am schwersten zu treffen. */
 .anzeige-schalter button {
   border: none; background: none; color: var(--kopf-auf-2);
-  padding: 0.25rem 0.7rem; font-size: var(--t-xs); flex: 1 1 auto;
+  padding: 0.25rem 0.7rem; font-size: var(--t-s); flex: 1 1 0; min-width: 3.75rem;
 }
 .anzeige-schalter button + button { border-left: var(--strich) solid var(--kopf-linie); }
 .anzeige-schalter button[aria-pressed="true"] { background: var(--kopf-auf); color: var(--kopf-fond); }
 @media (hover: hover) { .anzeige-schalter button:hover { color: var(--kopf-auf); } .anzeige-schalter button[aria-pressed="true"]:hover { color: var(--kopf-fond); } }
 .anzeige-schalter button:focus-visible { outline-color: var(--kopf-auf); outline-offset: -3px; }
 
-/* Reiter an der Unterkante des Balkens, aktiver mit 3-px-Unterstrich. */
-.reiter { display: flex; flex-wrap: wrap; gap: 0 var(--r-1); }
+.modus-erklaerung { margin: calc(-1 * var(--r-2)) 0 var(--r-2); font-size: var(--t-xs); color: var(--kopf-auf-2); }
+
+/* Reiter an der Unterkante des Balkens, aktiver mit 3-px-Unterstrich und Fläche. */
+.reiter { display: flex; gap: 0 var(--r-2); }
+.reiter .kurz { display: none; }
+@media (max-width: 30rem) {
+  .reiter button { flex: 1 1 0; }
+  .reiter .lang { display: none; }
+  .reiter .kurz { display: inline; }
+}
 .reiter button {
   background: none; border: none; color: var(--kopf-auf-2);
   border-bottom: 3px solid transparent; padding: 0.4rem 0.8rem 0.5rem;
   font-size: var(--t-m);
 }
-.reiter button[aria-selected="true"] { color: var(--kopf-auf); border-bottom-color: var(--kopf-auf); }
+.reiter button[aria-selected="true"] { color: var(--kopf-auf); border-bottom-color: var(--kopf-auf); background: rgba(255, 255, 255, 0.12); }
 @media (hover: hover) { .reiter button:hover { color: var(--kopf-auf); border-color: transparent; border-bottom-color: var(--kopf-auf-2); } }
 .reiter button:focus-visible { outline-color: var(--kopf-auf); outline-offset: -3px; }
 
@@ -190,7 +199,7 @@ button.primaer, .datei-knopf.primaer { background: var(--akzent); color: var(--a
 @media (hover: hover) {
   button.primaer:hover, .datei-ziel:hover .datei-knopf.primaer { background: var(--akzent-hell); border-color: var(--akzent-hell); color: var(--auf-akzent); }
 }
-button:disabled { opacity: 0.4; cursor: default; }
+button:disabled { opacity: 0.5; cursor: default; }
 button.arbeitet:disabled { opacity: 1; background: var(--flaeche-2); color: var(--text); border-color: var(--linie-stark); }
 button:focus-visible, a:focus-visible, .datei-ziel:focus-within .datei-knopf, summary:focus-visible {
   outline: var(--fokus) solid var(--akzent); outline-offset: 1px;
@@ -233,10 +242,25 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, tex
   min-height: calc(var(--ziel-basis) + var(--ziel));
 }
 textarea { resize: vertical; line-height: 1.45; }
+/* Eigene Kästchen statt der grauen Browser-Kästchen: kräftiger Rand, auch in der Sonne zu sehen. */
 input[type="checkbox"], input[type="radio"] {
-  accent-color: var(--akzent); width: 1.5rem; height: 1.5rem; min-height: 0; padding: 0; margin: 0;
-  flex: 0 0 auto;
+  appearance: none; -webkit-appearance: none;
+  width: 1.5rem; height: 1.5rem; min-height: 0; padding: 0; margin: 0; flex: 0 0 auto;
+  display: inline-grid; place-content: center; cursor: pointer;
+  border: var(--strich-stark) solid var(--linie-stark); background: var(--flaeche);
 }
+input[type="radio"] { border-radius: 50%; }
+input[type="checkbox"]::before {
+  content: ""; width: 0.95rem; height: 0.95rem; transform: scale(0);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%); background: var(--auf-akzent);
+}
+input[type="radio"]::before {
+  content: ""; width: 0.75rem; height: 0.75rem; border-radius: 50%; transform: scale(0); background: var(--akzent);
+}
+input[type="checkbox"]:checked { background: var(--akzent); border-color: var(--akzent); }
+input[type="radio"]:checked { border-color: var(--akzent); }
+input[type="checkbox"]:checked::before, input[type="radio"]:checked::before { transform: scale(1); }
+input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { outline: var(--fokus) solid var(--akzent); outline-offset: 2px; }
 input::placeholder, textarea::placeholder { color: var(--text-3); font-style: italic; }
 input:focus, select:focus, textarea:focus {
   outline: var(--fokus) solid var(--akzent); outline-offset: 0; border-color: var(--akzent);
@@ -346,6 +370,9 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 }
 .warnung { color: var(--warn-text); background: var(--warn-fond); border-color: var(--warn-linie); }
 .alarm-kasten { color: var(--alarm); background: var(--alarm-fond); border-color: var(--alarm-linie); }
+/* Nicht nur über die Farbe unterscheidbar: Fehler mit breitem, Hinweise mit gestricheltem Rand links. */
+.alarm-kasten { border-left-width: 6px; }
+.warnung { border-left: 6px dashed var(--warn-linie); }
 .alarm-kasten ul, .warnung ul { margin: var(--r-1) 0 0; padding-left: 1.2rem; }
 
 .tabellen-scroll { overflow-x: auto; position: relative; margin-top: var(--r-3); }
@@ -369,7 +396,7 @@ footer.seite {
   border-top: var(--strich) solid var(--linie); font-size: var(--t-s); color: var(--text-2);
 }
 .fuss-gruppen { display: grid; gap: var(--r-4) var(--r-5); grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
-.fuss-gruppe { display: flex; flex-direction: column; align-items: flex-start; }
+.fuss-gruppe { display: flex; flex-direction: column; align-items: flex-start; gap: var(--r-1); }
 .fuss-gruppe a {
   display: inline-flex; align-items: center; min-height: calc(var(--ziel-basis) + var(--ziel));
   color: var(--text); text-decoration: underline; text-decoration-color: var(--linie); text-underline-offset: 0.2em;
@@ -413,7 +440,7 @@ footer.seite {
   --text-2:      #aab2c2;
   --text-3:      #848da0;
   --linie-fein:  #272c36;
-  --linie:       #3a414f;
+  --linie:       #4a5262;
   --linie-stark: #676f80;
   --akzent:      #a8bdf2;
   --akzent-hell: #c6d4f8;
@@ -441,9 +468,9 @@ footer.seite {
   --flaeche-2:   #221f16;
   --text:        #d9cdb6;
   --text-2:      #a2977e;
-  --text-3:      #877c66;
+  --text-3:      #958972;
   --linie-fein:  #2b271d;
-  --linie:       #423c2d;
+  --linie:       #575039;
   --linie-stark: #746a51;
   --akzent:      #a8791a;
   --akzent-hell: #c9932c;
@@ -470,6 +497,8 @@ footer.seite {
 .dunkel-modus body, .nacht-modus body { letter-spacing: 0.006em; line-height: 1.55; }
 /* Nachts ist man meist draußen: die großen Tippziele des Feld-Modus gelten mit. */
 .nacht-modus { --ziel: 0.25rem; }
+/* Der Primärknopf wäre sonst die hellste Fläche im Bild. */
+.nacht-modus button.primaer { filter: brightness(0.85); }
 .nacht-modus input[type="checkbox"], .nacht-modus input[type="radio"] { width: 1.7rem; height: 1.7rem; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -503,3 +532,21 @@ footer.seite {
 }
 .werkzeuge span { color: var(--text-3); }
 @media (hover: hover) { .werkzeuge a:hover { color: var(--akzent); text-decoration-color: currentColor; } }
+
+/* ---- Übersichten am Telefon: jede Zeile als Karte ----------------- */
+@media (max-width: 40rem) {
+  table.uebersicht thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  table.uebersicht, table.uebersicht tbody, table.uebersicht tr, table.uebersicht td { display: block; width: 100%; }
+  table.uebersicht tr { border: var(--strich) solid var(--linie); margin-bottom: var(--r-2); padding: var(--r-1) 0; }
+  table.uebersicht td { border: none; display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: var(--r-2); padding: 0.2rem 0.5rem; }
+  table.uebersicht td::before { content: attr(data-beschriftung); font-family: var(--schrift); font-weight: 600; color: var(--text-2); }
+}
+
+/* ---- Rückfrage ---------------------------------------------------- */
+dialog.frage {
+  max-width: min(28rem, calc(100vw - 2rem)); padding: var(--r-4);
+  color: var(--text); background: var(--flaeche); border: var(--strich-stark) solid var(--linie-stark);
+}
+dialog.frage::backdrop { background: rgba(0, 0, 0, 0.55); }
+dialog.frage p { margin: 0 0 var(--r-3); }
+dialog.frage .aktionen { margin-top: 0; }

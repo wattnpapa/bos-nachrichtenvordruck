@@ -23,6 +23,21 @@ function aktuellerModus(): Modus {
     return MODI.find(modus => klassen.contains(`${modus}-modus`)) ?? "standard";
 }
 
+// Der title-Hinweis erscheint beim Antippen nicht; die Erklärung steht deshalb sichtbar unter dem Schalter.
+const ERKLAERUNG: Record<Modus, string> = {
+    standard: "Feld: große Knöpfe, hoher Kontrast für draußen. Nacht: gedimmt, schont die Augen im Dunkeln.",
+    dunkel: "Dunkel: heller Text auf dunklem Grund.",
+    feld: "Feld: große Knöpfe und hoher Kontrast für draußen und Handschuhe.",
+    nacht: "Nacht: gedimmt und warm, schont die Dunkelanpassung der Augen."
+};
+
+function erklaeren(modus: Modus): void {
+    const zeile = document.getElementById("modus-erklaerung");
+    if (zeile) {
+        zeile.textContent = ERKLAERUNG[modus];
+    }
+}
+
 function setzeModus(modus: Modus): void {
     for (const andere of MODI) {
         document.documentElement.classList.toggle(`${andere}-modus`, andere === modus && modus !== "standard");
@@ -33,6 +48,7 @@ function setzeModus(modus: Modus): void {
     }
     const farbe = modus === "nacht" ? "#221f16" : "#12275e";
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", farbe);
+    erklaeren(modus);
 }
 
 for (const knopf of document.querySelectorAll<HTMLButtonElement>(".anzeige-schalter button")) {
@@ -41,6 +57,7 @@ for (const knopf of document.querySelectorAll<HTMLButtonElement>(".anzeige-schal
 for (const knopf of document.querySelectorAll<HTMLButtonElement>(".anzeige-schalter button")) {
     knopf.setAttribute("aria-pressed", String(knopf.dataset["modus"] === aktuellerModus()));
 }
+erklaeren(aktuellerModus());
 
 document.getElementById("sprungmarke")?.addEventListener("click", () => {
     const inhalt = document.getElementById("inhalt");

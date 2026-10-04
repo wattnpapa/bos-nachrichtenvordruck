@@ -45,6 +45,25 @@ function herunterladen(blob: Blob, name: string): void {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/**
+ * Rückfrage im Stil der Seite statt des Systemdialogs: folgt dem Anzeigemodus,
+ * blendet nachts nicht, und die Knöpfe sagen, was passiert. Vorbelegt ist
+ * „Abbrechen“, damit ein versehentliches Enter nichts löscht.
+ */
+function frage(text: string, ja: string, nein = "Abbrechen"): Promise<boolean> {
+    const dialog = element<HTMLDialogElement>("frage");
+    if (typeof dialog.showModal !== "function") {
+        return Promise.resolve(confirm(text));
+    }
+    element<HTMLParagraphElement>("frage-text").textContent = text;
+    element<HTMLButtonElement>("frage-ja").textContent = ja;
+    element<HTMLButtonElement>("frage-nein").textContent = nein;
+    dialog.returnValue = "";
+    dialog.showModal();
+    element<HTMLButtonElement>("frage-nein").focus();
+    return new Promise(fertig => dialog.addEventListener("close", () => fertig(dialog.returnValue === "ja"), { once: true }));
+}
+
 /** Knopf während der Arbeit: bleibt lesbar, sagt in Worten, was läuft. */
 async function mitArbeit(knopf: HTMLButtonElement, text: string, arbeit: () => Promise<void>): Promise<void> {
     const vorher = knopf.textContent;
@@ -95,6 +114,7 @@ function zeigeReiter(name: string, fokus = false, verlauf: "neu" | "ersetzen" | 
     if (name === "einzeln") {
         planeVorschau();
     }
+    einstellungenZeigen();
 }
 
 addEventListener("popstate", () => zeigeReiter(location.hash === "#tabelle" ? "tabelle" : "einzeln", false, "keiner"));
@@ -147,6 +167,9 @@ function einstellungenZeigen(): void {
     }
     element<HTMLSpanElement>("einstellungen-stand").textContent = teile.join(" · ");
     element<HTMLDivElement>("versatz").hidden = !gewaehlt.ohneHintergrund;
+    // Im Einzelreiter füllt ein Vordruck nur die linke Hälfte von A4 quer.
+    element<HTMLParagraphElement>("blatt-hinweis").hidden = !(gewaehlt.blatt === "a4" && gewaehlt.vordruck !== "beide"
+        && !element<HTMLElement>("ansicht-einzeln").hidden);
 }
 
 function felderFuerVordruckZeigen(): void {
@@ -158,6 +181,7 @@ function felderFuerVordruckZeigen(): void {
     // Der Nachrichtenvordruck fragt nach der Gegenstelle, der Meldevordruck nach dem Empfänger.
     element<HTMLSpanElement>("empfaenger-titel").textContent =
         vordruck === "meldung" ? "Empfänger" : "Rufname der Gegenstelle";
+    element<HTMLHeadingElement>("spruchkopf-titel").textContent = vordruck === "meldung" ? "Empfänger" : "Spruchkopf";
     richtungPruefen();
 }
 
@@ -331,6 +355,11 @@ function weitereZaehlen(): number {
     }
     weitereZahl.hidden = zahl === 0;
     weitereZahl.textContent = `${zahl} ${zahl === 1 ? "Angabe" : "Angaben"}`;
+    // Titel und Hinweis bleiben von Vordruck zu Vordruck stehen; zugeklappt sollen sie sichtbar sein.
+    const rand = [eingabe.titel, eingabe.hinweis].map(wert => (wert ?? "").trim()).filter(Boolean);
+    element<HTMLSpanElement>("blattrand-stand").textContent = rand.length > 0
+        ? `Gedruckt wird: ${rand.map(wert => `„${kurz(wert, 40)}“`).join(", ")}`
+        : "Titel und Hinweis außerhalb des Formulars";
     return zahl;
 }
 
@@ -403,6 +432,16 @@ function einzelPruefen() {
             : `am ${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}`;
         hinweise.push(`Nr. ${daten.nummer} wurde schon ${tag} um ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr erstellt (Gegenstelle ${letzter.eingabe.empfaenger || "–"})`);
     }
+    // Angaben, die der gewählte Vordruck nicht hat: sie bleiben erhalten, das soll man wissen.
+    const ausgeblendet = SPALTEN.filter(spalte => {
+        const feld = maske.elements.namedItem(spalte.schluessel);
+        const ziel = feld instanceof RadioNodeList ? feld[0] : feld;
+        return ziel instanceof HTMLElement && ziel.closest("[data-nur][hidden]")
+            && (eingabe[spalte.schluessel] ?? "") !== (vorgaben[spalte.schluessel] ?? "");
+    });
+    if (ausgeblendet.length > 0) {
+        hinweise.push(`${ausgeblendet.length} ${ausgeblendet.length === 1 ? "Angabe gehört" : "Angaben gehören"} nur zum anderen Vordruck; sie sind ausgeblendet und bleiben gespeichert`);
+    }
     einzelnHinweise.hidden = hinweise.length === 0;
     einzelnHinweise.textContent = hinweise.join(" · ");
     const laenge = pruefeTextlaenge(daten.inhalt, optionen().vordruck);
@@ -470,6 +509,16 @@ function setzeFeld(name: string, wert: string): void {
 }
 
 element<HTMLButtonElement>("jetzt").addEventListener("click", () => setzeFeld("abfassungszeit", datumZeitGruppe(new Date())));
+
+// „Jetzt“ nimmt die Uhr des Geräts; zum Abgleich mit der Uhr der Stelle steht sie daneben.
+function geraetezeitZeigen(): void {
+    const jetzt = new Date();
+    element<HTMLParagraphElement>("geraetezeit").textContent =
+        `Datum-Zeit-Gruppe: Tag, Stunde, Minute, Monat, Jahr. „Jetzt“ nimmt die Uhr dieses Geräts: ${datumZeitGruppe(jetzt)} `
+        + `(${jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr).`;
+}
+geraetezeitZeigen();
+setInterval(geraetezeitZeigen, 30_000);
 
 // „Jetzt“ bei den Vermerken: Datum TT.MM. und Uhrzeit HH:MM wie auf dem Bogen üblich.
 for (const knopf of document.querySelectorAll<HTMLButtonElement>("button[data-jetzt]")) {
@@ -549,14 +598,15 @@ function verlaufZeigen(): void {
     element<HTMLTableSectionElement>("verlauf-liste").replaceChildren(...[...verlauf].reverse().map(eintrag => {
         const tr = document.createElement("tr");
         const zeit = new Date(eintrag.zeit);
-        for (const text of [
-            `${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
-            eintrag.eingabe.nummer ?? "",
-            eintrag.eingabe.empfaenger ?? "",
-            kurz(eintrag.eingabe.inhalt ?? "", 60)
-        ]) {
+        for (const [beschriftung, text] of [
+            ["Zeit", `${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`],
+            ["Nr.", eintrag.eingabe.nummer ?? ""],
+            ["Gegenstelle", eintrag.eingabe.empfaenger ?? ""],
+            ["Inhalt", kurz(eintrag.eingabe.inhalt ?? "", 60)]
+        ] as const) {
             const td = document.createElement("td");
             td.textContent = text;
+            td.dataset["beschriftung"] = beschriftung;
             tr.append(td);
         }
         return tr;
@@ -566,8 +616,8 @@ function verlaufZeigen(): void {
 element<HTMLButtonElement>("verlauf-csv").addEventListener("click", () => {
     herunterladen(new Blob([verlaufAlsCsv(verlauf)], { type: "text/csv;charset=utf-8" }), "erstellte-vordrucke.csv");
 });
-element<HTMLButtonElement>("verlauf-loeschen").addEventListener("click", () => {
-    if (!confirm(`Die Liste mit ${verlauf.length} erstellten Vordrucken von diesem Gerät löschen? Die PDF-Dateien bleiben erhalten.`)) {
+element<HTMLButtonElement>("verlauf-loeschen").addEventListener("click", async () => {
+    if (!await frage(`Die Liste mit ${verlauf.length} erstellten Vordrucken von diesem Gerät löschen? Die PDF-Dateien bleiben erhalten.`, "Liste löschen")) {
         return;
     }
     loescheVerlauf();
@@ -580,10 +630,10 @@ element<HTMLButtonElement>("verlauf-loeschen").addEventListener("click", () => {
 // und wird geleert, damit nichts davon unbemerkt auf dem nächsten Bogen landet.
 const BEHALTEN: readonly Schluessel[] = ["weg", "richtung", "absender", "verfasser", "zeichen", "funktion", "titel", "hinweis"];
 
-function naechsterVordruck(rueckfrage: boolean): void {
+async function naechsterVordruck(rueckfrage: boolean): Promise<void> {
     const eingabe = maskeLesen();
     if (rueckfrage && (eingabe.inhalt ?? "").trim() && JSON.stringify(eingabe) !== zuletztHeruntergeladen
-        && !confirm("Dieser Vordruck wurde seit der letzten Änderung nicht heruntergeladen. Trotzdem zum nächsten wechseln?")) {
+        && !await frage("Dieser Vordruck wurde seit der letzten Änderung nicht heruntergeladen. Trotzdem zum nächsten wechseln?", "Zum nächsten Vordruck")) {
         return;
     }
     const neu = Object.fromEntries(SPALTEN.map(spalte => [
@@ -600,8 +650,8 @@ function naechsterVordruck(rueckfrage: boolean): void {
     (maske.elements.namedItem("empfaenger") as HTMLInputElement).focus();
 }
 
-element<HTMLButtonElement>("einzeln-naechster").addEventListener("click", () => naechsterVordruck(true));
-element<HTMLButtonElement>("entwurf-naechster").addEventListener("click", () => naechsterVordruck(false));
+element<HTMLButtonElement>("einzeln-naechster").addEventListener("click", () => void naechsterVordruck(true));
+element<HTMLButtonElement>("entwurf-naechster").addEventListener("click", () => void naechsterVordruck(false));
 element<HTMLButtonElement>("entwurf-behalten").addEventListener("click", () => {
     entwurfHinweis.hidden = true;
 });
@@ -610,7 +660,7 @@ element<HTMLButtonElement>("einzeln-oeffnen").addEventListener("click", () => {
     window.open(URL.createObjectURL(einzelPdf().output("blob")), "_blank", "noopener");
 });
 
-element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", () => {
+element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", async () => {
     const eingabe = maskeLesen();
     const belegt = SPALTEN.filter(spalte => (eingabe[spalte.schluessel] ?? "") !== (vorgaben[spalte.schluessel] ?? ""));
     // Was gerade nicht zu sehen ist, zählt mit; das soll die Rückfrage sagen.
@@ -620,7 +670,7 @@ element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", () => {
         return ziel instanceof HTMLElement && Boolean(ziel.closest("[hidden], details:not([open])"));
     });
     const zusatz = verborgen.length > 0 ? ` (davon ${verborgen.length} in zugeklappten oder ausgeblendeten Bereichen)` : "";
-    if (belegt.length > 0 && !confirm(`Alle Felder leeren? ${belegt.length} ausgefüllte Angaben${zusatz} werden geleert. Danach lässt es sich einmal rückgängig machen.`)) {
+    if (belegt.length > 0 && !await frage(`Alle Felder leeren? ${belegt.length} ausgefüllte Angaben${zusatz} werden geleert. Danach lässt es sich einmal rückgängig machen.`, "Felder leeren")) {
         return;
     }
     maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
@@ -635,6 +685,8 @@ element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", () => {
 // ---- Tabelle -------------------------------------------------------------
 
 let ergebnis: TabellenErgebnis | null = null;
+/** Hinweise des Lesens selbst, etwa Formeln ohne Wert. */
+let leseHinweise: string[] = [];
 let dateiName = "";
 
 element<HTMLButtonElement>("vorlage-xlsx").addEventListener("click", ereignis => {
@@ -658,7 +710,7 @@ async function dateiEinlesen(datei: File): Promise<void> {
     element<HTMLElement>("ergebnis").hidden = false;
     zusammenfassung.textContent = `${datei.name} wird gelesen…`;
     // Lässt sich die neue Datei nicht lesen, bleibt die zuvor geprüfte geladen.
-    const vorher = ergebnis ? { ergebnis, dateiName } : null;
+    const vorher = ergebnis ? { ergebnis, dateiName, leseHinweise } : null;
     // Bis die neue Datei gelesen ist, gibt es nichts herunterzuladen; sonst
     // käme eine leere PDF oder die der vorigen Datei.
     ergebnis = null;
@@ -672,7 +724,9 @@ async function dateiEinlesen(datei: File): Promise<void> {
         let tabelle: string[][];
         if (/\.xlsx$/i.test(datei.name)) {
             const { leseExcel } = await import("./excel.js");
-            tabelle = await leseExcel(await datei.arrayBuffer());
+            const hinweise: string[] = [];
+            tabelle = await leseExcel(await datei.arrayBuffer(), hinweise);
+            leseHinweise = hinweise;
         } else if (/\.xls$/i.test(datei.name)) {
             throw new Error("Das alte Excel-Format .xls wird nicht gelesen. Bitte in Excel als .xlsx oder CSV speichern.");
         } else if (/\.(csv|tsv|txt)$/i.test(datei.name)) {
@@ -682,6 +736,7 @@ async function dateiEinlesen(datei: File): Promise<void> {
                 throw new Error("Das ist keine Text- oder CSV-Datei. Gelesen werden Excel (.xlsx) und CSV.");
             }
             tabelle = leseCsv(text);
+            leseHinweise = [];
         } else {
             throw new Error("Gelesen werden nur Excel (.xlsx) und CSV (.csv, .tsv, .txt).");
         }
@@ -692,6 +747,7 @@ async function dateiEinlesen(datei: File): Promise<void> {
         ergebnis = vorher?.ergebnis ?? null;
         if (vorher) {
             dateiName = vorher.dateiName;
+            leseHinweise = vorher.leseHinweise;
             tabelleAnzeigen();
         } else {
             zusammenfassung.textContent = "";
@@ -729,11 +785,11 @@ function tabelleAnzeigen(): void {
 
     const warnung = element<HTMLElement>("ergebnis-warnung");
     // Gedruckt wird trotzdem; das soll vor dem Download auffallen.
-    const auffaellig = zeilen.flatMap(zeile => {
+    const auffaellig = [...leseHinweise, ...zeilen.flatMap(zeile => {
         const laenge = pruefeTextlaenge(zeile.daten.inhalt, vordruck);
         const punkte = [...zeile.hinweise, ...laenge && laenge.stufe !== "verkleinert" ? [textlaengeMeldung(laenge)] : []];
         return punkte.length > 0 ? [`Zeile ${zeile.zeile}: ${punkte.join("; ")}`] : [];
-    });
+    })];
     warnung.replaceChildren();
     if (beispielZeilen.length > 0) {
         const satz = document.createElement("p");
@@ -784,17 +840,19 @@ function tabelleAnzeigen(): void {
         // Gelesene Auswahlwerte, damit ein verworfener Vorrang hier als leer auffällt.
         const auswahl = (wert: string | undefined) => wert ? wert.charAt(0).toUpperCase() + wert.slice(1) : "–";
         const zellen = [
-            [zeile.fehler.length > 0 ? `${zeile.zeile} ⚠` : String(zeile.zeile), "zahl"],
-            [zeile.daten.nummer, "zahl"],
-            [auswahl(zeile.daten.vorrang), ""],
-            [auswahl(zeile.daten.richtung), ""],
-            [zeile.daten.empfaenger.join(", "), ""],
-            [kurz(zeile.daten.inhalt, 90), "inhalt"],
-            [zeile.daten.absender, ""]
+            ["Zeile", zeile.fehler.length > 0 ? `${zeile.zeile} ⚠` : String(zeile.zeile), "zahl"],
+            ["Nr.", zeile.daten.nummer, "zahl"],
+            ["Vorrang", auswahl(zeile.daten.vorrang), ""],
+            ["Richtung", auswahl(zeile.daten.richtung), ""],
+            ["Gegenstelle", zeile.daten.empfaenger.join(", "), ""],
+            ["Inhalt", kurz(zeile.daten.inhalt, 90), "inhalt"],
+            ["Absender", zeile.daten.absender, ""]
         ] as const;
-        for (const [text, klasse] of zellen) {
+        for (const [beschriftung, text, klasse] of zellen) {
             const td = document.createElement("td");
             td.textContent = text;
+            // Am Telefon wird jede Zeile zur Karte, die Spaltenköpfe stehen dann vor den Werten.
+            td.dataset["beschriftung"] = beschriftung;
             if (klasse) {
                 td.className = klasse;
             }
@@ -805,7 +863,9 @@ function tabelleAnzeigen(): void {
 
     const pdfKnopf = element<HTMLButtonElement>("tabelle-pdf");
     pdfKnopf.disabled = zeilen.length === 0;
-    pdfKnopf.textContent = `PDF herunterladen (${zeilen.length} ${zeilen.length === 1 ? "Vordruck" : "Vordrucke"})`;
+    // Mit „Beide“ entstehen je Zeile zwei Vordrucke.
+    const anzahl = zeilen.length * (vordruck === "beide" ? 2 : 1);
+    pdfKnopf.textContent = `PDF herunterladen (${anzahl} ${anzahl === 1 ? "Vordruck" : "Vordrucke"})`;
     element<HTMLButtonElement>("tabelle-oeffnen").disabled = zeilen.length === 0;
 }
 
@@ -813,13 +873,14 @@ function tabellenPdf() {
     return erzeugePdf((ergebnis?.zeilen ?? []).map(zeile => zeile.daten), optionen());
 }
 
-element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", ereignis => {
+element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", async ereignis => {
     const knopf = ereignis.currentTarget as HTMLButtonElement;
     const mitFehler = (ergebnis?.zeilen ?? []).filter(zeile => zeile.fehler.length > 0);
     const erste = mitFehler[0];
-    if (erste && !confirm(
-        `${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} Fehler, etwa Zeile ${erste.zeile}: ${erste.fehler[0]}.\n\n`
-        + "Betroffene Felder bleiben leer oder werden ersetzt. Trotzdem die PDF erzeugen?"
+    if (erste && !await frage(
+        `${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} Fehler, etwa Zeile ${erste.zeile}: ${erste.fehler[0]}. `
+        + "Betroffene Felder bleiben leer oder werden ersetzt. Trotzdem die PDF erzeugen?",
+        "Trotzdem erzeugen"
     )) {
         return;
     }
@@ -849,12 +910,30 @@ dateiZiel.addEventListener("dragover", ereignis => {
     dateiZiel.classList.add("ueber");
 });
 dateiZiel.addEventListener("dragleave", () => dateiZiel.classList.remove("ueber"));
-dateiZiel.addEventListener("drop", ereignis => {
+// Eine Datei, die neben der Ablagefläche landet, würde der Browser selbst öffnen
+// und die App verlassen. Im Tabellenreiter gilt deshalb die ganze Seite als
+// Ablage, im Einzelreiter wird der Fehlwurf nur abgefangen.
+addEventListener("dragover", ereignis => {
+    if (ereignis.dataTransfer?.types.includes("Files")) {
+        ereignis.preventDefault();
+    }
+});
+addEventListener("drop", ereignis => {
+    if (!ereignis.dataTransfer?.types.includes("Files")) {
+        return;
+    }
     ereignis.preventDefault();
     dateiZiel.classList.remove("ueber");
-    const datei = ereignis.dataTransfer?.files[0];
-    if (datei) {
+    const datei = ereignis.dataTransfer.files[0];
+    if (datei && !element<HTMLElement>("ansicht-tabelle").hidden) {
         void dateiEinlesen(datei);
+    }
+});
+
+// Eine eingelesene Tabelle wird nicht gespeichert; vor dem Neuladen fragt der Browser nach.
+addEventListener("beforeunload", ereignis => {
+    if (ergebnis && ergebnis.zeilen.length > 0) {
+        ereignis.preventDefault();
     }
 });
 

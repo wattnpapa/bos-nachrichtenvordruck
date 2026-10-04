@@ -21,8 +21,17 @@
   </script>
   <!-- Reichweitenmessung, siehe datenschutz.html Punkt 5. Widerspruch über
        localStorage „skipgc“, den count.js selbst auswertet. -->
-  <script data-goatcounter="https://nachrichtenvordruck.goatcounter.com/count"
-          async src="https://gc.zgo.at/count.js"></script>
+  <script>
+    // Erst nach dem Laden einbinden: Antwortet gc.zgo.at nicht, dreht sonst
+    // die Ladeanzeige des Browsers weiter, obwohl die Seite längst bereit ist.
+    addEventListener("load", function () {
+      var zaehler = document.createElement("script");
+      zaehler.async = true;
+      zaehler.src = "https://gc.zgo.at/count.js";
+      zaehler.setAttribute("data-goatcounter", "https://nachrichtenvordruck.goatcounter.com/count");
+      document.head.appendChild(zaehler);
+    });
+  </script>
 </head>
 <body>
   <div id="app" class="textseite">

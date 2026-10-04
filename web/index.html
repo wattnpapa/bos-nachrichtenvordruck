@@ -31,8 +31,17 @@
   </script>
   <!-- Reichweitenmessung, siehe datenschutz.html Punkt 5. Widerspruch über
        localStorage „skipgc“, den count.js selbst auswertet. -->
-  <script data-goatcounter="https://nachrichtenvordruck.goatcounter.com/count"
-          async src="https://gc.zgo.at/count.js"></script>
+  <script>
+    // Erst nach dem Laden einbinden: Antwortet gc.zgo.at nicht, dreht sonst
+    // die Ladeanzeige des Browsers weiter, obwohl die Seite längst bereit ist.
+    addEventListener("load", function () {
+      var zaehler = document.createElement("script");
+      zaehler.async = true;
+      zaehler.src = "https://gc.zgo.at/count.js";
+      zaehler.setAttribute("data-goatcounter", "https://nachrichtenvordruck.goatcounter.com/count");
+      document.head.appendChild(zaehler);
+    });
+  </script>
 </head>
 <body>
   <div id="app">
@@ -49,9 +58,10 @@
             <button type="button" data-modus="nacht" title="Gedimmte, warme Darstellung für Nachteinsätze">Nacht</button>
           </div>
         </div>
+        <p class="modus-erklaerung" id="modus-erklaerung" aria-live="polite"></p>
         <nav class="reiter" role="tablist" aria-label="Arbeitsweise">
-          <button type="button" role="tab" id="reiter-einzeln" aria-controls="ansicht-einzeln" aria-selected="true">Einzeln ausfüllen</button>
-          <button type="button" role="tab" id="reiter-tabelle" aria-controls="ansicht-tabelle" aria-selected="false" tabindex="-1">Aus Excel oder CSV</button>
+          <button type="button" role="tab" id="reiter-einzeln" aria-controls="ansicht-einzeln" aria-selected="true">Einzeln<span class="lang"> ausfüllen</span></button>
+          <button type="button" role="tab" id="reiter-tabelle" aria-controls="ansicht-tabelle" aria-selected="false" tabindex="-1"><span class="lang">Aus Excel oder CSV</span><span class="kurz">Aus Tabelle</span></button>
         </nav>
       </div>
     </header>
@@ -85,6 +95,7 @@
             <label class="inline"><input type="radio" name="blatt" value="a4" checked /> A4 quer, zwei je Blatt</label>
             <label class="inline"><input type="radio" name="blatt" value="a4hoch" /> A4 hoch, einer je Blatt, mittig</label>
             <label class="inline"><input type="radio" name="blatt" value="a5" /> A5, einer je Blatt</label>
+            <p class="hinweis" id="blatt-hinweis" hidden>Ein einzelner Vordruck steht links, die rechte Hälfte bleibt frei. A4 hoch oder A5 nutzen das Blatt ganz.</p>
           </fieldset>
           <fieldset class="wahl">
             <legend>Druck</legend>
@@ -130,7 +141,7 @@
             </section>
 
             <section class="karte">
-              <h3>Spruchkopf</h3>
+              <h3 id="spruchkopf-titel">Spruchkopf</h3>
               <div class="zeile" data-nur="nachricht">
                 <label class="feld mittel">Art
                   <select name="art">
@@ -155,7 +166,8 @@
                 </label>
               </div>
               <p class="hinweis" data-nur="nachricht">Gegenstelle: bei Ausgang die Station, an die gesendet wird, bei Eingang die Station, von der die Nachricht kommt.</p>
-              <p class="hinweis">Mehrere Rufnamen oder Anschriften mit Semikolon trennen.</p>
+              <p class="hinweis" data-nur="nachricht">Mehrere Rufnamen oder Anschriften mit Semikolon trennen.</p>
+              <p class="hinweis" data-nur="meldung">Mehrere Empfänger mit Semikolon trennen.</p>
             </section>
 
             <section class="karte">
@@ -180,7 +192,7 @@
                 <label class="feld">Abfassungszeit
                   <input name="abfassungszeit" placeholder="TTHHMMmonJJ" class="daten" />
                 </label>
-                <button type="button" id="jetzt">Jetzt</button>
+                <button type="button" id="jetzt" aria-describedby="geraetezeit">Jetzt</button>
                 <label class="feld schmal">Zeichen
                   <input name="zeichen" />
                 </label>
@@ -188,6 +200,7 @@
                   <input name="funktion" />
                 </label>
               </div>
+              <p class="hinweis" id="geraetezeit">Datum-Zeit-Gruppe: Tag, Stunde, Minute, Monat, Jahr, z. B. 041416okt26.</p>
             </section>
 
             <details class="karte weitere" id="weitere" data-nur="nachricht">
@@ -222,6 +235,7 @@
                 <label class="feld">Vermerke <input name="vermerke" /></label>
               </div>
               <h4>Verteiler</h4>
+              <p class="hinweis">Wie auf dem Bogen unter „TEL / EL / EAL / UEAL“: Leiter, darunter die Sachgebiete S1 bis S4 und S6 mit je drei Spalten.</p>
               <div class="verteiler" role="group" aria-label="Verteiler">
                 <label class="inline"><input type="checkbox" name="verteiler" value="Leiter" /> Leiter</label>
                 <table>
@@ -229,7 +243,11 @@
                   <tbody id="verteiler-raster"></tbody>
                 </table>
               </div>
-              <h4>Blattrand</h4>
+            </details>
+
+            <!-- Für beide Vordrucke, deshalb außerhalb der Karte, die nur der Nachrichtenvordruck hat. -->
+            <details class="karte weitere" id="blattrand">
+              <summary>Blattrand <span class="stand" id="blattrand-stand">Titel und Hinweis außerhalb des Formulars</span></summary>
               <div class="zeile">
                 <label class="feld">Titel (oben) <input name="titel" /></label>
                 <label class="feld">Hinweis (unten) <input name="hinweis" /></label>
@@ -288,6 +306,7 @@
         <div class="karten-paar">
           <section class="karte">
             <h3>1. Vorlage holen</h3>
+            <p class="nebentext">Eher etwas für den Rechner in der Führungsstelle: Tabelle dort vorbereiten und hier einlesen. Am Telefon geht „Einzeln ausfüllen“ schneller.</p>
             <p class="nebentext">Eine Zeile je Vordruck. Die Excel-Vorlage hat Auswahllisten für Art, Vorrang und Übermittlungsweg und ein Blatt „Anleitung“ mit allen Spalten.</p>
             <div class="aktionen">
               <button type="button" id="vorlage-xlsx">Excel-Vorlage (.xlsx)</button>
@@ -325,6 +344,16 @@
         </section>
       </section>
     </main>
+
+    <dialog class="frage" id="frage" aria-labelledby="frage-text">
+      <form method="dialog">
+        <p id="frage-text"></p>
+        <div class="aktionen">
+          <button value="ja" class="primaer" id="frage-ja">OK</button>
+          <button value="nein" id="frage-nein">Abbrechen</button>
+        </div>
+      </form>
+    </dialog>
 
     <footer class="seite">
       <div class="fuss-gruppen">
