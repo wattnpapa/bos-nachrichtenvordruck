@@ -167,10 +167,53 @@ function liste(roh: string | undefined): string[] {
     return (roh ?? "").split(/[;\n]+/).map(teil => teil.trim()).filter(Boolean);
 }
 
+// Die Standardschrift der PDF (Helvetica) kennt nur Windows-1252. Alles andere
+// käme als Zeichensalat aufs Papier, aus „км 3“ etwa „:< 3“.
+const WIN_ANSI_ZUSATZ = new Set(Array.from("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ"));
+
+function istDruckbar(zeichen: string): boolean {
+    const code = zeichen.codePointAt(0) ?? 0;
+    return zeichen === "\n" || zeichen === "\r" || zeichen === "\t"
+        || (code >= 0x20 && code <= 0x7e) || (code >= 0xa0 && code <= 0xff) || WIN_ANSI_ZUSATZ.has(zeichen);
+}
+
+/** Gängige Zeichen außerhalb von Windows-1252 und was stattdessen gedruckt wird. */
+const ERSATZ: Record<string, string> = {
+    "→": "->", "←": "<-", "⇒": "=>", "⇐": "<=", "↑": "^", "↓": "v",
+    "≥": ">=", "≤": "<=", "≠": "!=", "≈": "~", "−": "-", "‐": "-", "‑": "-", "‒": "-",
+    "′": "'", "″": "\"", "✓": "x", "✔": "x", "✗": "x", "✘": "x", "\u2009": " ", "\u202f": " ",
+    "\u200b": "", "\u200c": "", "\u200d": "", "\ufe0f": "", "\ufeff": ""
+};
+
+/**
+ * Ersetzt, was die PDF-Schrift nicht darstellen kann: bekannte Zeichen durch
+ * ihre übliche Schreibweise, den Rest durch „?“. `fremd` sammelt die Zeichen,
+ * die als „?“ gedruckt werden.
+ */
+export function druckbar(text: string, fremd: Set<string>): string {
+    return Array.from(text, zeichen => {
+        if (istDruckbar(zeichen)) {
+            return zeichen;
+        }
+        const ersatz = ERSATZ[zeichen];
+        if (ersatz !== undefined) {
+            return ersatz;
+        }
+        fremd.add(zeichen);
+        return "?";
+    }).join("");
+}
+
 /** Wandelt eine Zeile in `VordruckDaten`. Ungültige Auswahlwerte landen in `fehler`. */
-export function zuVordruckDaten(eingabe: Eingabe): Umwandlung {
+export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     const fehler: string[] = [];
     const daten = new VordruckDaten();
+    const fremd = new Set<string>();
+    const eingabe = Object.fromEntries(Object.entries(roh)
+        .map(([schluessel, wert]) => [schluessel, druckbar(wert ?? "", fremd)])) as Eingabe;
+    if (fremd.size > 0) {
+        fehler.push(`Zeichen ${[...fremd].slice(0, 10).map(zeichen => `„${zeichen}“`).join(", ")} kann der Vordruck nicht darstellen, sie werden als „?“ gedruckt`);
+    }
     const text = (schluessel: Schluessel) => (eingabe[schluessel] ?? "").trim();
 
     daten.nummer = text("nummer");
@@ -239,6 +282,19 @@ export function istLeer(eingabe: Eingabe): boolean {
 export interface TabellenErgebnis {
     zeilen: { zeile: number; eingabe: Eingabe; daten: VordruckDaten; fehler: string[] }[];
     unbekannteSpalten: string[];
+    /** Zeilen, die unverändert die Beispielzeile der Vorlage sind; sie werden nicht gedruckt. */
+    beispielZeilen: number[];
+}
+
+/**
+ * Die Beispielzeile der CSV-Vorlage, unverändert übernommen: jede vorhandene
+ * Spalte trägt genau ihren Beispielwert, auch Abfassungszeit und Vermerke.
+ * Eine echte Nachricht mit zufällig gleichem Text bleibt so erhalten.
+ */
+function istBeispiel(eingabe: Eingabe): boolean {
+    const vorhanden = SPALTEN.filter(spalte => spalte.schluessel in eingabe);
+    return vorhanden.filter(spalte => spalte.beispiel).length >= 5
+        && vorhanden.every(spalte => (eingabe[spalte.schluessel] ?? "").trim() === spalte.beispiel);
 }
 
 /**
@@ -253,6 +309,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         .map(zelle => zelle.trim());
 
     const zeilen: TabellenErgebnis["zeilen"] = [];
+    const beispielZeilen: number[] = [];
     rest.forEach((werte, index) => {
         const eingabe: Eingabe = {};
         zuordnung.forEach((schluessel, spalte) => {
@@ -263,11 +320,22 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         if (istLeer(eingabe)) {
             return;
         }
+        if (istBeispiel(eingabe)) {
+            beispielZeilen.push(index + 2);
+            return;
+        }
         const { daten, fehler } = zuVordruckDaten(eingabe);
+        // Mehr gefüllte Zellen als Spalten im Kopf: meist ein Trennzeichen im
+        // Text, etwa mehrere Empfänger mit Semikolon in einer CSV ohne
+        // Anführungszeichen. Dann ist alles danach verrutscht.
+        const ueberzaehlig = werte.slice(kopf.length).filter(wert => wert.trim()).length;
+        if (ueberzaehlig > 0) {
+            fehler.unshift(`${werte.length} Felder, aber nur ${kopf.length} Spalten im Kopf. Steht ein Semikolon im Text? Dann die Zelle in Anführungszeichen setzen; die Werte sind sonst verrutscht`);
+        }
         zeilen.push({ zeile: index + 2, eingabe, daten, fehler });
     });
 
-    return { zeilen, unbekannteSpalten };
+    return { zeilen, unbekannteSpalten, beispielZeilen };
 }
 
 const MONATE = ["jan", "feb", "mrz", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez"];

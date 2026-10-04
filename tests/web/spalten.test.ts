@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { datumZeitGruppe, leseTabelle, leseVerteiler, naechsteNummer, schluesselZuKopf, zuVordruckDaten } from "../../web/src/spalten.js";
+import { SPALTEN, datumZeitGruppe, druckbar, leseTabelle, leseVerteiler, naechsteNummer, schluesselZuKopf, zuVordruckDaten } from "../../web/src/spalten.js";
 
 describe("zuVordruckDaten", () => {
     it("übernimmt Auswahlwerte unabhängig von Schreibweise", () => {
@@ -96,5 +96,49 @@ describe("naechsteNummer", () => {
     it("lässt die Nummer leer, wenn sie keine reine Zahl ist", () => {
         expect(naechsteNummer("")).toBe("");
         expect(naechsteNummer("17a")).toBe("");
+    });
+});
+
+describe("Tabellenprüfung", () => {
+    const kopf = SPALTEN.map(spalte => spalte.titel);
+    const beispiel = SPALTEN.map(spalte => spalte.beispiel);
+
+    it("druckt die unveränderte Beispielzeile der Vorlage nicht", () => {
+        const echt = SPALTEN.map(spalte => spalte.schluessel === "inhalt" ? "Lage unverändert." : spalte.beispiel);
+        const { zeilen, beispielZeilen } = leseTabelle([kopf, beispiel, echt]);
+        expect(beispielZeilen).toEqual([2]);
+        expect(zeilen.map(zeile => zeile.zeile)).toEqual([3]);
+    });
+
+    it("hält eine Zeile mit wenigen, zufällig gleichen Werten nicht für das Beispiel", () => {
+        const { zeilen, beispielZeilen } = leseTabelle([
+            ["Nr", "Inhalt"],
+            ["17", "Erkundung abgeschlossen. Zufahrt ist frei."]
+        ]);
+        expect(beispielZeilen).toEqual([]);
+        expect(zeilen).toHaveLength(1);
+    });
+
+    it("meldet Zeilen mit mehr Feldern als der Kopf", () => {
+        const { zeilen } = leseTabelle([
+            ["Nr", "Empfänger", "Inhalt"],
+            ["1", "Heros 1", "Heros 2", "Text"]
+        ]);
+        expect(zeilen[0]?.fehler[0]).toMatch(/4 Felder, aber nur 3 Spalten/);
+    });
+});
+
+describe("druckbar", () => {
+    it("ersetzt bekannte Zeichen und meldet den Rest als „?“", () => {
+        const fremd = new Set<string>();
+        expect(druckbar("km 3 → Deich „bricht“ – 5 €", fremd)).toBe("km 3 -> Deich „bricht“ – 5 €");
+        expect(druckbar("км 3 🚒", fremd)).toBe("?? 3 ?");
+        expect([...fremd]).toEqual(["к", "м", "🚒"]);
+    });
+
+    it("meldet nicht druckbare Zeichen als Fehler der Zeile", () => {
+        const { daten, fehler } = zuVordruckDaten({ inhalt: "Lage км 3" });
+        expect(daten.inhalt).toBe("Lage ?? 3");
+        expect(fehler[0]).toMatch(/„к“, „м“/);
     });
 });
