@@ -66,16 +66,21 @@
         ebenfalls im Browser. Eine Weitergabe findet nur statt, wenn du die heruntergeladene Datei selbst weitergibst.</p>
 
       <h2>4. Speicherung im Browser</h2>
-      <p>Es werden keine Cookies gesetzt. Im lokalen Speicher des Browsers (localStorage) legt die Seite drei Einträge
+      <p>Es werden keine Cookies gesetzt. Im lokalen Speicher des Browsers (localStorage) legt die Seite bis zu vier Einträge
         ab: den gewählten Anzeigemodus, die Druckeinstellungen (Vordruck, Blatt, Formularbild) und den Entwurf der
         Eingabemaske mit dem Zeitpunkt der letzten Änderung, damit eine angefangene Nachricht nach einem Neuladen
         nicht verloren ist. Hast du der
         Reichweitenmessung widersprochen, steht dort außerdem ein Vermerk dazu. Der Entwurf enthält den
-        Text, den du eingegeben hast. Inhalte eingelesener Tabellen werden nicht gespeichert.</p>
+        Text, den du eingegeben hast. Lädst du einen einzeln ausgefüllten Vordruck herunter, kommt er außerdem in die
+        Liste „Erstellte Vordrucke“ (höchstens 200 Einträge), damit du sie mit dem Betriebsbuch abgleichen oder als
+        CSV sichern kannst. Eine Kopie des Entwurfs liegt zusätzlich im Sitzungsspeicher des Tabs (sessionStorage),
+        damit zwei offene Tabs sich nicht gegenseitig überschreiben; der Browser verwirft sie, wenn der Tab
+        geschlossen wird. Inhalte eingelesener Tabellen werden nicht gespeichert.</p>
       <p>Damit die Seite auch ohne Netz startet, legt der Browser ihre eigenen Dateien (Seiten, Programmcode, Schrift,
         Symbol) im Cache-Speicher ab. Eingaben und Tabellen gehören nicht dazu.</p>
       <p>Die Einträge dienen allein dem Dienst, den du aufrufst (§ 25 Abs. 2 Nr. 2 TDDDG), und verlassen das Gerät
-        nicht. „Felder leeren“ entfernt den Entwurf; alle Einträge löschst du über die Websitedaten in den
+        nicht. „Felder leeren“ entfernt den Entwurf, „Liste löschen“ die Liste erstellter Vordrucke; alle Einträge
+        löschst du über die Websitedaten in den
         Einstellungen deines Browsers. In einem privaten Fenster verwirft der Browser sie beim Schließen von selbst.</p>
 
       <h2>5. Reichweitenmessung</h2>
@@ -94,8 +99,8 @@
 
       <h2>6. Eigene Verantwortung beim Einsatz</h2>
       <p>Nachrichten können personenbezogene Daten enthalten, etwa Namen von Verletzten oder Anschriften von Einsatzstellen.
-        Weil der Entwurf im Browser stehen bleibt, solltest du ihn auf gemeinsam genutzten Geräten nach der Arbeit mit
-        „Felder leeren“ entfernen oder ein privates Fenster verwenden. Für die Geräte und die erzeugten PDF ist die
+        Weil Entwurf und Liste erstellter Vordrucke im Browser stehen bleiben, solltest du sie auf gemeinsam genutzten
+        Geräten nach der Arbeit mit „Felder leeren“ und „Liste löschen“ entfernen oder ein privates Fenster verwenden. Für die Geräte und die erzeugten PDF ist die
         einsetzende Stelle verantwortlich.</p>
 
       <h2>7. Externe Links</h2>

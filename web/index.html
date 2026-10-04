@@ -6,6 +6,13 @@
   <title>Nachrichtenvordruck als PDF ausfüllen – BOS, kostenlos</title>
   <meta name="description" content="BOS-Nachrichtenvordruck (4fach-Satz) und Meldevordruck am Bildschirm ausfüllen oder aus einer Excel- bzw. CSV-Tabelle erzeugen und als PDF herunterladen. Läuft komplett im Browser." />
   <meta name="theme-color" content="#12275e" />
+  <meta name="color-scheme" content="light dark" />
+  <style>
+    /* Grundfarbe, bevor das Stylesheet geladen ist: nachts kein heller Blitz. */
+    html { background: #f3f5f9; }
+    html.dunkel-modus { background: #0f1116; color: #e7eaf1; }
+    html.nacht-modus { background: #0d0c08; color: #d9cdb6; }
+  </style>
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <script>
@@ -18,6 +25,8 @@
         bnvModus = "dunkel";
       if (bnvModus === "feld" || bnvModus === "nacht" || bnvModus === "dunkel")
         document.documentElement.classList.add(bnvModus + "-modus");
+      if (bnvModus === "nacht")
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", "#221f16");
     } catch (e) { /* Privatmodus: Standard-Darstellung */ }
   </script>
   <!-- Reichweitenmessung, siehe datenschutz.html Punkt 5. Widerspruch über
@@ -49,7 +58,9 @@
 
     <main id="inhalt" tabindex="-1">
       <p class="einleitung">BOS-Nachrichtenvordruck und Meldevordruck als PDF: einen einzelnen am Bildschirm ausfüllen oder viele auf einmal aus einer Tabelle erzeugen.</p>
+      <p class="laedt" id="laedt">Die Seite lädt noch. Bei schwachem Netz kann das einige Sekunden dauern.</p>
       <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.<span id="offline-stand" hidden> Startet nach dem ersten Aufruf auch ohne Netz.</span></p>
+      <p class="warnung netz" id="netz-stand" role="status" hidden>Kein Netz. Ausfüllen, Vorschau und PDF funktionieren weiter, auch der Excel-Weg.</p>
 
       <!-- Vor den Einstellungen, damit er nach dem Laden ohne Scrollen zu sehen ist. -->
       <div class="warnung entwurf" id="entwurf-hinweis" role="status" hidden>
@@ -60,8 +71,8 @@
         </div>
       </div>
 
-      <section class="karte einstellungen" aria-labelledby="einstellungen-titel">
-        <h2 id="einstellungen-titel" class="nur-sr">Vordruck und Blatt</h2>
+      <details class="karte einstellungen" id="einstellungen">
+        <summary><span>Vordruck und Blatt</span> <span class="stand" id="einstellungen-stand"></span></summary>
         <div class="zeile">
           <fieldset class="wahl">
             <legend>Vordruck</legend>
@@ -78,9 +89,20 @@
           <fieldset class="wahl">
             <legend>Druck</legend>
             <label class="inline"><input type="checkbox" name="ohneHintergrund" /> Ohne Formularbild (für vorgedruckte Bögen)</label>
+            <div class="versatz" id="versatz" hidden>
+              <p class="hinweis">Nur der Text wird gedruckt, ohne Herkunftszeile. Erst auf Normalpapier drucken, gegen das Licht auf einen Bogen legen und den Text bei Bedarf verschieben. Im Druckdialog „Tatsächliche Größe“ bzw. 100 % wählen.</p>
+              <div class="zeile">
+                <label class="feld schmal">Nach rechts (mm)
+                  <input type="number" name="versatzX" step="0.5" min="-20" max="20" value="0" inputmode="decimal" />
+                </label>
+                <label class="feld schmal">Nach unten (mm)
+                  <input type="number" name="versatzY" step="0.5" min="-20" max="20" value="0" inputmode="decimal" />
+                </label>
+              </div>
+            </div>
           </fieldset>
         </div>
-      </section>
+      </details>
 
       <!-- ============================ Einzeln ============================ -->
       <section id="ansicht-einzeln" role="tabpanel" aria-labelledby="reiter-einzeln" class="ansicht">
@@ -95,7 +117,7 @@
                 <label class="feld mittel" data-nur="nachricht">Übermittlungsweg
                   <select name="weg">
                     <option value="">–</option>
-                    <option selected>Funk</option><option>Telefon</option><option>Telefax</option><option>DFÜ</option><option>Kurier</option>
+                    <option>Funk</option><option>Telefon</option><option>Telefax</option><option>DFÜ</option><option>Kurier</option>
                   </select>
                 </label>
                 <fieldset class="wahl richtung" data-nur="nachricht">
@@ -104,7 +126,7 @@
                   <label class="inline"><input type="radio" name="richtung" value="Ausgang" /> Ausgang</label>
                 </fieldset>
               </div>
-              <p class="hinweis" id="richtung-hinweis" data-nur="nachricht">Richtung nicht gewählt: Im Betriebsbuch wird weder Eingang noch Ausgang angekreuzt.</p>
+              <p class="hinweis" id="richtung-hinweis" data-nur="nachricht"></p>
             </section>
 
             <section class="karte">
@@ -172,25 +194,29 @@
               <summary>Vermerke, Quittung und Verteiler <span class="zaehler" id="weitere-zahl" hidden></span></summary>
               <h4>Aufnahmevermerk (Eingang)</h4>
               <div class="zeile">
-                <label class="feld schmal">Datum <input name="aufnahmeDatum" /></label>
-                <label class="feld schmal">Uhrzeit <input name="aufnahmeUhrzeit" /></label>
+                <label class="feld schmal">Datum <input name="aufnahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
+                <label class="feld schmal">Uhrzeit <input name="aufnahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
                 <label class="feld schmal">Hdz. <input name="aufnahmeHdz" /></label>
+                <button type="button" class="jetzt" data-jetzt="aufnahme" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
               </div>
               <h4>Annahmevermerk (Ausgang)</h4>
               <div class="zeile">
-                <label class="feld schmal">Datum <input name="annahmeDatum" /></label>
-                <label class="feld schmal">Uhrzeit <input name="annahmeUhrzeit" /></label>
+                <label class="feld schmal">Datum <input name="annahmeDatum" inputmode="decimal" placeholder="TT.MM." /></label>
+                <label class="feld schmal">Uhrzeit <input name="annahmeUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
                 <label class="feld schmal">Hdz. <input name="annahmeHdz" /></label>
+                <button type="button" class="jetzt" data-jetzt="annahme" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
               </div>
               <h4>Beförderungsvermerk (Ausgang)</h4>
               <div class="zeile">
-                <label class="feld schmal">Datum <input name="befoerderungDatum" /></label>
-                <label class="feld schmal">Uhrzeit <input name="befoerderungUhrzeit" /></label>
+                <label class="feld schmal">Datum <input name="befoerderungDatum" inputmode="decimal" placeholder="TT.MM." /></label>
+                <label class="feld schmal">Uhrzeit <input name="befoerderungUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
                 <label class="feld schmal">Hdz. <input name="befoerderungHdz" /></label>
+                <button type="button" class="jetzt" data-jetzt="befoerderung" aria-label="Datum und Uhrzeit jetzt eintragen">Jetzt</button>
               </div>
               <h4>Quittung</h4>
               <div class="zeile">
-                <label class="feld schmal">Uhrzeit <input name="quittungUhrzeit" /></label>
+                <label class="feld schmal">Uhrzeit <input name="quittungUhrzeit" inputmode="numeric" placeholder="HHMM" /></label>
+                <button type="button" class="jetzt" data-jetzt="quittung" aria-label="Uhrzeit der Quittung jetzt eintragen">Jetzt</button>
                 <label class="feld schmal">Zeichen <input name="quittungZeichen" /></label>
                 <label class="feld schmal">Stelle <input name="quittungStelle" /></label>
                 <label class="feld">Vermerke <input name="vermerke" /></label>
@@ -210,6 +236,9 @@
               </div>
             </details>
 
+            <div class="sprungleiste">
+              <button type="button" class="primaer" id="zur-vorschau">Prüfen und herunterladen ↓</button>
+            </div>
           </form>
 
           <section class="karte vorschau" aria-labelledby="vorschau-titel">
@@ -223,14 +252,33 @@
           </section>
 
           <!-- Nach der Vorschau, damit am Telefon erst geprüft und dann heruntergeladen wird. -->
-          <div class="abschluss">
+          <div class="abschluss" id="abschluss">
             <p class="fehler" id="einzeln-fehler" role="alert" hidden></p>
+            <div class="warnung" id="einzeln-hinweise" hidden></div>
             <div class="aktionen">
               <button type="button" class="primaer" id="einzeln-pdf">PDF herunterladen</button>
+              <button type="button" id="einzeln-drucken" hidden>Drucken</button>
               <button type="button" id="einzeln-naechster">Nächster Vordruck</button>
-              <button type="button" id="einzeln-leeren">Felder leeren</button>
+              <button type="button" class="abgesetzt" id="einzeln-leeren">Felder leeren</button>
             </div>
-            <p class="nebentext" id="einzeln-status" role="status"></p>
+            <p class="nebentext" id="einzeln-status" role="status"><span id="einzeln-status-text"></span> <button type="button" class="link" id="einzeln-rueckgaengig" hidden>Rückgängig</button></p>
+            <p class="nebentext" id="entwurf-stand"></p>
+            <p><button type="button" class="link" id="leere-vordrucke">Leere Vordrucke zum Ausfüllen von Hand herunterladen</button></p>
+
+            <details class="verlauf" id="verlauf" hidden>
+              <summary>Erstellte Vordrucke <span class="stand" id="verlauf-zahl"></span></summary>
+              <p class="nebentext">Liste auf diesem Gerät, zum Abgleich mit dem Betriebsbuch. Als CSV lässt sie sich wieder einlesen.</p>
+              <div class="tabellen-scroll">
+                <table class="uebersicht">
+                  <thead><tr><th>Zeit</th><th>Nr.</th><th>Gegenstelle</th><th>Inhalt</th></tr></thead>
+                  <tbody id="verlauf-liste"></tbody>
+                </table>
+              </div>
+              <div class="aktionen">
+                <button type="button" id="verlauf-csv">Liste als CSV</button>
+                <button type="button" id="verlauf-loeschen">Liste löschen</button>
+              </div>
+            </details>
           </div>
         </div>
       </section>

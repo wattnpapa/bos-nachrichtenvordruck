@@ -4,6 +4,7 @@ import { zeichneBildvorschau } from "./bildvorschau.js";
 import { dekodiereCsv, schreibeCsv, leseCsv } from "./csv.js";
 import { dateiname, erzeugePdf, type Blattformat, type PdfOptionen, type VordruckWahl } from "./pdf.js";
 import { pruefeTextlaenge, textlaengeMeldung } from "./textlaenge.js";
+import { ladeVerlauf, loescheVerlauf, merkeVordruck, mitNummer, verlaufAlsCsv, type Eintrag } from "./verlauf.js";
 import {
     SPALTEN,
     datumZeitGruppe,
@@ -68,7 +69,12 @@ const REITER = [
     { knopf: element<HTMLButtonElement>("reiter-tabelle"), ansicht: element<HTMLElement>("ansicht-tabelle"), name: "tabelle" }
 ];
 
-function zeigeReiter(name: string, fokus = false): void {
+/**
+ * `verlauf`: „neu“ legt einen Eintrag an, damit die Zurück-Taste des Telefons
+ * zum vorigen Reiter führt statt aus der App heraus; „ersetzen“ beim Start,
+ * „keiner“, wenn der Wechsel selbst aus dem Verlauf kommt.
+ */
+function zeigeReiter(name: string, fokus = false, verlauf: "neu" | "ersetzen" | "keiner" = "neu"): void {
     for (const reiter of REITER) {
         const aktiv = reiter.name === name;
         reiter.knopf.setAttribute("aria-selected", String(aktiv));
@@ -78,13 +84,20 @@ function zeigeReiter(name: string, fokus = false): void {
             reiter.knopf.focus();
         }
     }
-    if (location.hash !== `#${name}`) {
-        history.replaceState(null, "", name === "einzeln" ? location.pathname + location.search : `#${name}`);
+    const ziel = name === "einzeln" ? location.pathname + location.search : `#${name}`;
+    if (verlauf !== "keiner" && location.hash !== (name === "einzeln" ? "" : `#${name}`)) {
+        if (verlauf === "neu") {
+            history.pushState(null, "", ziel);
+        } else {
+            history.replaceState(null, "", ziel);
+        }
     }
     if (name === "einzeln") {
         planeVorschau();
     }
 }
+
+addEventListener("popstate", () => zeigeReiter(location.hash === "#tabelle" ? "tabelle" : "einzeln", false, "keiner"));
 
 REITER.forEach((reiter, index) => {
     reiter.knopf.addEventListener("click", () => zeigeReiter(reiter.name));
@@ -109,8 +122,31 @@ function optionen(): PdfOptionen {
     return {
         vordruck: (wert("vordruck") || "nachricht") as VordruckWahl,
         blatt: (wert("blatt") || "a4") as Blattformat,
-        ohneHintergrund: document.querySelector<HTMLInputElement>('input[name="ohneHintergrund"]')?.checked ?? false
+        ohneHintergrund: document.querySelector<HTMLInputElement>('input[name="ohneHintergrund"]')?.checked ?? false,
+        versatzX: versatzWert("versatzX"),
+        versatzY: versatzWert("versatzY")
     };
+}
+
+function versatzWert(name: string): number {
+    const zahl = Number(document.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value.replace(",", ".") ?? 0);
+    return Number.isFinite(zahl) ? Math.max(-20, Math.min(20, zahl)) : 0;
+}
+
+/** Zusammenfassung der Einstellungen im zugeklappten Kopf, damit „ohne Formularbild“ nicht übersehen wird. */
+function einstellungenZeigen(): void {
+    const gewaehlt = optionen();
+    const text = (name: string) =>
+        document.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`)?.parentElement?.textContent?.trim() ?? "";
+    const teile = [text("vordruck"), text("blatt")];
+    if (gewaehlt.ohneHintergrund) {
+        const versatz = gewaehlt.versatzX || gewaehlt.versatzY
+            ? ` (verschoben ${[gewaehlt.versatzX ?? 0, gewaehlt.versatzY ?? 0].map(mm => mm.toLocaleString("de-DE")).join(" / ")} mm)`
+            : "";
+        teile.push(`ohne Formularbild${versatz}`);
+    }
+    element<HTMLSpanElement>("einstellungen-stand").textContent = teile.join(" · ");
+    element<HTMLDivElement>("versatz").hidden = !gewaehlt.ohneHintergrund;
 }
 
 function felderFuerVordruckZeigen(): void {
@@ -125,11 +161,15 @@ function felderFuerVordruckZeigen(): void {
     richtungPruefen();
 }
 
-/** Ohne gewählte Richtung bleibt im Betriebsbuch beides leer; das soll auffallen. */
+/** Ohne Übermittlungsweg oder Richtung bleibt dort auf dem Vordruck nichts angekreuzt; das soll auffallen. */
 function richtungPruefen(): void {
-    const gewaehlt = document.querySelector<HTMLInputElement>('input[name="richtung"]:checked');
+    const fehlt = [
+        (maske.elements.namedItem("weg") as HTMLSelectElement).value ? "" : "Übermittlungsweg",
+        document.querySelector('input[name="richtung"]:checked') ? "" : "Richtung"
+    ].filter(Boolean);
     const hinweis = element<HTMLParagraphElement>("richtung-hinweis");
-    hinweis.hidden = Boolean(gewaehlt) || optionen().vordruck === "meldung";
+    hinweis.hidden = fehlt.length === 0 || optionen().vordruck === "meldung";
+    hinweis.textContent = `${fehlt.join(" und ")} nicht gewählt: Dort wird auf dem Vordruck nichts angekreuzt.`;
 }
 
 function einstellungenLaden(): void {
@@ -148,6 +188,12 @@ function einstellungenLaden(): void {
         if (ohne) {
             ohne.checked = gespeichert.ohneHintergrund === true;
         }
+        for (const name of ["versatzX", "versatzY"] as const) {
+            const feld = document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+            if (feld && typeof gespeichert[name] === "number") {
+                feld.value = String(gespeichert[name]);
+            }
+        }
     } catch {
         // Kaputter Eintrag: Vorgaben aus dem Markup gelten.
     }
@@ -155,6 +201,7 @@ function einstellungenLaden(): void {
 
 document.querySelector(".einstellungen")?.addEventListener("change", () => {
     speicher()?.setItem(EINSTELLUNGEN_SCHLUESSEL, JSON.stringify(optionen()));
+    einstellungenZeigen();
     felderFuerVordruckZeigen();
     planeVorschau();
     tabelleAnzeigen();
@@ -224,10 +271,31 @@ const vorgaben = maskeLesen();
 /** Der Entwurf trägt den Zeitpunkt der letzten Änderung mit; maskeSchreiben übergeht ihn. */
 type Entwurf = Eingabe & { _geaendert?: string };
 
-function entwurfSpeichern(): void {
-    const entwurf: Entwurf = { ...maskeLesen(), _geaendert: new Date().toISOString() };
-    speicher()?.setItem(ENTWURF_SCHLUESSEL, JSON.stringify(entwurf));
+/** Eigener Stand dieses Tabs: übersteht das Neuladen, ohne dass ein zweiter Tab ihn überschreibt. */
+function tabSpeicher(): Storage | null {
+    try {
+        return globalThis.sessionStorage ?? null;
+    } catch {
+        return null;
+    }
 }
+
+function entwurfSpeichern(): void {
+    const jetzt = new Date();
+    const entwurf = JSON.stringify({ ...maskeLesen(), _geaendert: jetzt.toISOString() } satisfies Entwurf);
+    // localStorage: für einen neuen Tab oder nach dem Neustart des Browsers.
+    speicher()?.setItem(ENTWURF_SCHLUESSEL, entwurf);
+    tabSpeicher()?.setItem(ENTWURF_SCHLUESSEL, entwurf);
+    entwurfStand.textContent = `Entwurf auf diesem Gerät gespeichert, ${jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr.`;
+}
+
+function entwurfEntfernen(): void {
+    speicher()?.removeItem(ENTWURF_SCHLUESSEL);
+    tabSpeicher()?.removeItem(ENTWURF_SCHLUESSEL);
+    entwurfStand.textContent = "";
+}
+
+const entwurfStand = element<HTMLParagraphElement>("entwurf-stand");
 
 function weichtAb(eingabe: Eingabe): boolean {
     return SPALTEN.some(spalte => (eingabe[spalte.schluessel] ?? "") !== (vorgaben[spalte.schluessel] ?? ""));
@@ -235,7 +303,8 @@ function weichtAb(eingabe: Eingabe): boolean {
 
 let wiederhergestellt: Entwurf | null = null;
 try {
-    const entwurf = JSON.parse(speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
+    const entwurf = JSON.parse(tabSpeicher()?.getItem(ENTWURF_SCHLUESSEL)
+        ?? speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
     if (entwurf) {
         maskeSchreiben(entwurf);
         wiederhergestellt = weichtAb(maskeLesen()) ? entwurf : null;
@@ -292,16 +361,50 @@ weitereZaehlen();
 const vorschau = element<HTMLIFrameElement>("einzeln-vorschau");
 const einzelnFehler = element<HTMLParagraphElement>("einzeln-fehler");
 const textlaenge = element<HTMLParagraphElement>("textlaenge");
-const einzelnStatus = element<HTMLParagraphElement>("einzeln-status");
+const einzelnHinweise = element<HTMLDivElement>("einzeln-hinweise");
+const statusText = element<HTMLSpanElement>("einzeln-status-text");
+const rueckgaengig = element<HTMLButtonElement>("einzeln-rueckgaengig");
+let verlauf: Eintrag[] = ladeVerlauf();
+
+/** Rückmeldung unter den Knöpfen, bei Bedarf mit „Rückgängig“ auf einen früheren Stand. */
+let rueckgaengigStand: Eingabe | null = null;
+function meldeStatus(text: string, vorher: Eingabe | null = null): void {
+    statusText.textContent = text;
+    rueckgaengigStand = vorher;
+    rueckgaengig.hidden = !vorher;
+}
+
+rueckgaengig.addEventListener("click", () => {
+    if (!rueckgaengigStand) {
+        return;
+    }
+    maskeSchreiben(rueckgaengigStand);
+    entwurfSpeichern();
+    weitereZaehlen();
+    planeVorschau();
+    meldeStatus("Vorheriger Stand wiederhergestellt.");
+});
 let vorschauUrl = "";
 let vorschauTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Liest die Maske und hält Fehler- und Längenhinweise aktuell. */
 function einzelPruefen() {
-    const { daten, fehler } = zuVordruckDaten(maskeLesen());
+    const eingabe = maskeLesen();
+    const { daten, fehler, hinweise } = zuVordruckDaten(eingabe);
     richtungPruefen();
     einzelnFehler.hidden = fehler.length === 0;
     einzelnFehler.textContent = fehler.join(" · ");
+    const frueher = mitNummer(verlauf, daten.nummer).filter(eintrag => JSON.stringify(eintrag.eingabe) !== JSON.stringify(eingabe));
+    const letzter = frueher.at(-1);
+    if (letzter) {
+        const zeit = new Date(letzter.zeit);
+        const tag = zeit.toDateString() === new Date().toDateString()
+            ? "heute"
+            : `am ${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}`;
+        hinweise.push(`Nr. ${daten.nummer} wurde schon ${tag} um ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr erstellt (Gegenstelle ${letzter.eingabe.empfaenger || "–"})`);
+    }
+    einzelnHinweise.hidden = hinweise.length === 0;
+    einzelnHinweise.textContent = hinweise.join(" · ");
     const laenge = pruefeTextlaenge(daten.inhalt, optionen().vordruck);
     textlaenge.hidden = !laenge;
     textlaenge.textContent = laenge ? textlaengeMeldung(laenge) : "";
@@ -343,34 +446,133 @@ function planeVorschau(): void {
     vorschauTimer = setTimeout(vorschauAktualisieren, 350);
 }
 
-function maskeGeaendert(): void {
+function maskeGeaendert(ereignis: Event): void {
     entwurfSpeichern();
     weitereZaehlen();
-    einzelnStatus.textContent = "";
+    meldeStatus("");
+    // Bei einem Eingang gehört der Aufnahmevermerk dazu; er steht im zugeklappten Bereich.
+    const ziel = ereignis.target;
+    if (ziel instanceof HTMLInputElement && ziel.name === "richtung" && ziel.value === "Eingang") {
+        weitere.open = true;
+    }
     planeVorschau();
 }
 
 maske.addEventListener("input", maskeGeaendert);
 maske.addEventListener("change", maskeGeaendert);
 
-element<HTMLButtonElement>("jetzt").addEventListener("click", () => {
-    const feld = maske.elements.namedItem("abfassungszeit") as HTMLInputElement;
-    feld.value = datumZeitGruppe(new Date());
-    feld.dispatchEvent(new Event("input", { bubbles: true }));
-});
+function setzeFeld(name: string, wert: string): void {
+    const feld = maske.elements.namedItem(name) as HTMLInputElement | null;
+    if (feld) {
+        feld.value = wert;
+        feld.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+}
+
+element<HTMLButtonElement>("jetzt").addEventListener("click", () => setzeFeld("abfassungszeit", datumZeitGruppe(new Date())));
+
+// „Jetzt“ bei den Vermerken: Datum TT.MM. und Uhrzeit HH:MM wie auf dem Bogen üblich.
+for (const knopf of document.querySelectorAll<HTMLButtonElement>("button[data-jetzt]")) {
+    knopf.addEventListener("click", () => {
+        const jetzt = new Date();
+        const zwei = (zahl: number) => String(zahl).padStart(2, "0");
+        const gruppe = knopf.dataset["jetzt"] ?? "";
+        setzeFeld(`${gruppe}Uhrzeit`, `${zwei(jetzt.getHours())}:${zwei(jetzt.getMinutes())}`);
+        if (gruppe !== "quittung") {
+            setzeFeld(`${gruppe}Datum`, `${zwei(jetzt.getDate())}.${zwei(jetzt.getMonth() + 1)}.`);
+        }
+    });
+}
+
+/** Sperrt einen Knopf kurz, damit ein Doppeltipp nicht zweimal herunterlädt. */
+function kurzSperren(knopf: HTMLButtonElement): boolean {
+    if (knopf.dataset["gesperrt"]) {
+        return false;
+    }
+    knopf.dataset["gesperrt"] = "1";
+    setTimeout(() => delete knopf.dataset["gesperrt"], 1_500);
+    return true;
+}
 
 /** Stand der Maske beim letzten Herunterladen, um ungesicherte Arbeit zu erkennen. */
 let zuletztHeruntergeladen = "";
 
-element<HTMLButtonElement>("einzeln-pdf").addEventListener("click", () => {
+element<HTMLButtonElement>("einzeln-pdf").addEventListener("click", ereignis => {
+    if (!kurzSperren(ereignis.currentTarget as HTMLButtonElement)) {
+        return;
+    }
     const pdf = einzelPdf();
-    const name = dateiname(optionen(), 1);
-    herunterladen(pdf.output("blob"), name);
     const eingabe = maskeLesen();
+    const jetzt = new Date();
+    const nummer = eingabe.nummer?.trim() ?? "";
+    const name = dateiname(optionen(), 1, jetzt, nummer);
+    herunterladen(pdf.output("blob"), name);
+    // Denselben Stand nicht doppelt in die Liste.
+    if (JSON.stringify(eingabe) !== zuletztHeruntergeladen) {
+        verlauf = merkeVordruck(eingabe, jetzt);
+        verlaufZeigen();
+    }
     zuletztHeruntergeladen = JSON.stringify(eingabe);
-    const nummer = eingabe.nummer?.trim();
-    const uhr = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-    einzelnStatus.textContent = `${name}${nummer ? ` (Nr. ${nummer})` : ""} um ${uhr} Uhr erstellt. Für die nächste Nachricht „Nächster Vordruck“ wählen.`;
+    const uhr = jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    meldeStatus(`${name} um ${uhr} Uhr erstellt. Für die nächste Nachricht „Nächster Vordruck“ wählen.`);
+});
+
+element<HTMLButtonElement>("einzeln-drucken").hidden = !eingebettet;
+element<HTMLButtonElement>("einzeln-drucken").addEventListener("click", ereignis => {
+    if (!kurzSperren(ereignis.currentTarget as HTMLButtonElement)) {
+        return;
+    }
+    // Die Vorschau ist dieselbe PDF; ihr Druckdialog druckt sie ohne Umweg über den Download.
+    clearTimeout(vorschauTimer);
+    vorschauAktualisieren();
+    vorschau.addEventListener("load", () => vorschau.contentWindow?.print(), { once: true });
+});
+
+element<HTMLButtonElement>("leere-vordrucke").addEventListener("click", ereignis => {
+    if (!kurzSperren(ereignis.currentTarget as HTMLButtonElement)) {
+        return;
+    }
+    // Ohne Vorab-Kreuze: zuVordruckDaten lässt bei leerer Eingabe alles leer.
+    const gewaehlt = optionen();
+    const anzahl = gewaehlt.blatt === "a4" && gewaehlt.vordruck !== "beide" ? 2 : 1;
+    const leer = Array.from({ length: anzahl }, () => zuVordruckDaten({}).daten);
+    herunterladen(erzeugePdf(leer, gewaehlt).output("blob"), dateiname(gewaehlt, anzahl).replace(".pdf", "_leer.pdf"));
+});
+
+// ---- Liste erstellter Vordrucke ----------------------------------------
+
+const verlaufBereich = element<HTMLDetailsElement>("verlauf");
+
+function verlaufZeigen(): void {
+    verlaufBereich.hidden = verlauf.length === 0;
+    element<HTMLSpanElement>("verlauf-zahl").textContent = String(verlauf.length);
+    element<HTMLTableSectionElement>("verlauf-liste").replaceChildren(...[...verlauf].reverse().map(eintrag => {
+        const tr = document.createElement("tr");
+        const zeit = new Date(eintrag.zeit);
+        for (const text of [
+            `${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
+            eintrag.eingabe.nummer ?? "",
+            eintrag.eingabe.empfaenger ?? "",
+            kurz(eintrag.eingabe.inhalt ?? "", 60)
+        ]) {
+            const td = document.createElement("td");
+            td.textContent = text;
+            tr.append(td);
+        }
+        return tr;
+    }));
+}
+
+element<HTMLButtonElement>("verlauf-csv").addEventListener("click", () => {
+    herunterladen(new Blob([verlaufAlsCsv(verlauf)], { type: "text/csv;charset=utf-8" }), "erstellte-vordrucke.csv");
+});
+element<HTMLButtonElement>("verlauf-loeschen").addEventListener("click", () => {
+    if (!confirm(`Die Liste mit ${verlauf.length} erstellten Vordrucken von diesem Gerät löschen? Die PDF-Dateien bleiben erhalten.`)) {
+        return;
+    }
+    loescheVerlauf();
+    verlauf = [];
+    verlaufZeigen();
 });
 
 // Was „Nächster Vordruck“ stehen lässt: eigene Angaben und Einstellungen, die
@@ -394,7 +596,7 @@ function naechsterVordruck(rueckfrage: boolean): void {
     weitereZaehlen();
     entwurfHinweis.hidden = true;
     planeVorschau();
-    einzelnStatus.textContent = `Neuer Vordruck${neu.nummer ? ` Nr. ${neu.nummer}` : ""}. Absender, Zeichen, Funktion, Übermittlungsweg und Richtung sind übernommen, alles andere ist leer.`;
+    meldeStatus(`Neuer Vordruck${neu.nummer ? ` Nr. ${neu.nummer}` : ""}. Absender, Zeichen, Funktion, Übermittlungsweg und Richtung sind übernommen, alles andere ist leer.`, eingabe);
     (maske.elements.namedItem("empfaenger") as HTMLInputElement).focus();
 }
 
@@ -411,15 +613,22 @@ element<HTMLButtonElement>("einzeln-oeffnen").addEventListener("click", () => {
 element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", () => {
     const eingabe = maskeLesen();
     const belegt = SPALTEN.filter(spalte => (eingabe[spalte.schluessel] ?? "") !== (vorgaben[spalte.schluessel] ?? ""));
-    if (belegt.length > 0 && !confirm(`Alle Felder leeren? ${belegt.length} ausgefüllte Angaben gehen verloren.`)) {
+    // Was gerade nicht zu sehen ist, zählt mit; das soll die Rückfrage sagen.
+    const verborgen = belegt.filter(spalte => {
+        const feld = maske.elements.namedItem(spalte.schluessel);
+        const ziel = feld instanceof RadioNodeList ? feld[0] : feld;
+        return ziel instanceof HTMLElement && Boolean(ziel.closest("[hidden], details:not([open])"));
+    });
+    const zusatz = verborgen.length > 0 ? ` (davon ${verborgen.length} in zugeklappten oder ausgeblendeten Bereichen)` : "";
+    if (belegt.length > 0 && !confirm(`Alle Felder leeren? ${belegt.length} ausgefüllte Angaben${zusatz} werden geleert. Danach lässt es sich einmal rückgängig machen.`)) {
         return;
     }
     maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
     maskeSchreiben(vorgaben);
-    speicher()?.removeItem(ENTWURF_SCHLUESSEL);
+    entwurfEntfernen();
     weitereZaehlen();
     entwurfHinweis.hidden = true;
-    einzelnStatus.textContent = "";
+    meldeStatus(belegt.length > 0 ? "Alle Felder geleert." : "", belegt.length > 0 ? eingabe : null);
     planeVorschau();
 });
 
@@ -448,7 +657,8 @@ async function dateiEinlesen(datei: File): Promise<void> {
     const zusammenfassung = element<HTMLParagraphElement>("ergebnis-zusammenfassung");
     element<HTMLElement>("ergebnis").hidden = false;
     zusammenfassung.textContent = `${datei.name} wird gelesen…`;
-    dateiName = datei.name;
+    // Lässt sich die neue Datei nicht lesen, bleibt die zuvor geprüfte geladen.
+    const vorher = ergebnis ? { ergebnis, dateiName } : null;
     // Bis die neue Datei gelesen ist, gibt es nichts herunterzuladen; sonst
     // käme eine leere PDF oder die der vorigen Datei.
     ergebnis = null;
@@ -465,17 +675,32 @@ async function dateiEinlesen(datei: File): Promise<void> {
             tabelle = await leseExcel(await datei.arrayBuffer());
         } else if (/\.xls$/i.test(datei.name)) {
             throw new Error("Das alte Excel-Format .xls wird nicht gelesen. Bitte in Excel als .xlsx oder CSV speichern.");
+        } else if (/\.(csv|tsv|txt)$/i.test(datei.name)) {
+            const text = dekodiereCsv(await datei.arrayBuffer());
+            // Nullbytes kommen in Text nicht vor, wohl aber in PDF, Bildern oder umbenannten Excel-Dateien.
+            if (text.includes("\u0000") || text.startsWith("PK\u0003\u0004") || text.startsWith("%PDF")) {
+                throw new Error("Das ist keine Text- oder CSV-Datei. Gelesen werden Excel (.xlsx) und CSV.");
+            }
+            tabelle = leseCsv(text);
         } else {
-            tabelle = leseCsv(dekodiereCsv(await datei.arrayBuffer()));
+            throw new Error("Gelesen werden nur Excel (.xlsx) und CSV (.csv, .tsv, .txt).");
         }
         ergebnis = leseTabelle(tabelle);
+        dateiName = datei.name;
     } catch (fehler) {
-        ergebnis = null;
-        element<HTMLElement>("ergebnis-fehler").hidden = false;
-        element<HTMLElement>("ergebnis-fehler").textContent =
-            `${datei.name} ließ sich nicht lesen: ${fehler instanceof Error ? fehler.message : String(fehler)}`;
-        zusammenfassung.textContent = "";
-        element<HTMLElement>("ergebnis-warnung").hidden = true;
+        const meldung = `${datei.name} ließ sich nicht lesen: ${fehler instanceof Error ? fehler.message : String(fehler)}`;
+        ergebnis = vorher?.ergebnis ?? null;
+        if (vorher) {
+            dateiName = vorher.dateiName;
+            tabelleAnzeigen();
+        } else {
+            zusammenfassung.textContent = "";
+        }
+        const kasten = element<HTMLElement>("ergebnis-fehler");
+        const satz = document.createElement("p");
+        satz.textContent = vorher ? `${meldung} Weiter geladen ist ${vorher.dateiName}.` : meldung;
+        kasten.prepend(satz);
+        kasten.hidden = false;
         return;
     }
     tabelleAnzeigen();
@@ -496,14 +721,18 @@ function tabelleAnzeigen(): void {
     const { vordruck } = optionen();
     const art = { nachricht: "Nachrichtenvordrucke", meldung: "Meldevordrucke", beide: "Nachrichten- und Meldevordrucke" }[vordruck];
 
-    element<HTMLParagraphElement>("ergebnis-zusammenfassung").textContent = zeilen.length === 0
-        ? `In ${dateiName} steht keine ausgefüllte Zeile.`
-        : `${dateiName}: ${zeilen.length} ${zeilen.length === 1 ? "Zeile" : "Zeilen"} → ${art}.`;
+    element<HTMLParagraphElement>("ergebnis-zusammenfassung").textContent = ergebnis.bekannteSpalten === 0
+        ? `In der ersten Zeile von ${dateiName} steht kein bekannter Spaltenkopf (z. B. „Nr“, „Empfänger“, „Inhalt“). Am einfachsten die Vorlage holen und die Daten dort einfügen.`
+        : zeilen.length === 0
+            ? `In ${dateiName} steht unter der Kopfzeile keine ausgefüllte Zeile.`
+            : `${dateiName}: ${zeilen.length} ${zeilen.length === 1 ? "Zeile" : "Zeilen"} → ${art}.`;
 
     const warnung = element<HTMLElement>("ergebnis-warnung");
-    const zuLang = zeilen.flatMap(zeile => {
+    // Gedruckt wird trotzdem; das soll vor dem Download auffallen.
+    const auffaellig = zeilen.flatMap(zeile => {
         const laenge = pruefeTextlaenge(zeile.daten.inhalt, vordruck);
-        return laenge && laenge.stufe !== "verkleinert" ? [`Zeile ${zeile.zeile}: ${textlaengeMeldung(laenge)}`] : [];
+        const punkte = [...zeile.hinweise, ...laenge && laenge.stufe !== "verkleinert" ? [textlaengeMeldung(laenge)] : []];
+        return punkte.length > 0 ? [`Zeile ${zeile.zeile}: ${punkte.join("; ")}`] : [];
     });
     warnung.replaceChildren();
     if (beispielZeilen.length > 0) {
@@ -516,9 +745,10 @@ function tabelleAnzeigen(): void {
         satz.textContent = `Diese Spalten sind unbekannt und werden ignoriert: ${unbekannteSpalten.join(", ")}.`;
         warnung.append(satz);
     }
-    if (zuLang.length > 0) {
+    if (auffaellig.length > 0) {
         const liste = document.createElement("ul");
-        liste.append(...zuLang.map(text => {
+        const zeigen = [...auffaellig.slice(0, 20), ...auffaellig.length > 20 ? [`… und ${auffaellig.length - 20} weitere`] : []];
+        liste.append(...zeigen.map(text => {
             const punkt = document.createElement("li");
             punkt.textContent = text;
             return punkt;
@@ -596,7 +826,7 @@ element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", ereignis => 
     void mitArbeit(knopf, "PDF wird erstellt…", async () => {
         // Einen Takt warten, damit der Knopf seinen Arbeitszustand zeigt, bevor jsPDF rechnet.
         await new Promise(fertig => setTimeout(fertig, 30));
-        herunterladen(tabellenPdf().output("blob"), dateiname(optionen(), ergebnis?.zeilen.length ?? 0));
+        herunterladen(tabellenPdf().output("blob"), dateiname(optionen(), ergebnis?.zeilen.length ?? 0, new Date()));
     });
 });
 
@@ -631,8 +861,28 @@ dateiZiel.addEventListener("drop", ereignis => {
 // ---- Start ---------------------------------------------------------------
 
 einstellungenLaden();
+einstellungenZeigen();
 felderFuerVordruckZeigen();
-zeigeReiter(location.hash === "#tabelle" ? "tabelle" : "einzeln");
+verlaufZeigen();
+element<HTMLParagraphElement>("laedt").hidden = true;
+
+// Am Telefon stehen die Einstellungen sonst vor der eigentlichen Arbeit; der Kopf
+// zeigt zugeklappt, was gewählt ist. Am breiten Bildschirm bleiben sie offen.
+element<HTMLDetailsElement>("einstellungen").open = matchMedia("(min-width: 64rem)").matches;
+
+element<HTMLButtonElement>("zur-vorschau").addEventListener("click", () => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    element<HTMLElement>(eingebettet ? "abschluss" : "vorschau-titel").scrollIntoView({ block: "start", behavior: "smooth" });
+});
+
+// Ohne Netz geht alles weiter; das soll man sehen, statt es zu vermuten.
+function netzZeigen(): void {
+    element<HTMLParagraphElement>("netz-stand").hidden = navigator.onLine;
+}
+addEventListener("online", netzZeigen);
+addEventListener("offline", netzZeigen);
+netzZeigen();
+zeigeReiter(location.hash === "#tabelle" ? "tabelle" : "einzeln", false, "ersetzen");
 
 // Nach dem ersten Aufruf startet die Seite aus dem Cache, auch ohne Netz.
 // Der Dienst entsteht erst beim Bauen (web/vite.config.ts), im Entwicklungsserver gibt es ihn nicht.

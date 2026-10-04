@@ -96,6 +96,7 @@ h4 { font-size: var(--t-m); font-weight: 700; margin: var(--r-4) 0 0; }
 p { margin: 0 0 var(--r-2); }
 
 .einleitung { max-width: 52ch; color: var(--text-2); font-size: var(--t-l); }
+@media (max-width: 40rem) { .einleitung { font-size: var(--t-s); } }
 .offline-badge {
   display: block; width: max-content; max-width: 100%;
   font-size: var(--t-s); font-weight: 600; color: var(--gut);
@@ -255,24 +256,42 @@ fieldset.wahl legend {
   text-transform: uppercase; color: var(--text-2); padding: 0; margin-bottom: var(--r-1);
 }
 fieldset.wahl label.inline { display: flex; margin-right: 0; }
+/* Abstand zwischen den Optionen, damit ein grober Tipp nicht die Nachbarzeile trifft. */
+fieldset.wahl label.inline + label.inline { margin-top: var(--r-1); }
 fieldset.wahl.richtung { flex: 0 1 auto; }
 fieldset.wahl.richtung label.inline { display: inline-flex; margin-right: var(--r-4); }
 .einstellungen .zeile { align-items: flex-start; gap: var(--r-3) var(--r-5); }
 
-details.karte > summary {
-  cursor: pointer; font-size: var(--t-l); font-weight: 700;
-  min-height: calc(var(--ziel-basis) + var(--ziel)); display: flex; align-items: center;
+details.karte > summary, details.verlauf > summary {
+  cursor: pointer; font-size: var(--t-l); font-weight: 700; list-style: none;
+  min-height: calc(var(--ziel-basis) + var(--ziel)); display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--r-2);
   margin: calc(-1 * var(--r-2)) 0;
 }
+details.karte > summary::-webkit-details-marker, details.verlauf > summary::-webkit-details-marker { display: none; }
+/* Pfeil vor der Überschrift: zugeklappt nach rechts, offen nach unten. */
+details.karte > summary::before, details.verlauf > summary::before {
+  content: ""; flex: none; width: 0.55em; height: 0.55em; margin-right: 0.15em;
+  border-right: var(--strich-stark) solid currentColor; border-bottom: var(--strich-stark) solid currentColor;
+  transform: rotate(-45deg);
+}
+details[open].karte > summary::before, details[open].verlauf > summary::before { transform: rotate(45deg); }
 details.karte[open] > summary { margin-bottom: 0; }
+summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); }
+.einstellungen[open] > summary { margin-bottom: var(--r-3); }
+.versatz { margin-top: var(--r-2); }
+.versatz .hinweis { margin-top: 0; }
 
 .verteiler table { border-collapse: collapse; margin-top: var(--r-1); }
 .verteiler th, .verteiler td { padding: 0 var(--r-2) 0 0; text-align: center; font-size: var(--t-s); }
 .verteiler th[scope="row"] { text-align: left; font-family: var(--schrift-daten); color: var(--text-2); padding-right: var(--r-3); }
+.verteiler td { padding: 2px var(--r-1) 2px 0; }
 .verteiler td label {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: calc(var(--ziel-basis) + var(--ziel)); min-height: calc(var(--ziel-basis) + var(--ziel)); cursor: pointer;
+  border: var(--strich) solid transparent;
 }
+/* Ein gesetztes Kreuz soll im Raster auffallen, ein falsches auch. */
+.verteiler td label:has(input:checked) { background: var(--warn-fond); border-color: var(--warn-linie); }
 
 /* ---- Arbeitsfläche: Maske links, Vorschau rechts ------------------ */
 .arbeitsflaeche { display: grid; gap: 0 var(--r-4); }
@@ -285,6 +304,21 @@ details.karte[open] > summary { margin-bottom: 0; }
   .vorschau .bildvorschau { width: auto; max-width: 100%; max-height: calc(100vh - 9rem); margin-inline: auto; }
 }
 .abschluss .aktionen { margin-top: 0; margin-bottom: var(--r-2); }
+/* „Felder leeren“ mit Abstand zu „PDF herunterladen“: kein Fehlgriff mit Handschuh. */
+.aktionen > .abgesetzt { margin-left: var(--r-4); }
+@media (max-width: 40rem) { .aktionen > .abgesetzt { margin: var(--r-4) 0 0; } }
+.abschluss button.link { min-height: calc(var(--ziel-basis) + var(--ziel)); }
+.verlauf { margin-top: var(--r-3); }
+.verlauf > summary { font-size: var(--t-m); }
+/* Am Telefon liegt der Download weit unten: der Sprung dorthin bleibt am unteren Rand. */
+.sprungleiste {
+  position: sticky; bottom: 0; z-index: 1;
+  padding: var(--r-2) 0; background: var(--grund);
+}
+.sprungleiste button { width: 100%; }
+@media (min-width: 64rem) { .sprungleiste { display: none; } }
+.laedt { font-size: var(--t-s); color: var(--text-2); }
+.netz { margin: 0 0 var(--r-4); }
 .abschluss { margin-bottom: var(--r-4); }
 .bildvorschau {
   display: block; width: 100%; margin-top: var(--r-2);
@@ -434,6 +468,9 @@ footer.seite {
 .dunkel-modus .vorschau iframe, .dunkel-modus .bildvorschau { filter: brightness(0.8); }
 .nacht-modus .vorschau iframe, .nacht-modus .bildvorschau { filter: brightness(0.55) sepia(0.5); }
 .dunkel-modus body, .nacht-modus body { letter-spacing: 0.006em; line-height: 1.55; }
+/* Nachts ist man meist draußen: die großen Tippziele des Feld-Modus gelten mit. */
+.nacht-modus { --ziel: 0.25rem; }
+.nacht-modus input[type="checkbox"], .nacht-modus input[type="radio"] { width: 1.7rem; height: 1.7rem; }
 
 @media (prefers-reduced-motion: reduce) {
   :root { --dauer-1: 0ms; }
