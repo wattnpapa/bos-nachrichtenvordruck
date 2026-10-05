@@ -150,7 +150,7 @@ p { margin: 0 0 var(--r-2); }
 .seiten-kopf h1 { flex: 1 1 14rem; color: var(--kopf-auf); }
 
 .anzeige-schalter {
-  display: inline-flex; flex-wrap: wrap; gap: 8px; max-width: 100%; margin-left: auto;
+  display: inline-flex; flex-wrap: wrap; gap: 10px; max-width: 100%; margin-left: auto;
 }
 /* Im Balken: inaktive Segmente durchsichtig, das gewählte als helle Fläche. */
 /* Gleich breite Segmente: „Feld“ ist sonst das schmalste und am schwersten zu treffen. */
@@ -690,6 +690,7 @@ table.uebersicht.meldung .nur-nachricht { display: none; }
 /* Einträge mit Abstand: zehn gleich aussehende Links sollen nicht ineinander laufen. */
 .ablage ul { margin: 0; padding-left: 1.2rem; }
 .ablage li + li { margin-top: var(--r-3); }
+.ablage details[open] > summary { margin-bottom: var(--r-3); }
 .ablage summary { min-height: calc(var(--ziel-basis) + var(--ziel)); display: flex; align-items: center; cursor: pointer; }
 /* Rückmeldung und Rückweg über der Maske: dort, wo nach „Nächster Vordruck“ der Blick ist. */
 .oben-zuruecknahme { margin: 0 0 var(--r-3); padding: var(--r-2) var(--r-3); border-left: 4px solid var(--akzent); background: var(--flaeche); font-size: var(--t-s); }

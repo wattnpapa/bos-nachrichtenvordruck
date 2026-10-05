@@ -75,7 +75,7 @@ function frageWahl(text: string, ja: string, nein = "Abbrechen", dritte = ""): P
     element<HTMLButtonElement>("frage-nein").focus();
     // Ein Doppeltipp auf den auslösenden Knopf darf die Rückfrage nicht gleich bestätigen:
     // die weiterführenden Knöpfe nehmen erst nach 0,8 s Tipps an. „Abbrechen“ sieht
-    // sofort bedienbar aus, schluckt aber die ersten 0,4 s still (siehe unten): Sonst
+    // sofort bedienbar aus, schluckt aber die ersten 0,7 s still (siehe unten): Sonst
     // bricht der zweite Tipp eines Doppeltipps die eben geöffnete Rückfrage ab.
     const sperren = [element<HTMLButtonElement>("frage-ja"), element<HTMLButtonElement>("frage-dritte")];
     for (const knopf of sperren) {
@@ -91,13 +91,18 @@ function frageWahl(text: string, ja: string, nein = "Abbrechen", dritte = ""): P
     }, 800);
     return new Promise(fertig => dialog.addEventListener("close", () => {
         const wert = dialog.returnValue;
+        // Kurz nach dem Öffnen abgebrochen: eher ein geprellter Tipp. Nicht still, damit
+        // niemand glaubt, die Handlung sei ausgeführt.
+        if (wert !== "ja" && wert !== "dritte" && performance.now() - frageGeoeffnet < 1_500) {
+            zeigeKurzmeldung("Rückfrage abgebrochen; es wurde nichts ausgeführt.", false);
+        }
         fertig(wert === "ja" || wert === "dritte" ? wert : "nein");
     }, { once: true }));
 }
 
 let frageGeoeffnet = 0;
 element<HTMLDialogElement>("frage").addEventListener("click", ereignis => {
-    if (performance.now() - frageGeoeffnet < 400 && ereignis.target instanceof HTMLButtonElement) {
+    if (performance.now() - frageGeoeffnet < 700 && ereignis.target instanceof HTMLButtonElement) {
         ereignis.preventDefault();
         ereignis.stopPropagation();
     }
@@ -1230,11 +1235,11 @@ function maskeGeaendert(ereignis: Event): void {
     if (zuruecknahme || statusText.textContent || obenStatus.textContent) {
         meldeStatus("", null);
     }
-    if (meldung) {
-        zeigeKurzmeldung(meldung, false);
-    } else {
-        kurzmeldungSchliessen();
-    }
+    // Die Meldung zum Richtungswechsel steht unter der Richtung und bleibt bis zur nächsten Eingabe.
+    const richtungMeldung = element<HTMLParagraphElement>("richtung-meldung");
+    richtungMeldung.textContent = meldung;
+    richtungMeldung.hidden = !meldung;
+    kurzmeldungSchliessen();
     planeVorschau();
 }
 
@@ -2768,8 +2773,10 @@ for (const knopf of document.querySelectorAll<HTMLButtonElement>("button[data-sp
     });
 }
 let sprungSperreBis = 0;
-element<HTMLElement>("abschluss").addEventListener("click", ereignis => {
-    if (performance.now() < sprungSperreBis && ereignis.target instanceof Element && ereignis.target.closest("button")) {
+// Für die ganze Seite außer der Sprungleiste: Auch „In neuem Tab öffnen“ kann nach dem Sprung unter dem Finger liegen.
+document.addEventListener("click", ereignis => {
+    if (performance.now() < sprungSperreBis && ereignis.target instanceof Element && ereignis.target.closest("button, input, select, summary, a")
+        && !ereignis.target.closest("[data-sprung]")) {
         ereignis.preventDefault();
         ereignis.stopPropagation();
         // Nicht stumm: Wer bewusst schnell getippt hat, soll wissen, warum nichts geschah.
