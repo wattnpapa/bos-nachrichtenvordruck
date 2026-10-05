@@ -110,7 +110,12 @@ export function zeichneNachrichtenvordruck(
         height: 16.5
     });
 
-    // Folgebogen: rechts in der Zeile „Inhalt“ (65,4–71,9 mm).
+    // Prüfvermerk und Folgebogen in der Zeile „Inhalt“ (65,4–71,9 mm), rechts der Beschriftung.
+    if (daten.pruefvermerk) {
+        pdf.setFont("helvetica", "bold");
+        zeichneEinzeilig(pdf, { text: daten.pruefvermerk, x: offsetX + 41, y: 70.2, maxWidth: daten.blatt ? 57 : 100, fontSize: 9 });
+        pdf.setFont("helvetica", "normal");
+    }
     if (daten.blatt) {
         pdf.setFont("helvetica", "bold");
         zeichneEinzeilig(pdf, { text: daten.blatt, x: offsetX + 100, y: 70.2, maxWidth: 41, fontSize: 10 });

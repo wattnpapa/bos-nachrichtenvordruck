@@ -150,7 +150,7 @@ p { margin: 0 0 var(--r-2); }
 .seiten-kopf h1 { flex: 1 1 14rem; color: var(--kopf-auf); }
 
 .anzeige-schalter {
-  display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; margin-left: auto;
+  display: inline-flex; flex-wrap: wrap; gap: 8px; max-width: 100%; margin-left: auto;
 }
 /* Im Balken: inaktive Segmente durchsichtig, das gewählte als helle Fläche. */
 /* Gleich breite Segmente: „Feld“ ist sonst das schmalste und am schwersten zu treffen. */
@@ -161,7 +161,10 @@ p { margin: 0 0 var(--r-2); }
 /* Getrennte Segmente mit Lücke: ein Fehltipp trifft nicht gleich den Nachbarn. */
 .anzeige-schalter button { border: var(--strich) solid var(--kopf-linie); }
 /* Nachts ist der gewählte Modus ein Rahmen statt der hellsten Fläche des Bildes. */
-.nacht-modus .anzeige-schalter button[aria-pressed="true"] { background: none; color: var(--akzent-hell); box-shadow: inset 0 0 0 2px var(--akzent); }
+.nacht-modus .anzeige-schalter button[aria-pressed="true"], .dunkel-modus .anzeige-schalter button[aria-pressed="true"],
+.nacht-modus .anzeige-schalter button[aria-pressed="true"]:hover, .dunkel-modus .anzeige-schalter button[aria-pressed="true"]:hover {
+  background: none; color: var(--akzent-hell); box-shadow: inset 0 0 0 2px var(--akzent);
+}
 .anzeige-schalter button[aria-pressed="true"] { background: var(--kopf-auf); color: var(--kopf-fond); }
 @media (hover: hover) { .anzeige-schalter button:hover { color: var(--kopf-auf); } .anzeige-schalter button[aria-pressed="true"]:hover { color: var(--kopf-fond); } }
 .anzeige-schalter button:focus-visible { outline-color: var(--kopf-auf); outline-offset: -3px; }
@@ -310,7 +313,7 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 .verteiler table { border-collapse: collapse; margin-top: var(--r-1); }
 .verteiler th, .verteiler td { padding: 0 var(--r-2) 0 0; text-align: center; font-size: var(--t-s); }
 .verteiler th[scope="row"] { text-align: left; font-family: var(--schrift-daten); color: var(--text-2); padding-right: var(--r-3); }
-.verteiler td { padding: 4px var(--r-2) 4px 0; }
+.verteiler td { padding: 5px var(--r-3) 5px 0; }
 .verteiler td label {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: calc(var(--ziel-basis) + var(--ziel)); min-height: calc(var(--ziel-basis) + var(--ziel)); cursor: pointer;
@@ -348,7 +351,10 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 /* Beim Tippen (Tastatur offen) nimmt die Leiste zu viel Platz und fängt Tipps ab.
    Nur Textfelder zählen: Ein Tipp auf die Leiste selbst oder ein Kästchen blendet sie nicht aus. */
 /* Unsichtbar statt entfernt: Die Seite verschiebt sich nicht, wenn die Leiste wiederkommt. */
-.maske:has(textarea:focus, input:focus:not([type=radio], [type=checkbox], [type=button], [type=file])) .sprungleiste { visibility: hidden; pointer-events: none; }
+.maske:has(textarea:focus, input:focus:not([type=radio], [type=checkbox], [type=button], [type=file])) .sprungleiste { visibility: hidden; pointer-events: none; transition: none; }
+/* Wieder einblenden erst nach einer halben Sekunde: Wer das Textfeld durch einen Tipp auf einen
+   Knopf am unteren Rand verlässt, soll diesen Knopf treffen, nicht die auftauchende Leiste. */
+.sprungleiste { transition: visibility 0s 0.5s; }
 /* Im flachen Querformat kein schwebender Knopf (er läge über Feldern); stattdessen
    steht ein Sprungknopf fest zwischen den Karten. */
 .sprung-quer { display: none; }
@@ -373,8 +379,8 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 4px var(--grund); font-size: var(--t-s);
 }
 .kurzmeldung[hidden] { display: none; }
-/* Reine Anzeige: Tipps gehen durch auf das, was darunter liegt. */
-.kurzmeldung { pointer-events: none; }
+/* Ohne Knöpfe: Ein Tipp auf die Meldung schließt sie nur und löst nichts darunter aus. */
+.kurzmeldung { cursor: pointer; }
 .kurzmeldung .kurzmeldung-knoepfe { display: none; }
 .kurzmeldung > span:first-child { flex: 1 1 14rem; }
 .kurzmeldung-knoepfe { display: flex; gap: var(--r-4); }
@@ -623,11 +629,15 @@ table.uebersicht tr.mit-fehler td:first-child { box-shadow: inset 6px 0 0 var(--
 /* ---- Nacht und Dunkel: Feinschliff --------------------------------- */
 .nacht-modus { --strich: 2px; --strich-stark: 2px; }
 .nacht-modus button:disabled { opacity: 0.85; }
-.nacht-modus button.primaer:disabled { filter: none; }
+/* Deaktiviert im Dunkeln an der Form erkennbar, nicht nur an der Helligkeit: gestrichelter Rahmen statt Fläche. */
+.nacht-modus button.primaer:disabled, .dunkel-modus button.primaer:disabled {
+  filter: none; background: none; color: var(--text-2); border: 2px dashed var(--linie-stark);
+}
 .nacht-modus .karte, .dunkel-modus .karte { border-color: var(--linie-stark); }
 .dunkel-modus button.primaer { filter: brightness(0.85); }
 /* Die Sprungleiste steht dauernd im Bild: im Dunkeln als Rahmenknopf statt heller Fläche. */
-.nacht-modus .sprungleiste button.primaer, .dunkel-modus .sprungleiste button.primaer {
+.nacht-modus .sprungleiste button.primaer, .dunkel-modus .sprungleiste button.primaer,
+.nacht-modus .sprung-quer, .dunkel-modus .sprung-quer {
   background: var(--flaeche); color: var(--akzent-hell); border-color: var(--akzent); filter: none;
 }
 
@@ -662,3 +672,9 @@ table.uebersicht.meldung .nur-nachricht { display: none; }
   .nur-mobil { display: block; }
   table.uebersicht.nur-auffaellige tbody tr:not(.auffaellig) { display: none; }
 }
+/* Ablage nicht erstellter Vordrucke: deutlich abgesetzt vom Zurücknehmen darüber. */
+.ablage { margin-top: var(--r-4); }
+.ablage p { margin: 0 0 var(--r-2); }
+.oben-zuruecknahme { margin: 0 0 var(--r-3); }
+/* Tabellenweg: Download und Vorschau mit Abstand wie im Einzelweg. */
+.ergebnis .aktionen { gap: var(--r-4); }

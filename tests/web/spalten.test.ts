@@ -235,3 +235,13 @@ describe("Unmögliche Zeiten", () => {
         expect(zuVordruckDaten({ annahmeDatum: "29.02.", abfassungszeit: "041416okt26" }).hinweise).toEqual([]);
     });
 });
+
+describe("Datum-Zeit-Gruppe", () => {
+    it("prüft den Tag gegen den Monat und meldet ein unwahrscheinliches Jahr", async () => {
+        const { zuVordruckDaten, UNMOEGLICH } = await import("../../web/src/spalten.js");
+        const jahr = String(new Date().getFullYear() % 100).padStart(2, "0");
+        expect(zuVordruckDaten({ abfassungszeit: `311416apr${jahr}` }).hinweise.some(h => h.includes(UNMOEGLICH))).toBe(true);
+        expect(zuVordruckDaten({ abfassungszeit: `301416apr${jahr}` }).hinweise).toEqual([]);
+        expect(zuVordruckDaten({ abfassungszeit: "041416okt62" }).hinweise.some(h => h.includes("Zahlendreher"))).toBe(true);
+    });
+});

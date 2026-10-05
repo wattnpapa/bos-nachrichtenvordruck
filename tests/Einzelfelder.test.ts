@@ -139,3 +139,19 @@ describe("Lange Wörter", () => {
         expect(zeilen.map(z => z.text).join(" ").replace(/- /g, "")).toContain("Wasserschadenpumpeneinsatzabschnittsleitungsstellenvertretung");
     });
 });
+
+describe("Prüfvermerk und Blatt", () => {
+    it("stehen in der Zeile „Inhalt“ beider Vordrucke, nicht am Blattrand", () => {
+        for (const zeichne of [zeichneNachrichtenvordruck, zeichneMeldevordruck]) {
+            const { pdf, texte } = protokoll();
+            const daten = new VordruckDaten();
+            daten.pruefvermerk = "Prüfen: Text gekürzt";
+            daten.blatt = "Blatt 1 von 2";
+            zeichne(pdf, daten, { ohneHintergrund: true, ohneRahmen: true });
+            const vermerk = texte.find(t => t.text === "Prüfen: Text gekürzt");
+            const blatt = texte.find(t => t.text === "Blatt 1 von 2");
+            expect(vermerk?.y).toBeLessThan(75);
+            expect((vermerk?.x ?? 0) + (vermerk?.breite ?? 999)).toBeLessThan(blatt?.x ?? 0);
+        }
+    });
+});

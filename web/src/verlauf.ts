@@ -1,5 +1,5 @@
 import { schreibeCsv } from "./csv.js";
-import { ERSTELLT_SPALTE, SPALTEN, type Eingabe } from "./spalten.js";
+import { ERSTELLT_SPALTE, LISTEN_SPALTEN, SPALTEN, type Eingabe } from "./spalten.js";
 
 // Liste der erzeugten Einzelvordrucke auf diesem Gerät: zum Abgleich mit dem
 // Betriebsbuch und als CSV wieder einlesbar, falls die PDF verloren geht.
@@ -70,13 +70,14 @@ export function merkeVordrucke(
     zusatz: (index: number) => string = () => ""
 ): Gemerkt {
     const bisher = ladeVerlauf();
-    const schon = new Set(bisher.map(eintrag => `${eintrag.vordruck ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
+    // Derselbe Stand in anderer Druckfassung (gekürzt, verteilt) bekommt einen eigenen Eintrag.
+    const schon = new Set(bisher.map(eintrag => `${eintrag.vordruck ?? ""}|${eintrag.zusatz ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
     const dazu: Eintrag[] = [];
     eingaben.forEach((eingabe, index) => {
-        const kennung = `${vordruck ?? ""}|${verlaufKennung(eingabe)}`;
+        const text = zusatz(index);
+        const kennung = `${vordruck ?? ""}|${text}|${verlaufKennung(eingabe)}`;
         if (!schon.has(kennung)) {
             schon.add(kennung);
-            const text = zusatz(index);
             dazu.push({ zeit: zeit.toISOString(), eingabe, ...vordruck ? { vordruck } : {}, ...text ? { zusatz: text } : {} });
         }
     });
@@ -120,8 +121,14 @@ export function verlaufAlsCsv(liste: readonly Eintrag[]): string {
         const zeit = new Date(iso);
         return `${zwei(zeit.getDate())}.${zwei(zeit.getMonth() + 1)}.${zeit.getFullYear()} ${zwei(zeit.getHours())}:${zwei(zeit.getMinutes())}`;
     };
+    const VORDRUCK: Record<string, string> = { nachricht: "Nachrichtenvordruck", meldung: "Meldevordruck", beide: "Beide" };
     return schreibeCsv([
-        [ERSTELLT_SPALTE, ...SPALTEN.map(spalte => spalte.titel)],
-        ...liste.map(eintrag => [zeitpunkt(eintrag.zeit), ...SPALTEN.map(spalte => eintrag.eingabe[spalte.schluessel] ?? "")])
+        [ERSTELLT_SPALTE, ...LISTEN_SPALTEN, ...SPALTEN.map(spalte => spalte.titel)],
+        ...liste.map(eintrag => [
+            zeitpunkt(eintrag.zeit),
+            VORDRUCK[eintrag.vordruck ?? ""] ?? "",
+            eintrag.zusatz ?? "",
+            ...SPALTEN.map(spalte => eintrag.eingabe[spalte.schluessel] ?? "")
+        ])
     ]);
 }

@@ -83,6 +83,15 @@ const FELDNAMEN: Record<string, string> = {
  * gedruckt würden, als Satz; leer, wenn alles passt.
  */
 export function gekuerztMeldung(daten: VordruckDaten, vordruck: VordruckWahl): string {
+    const eindeutig = gekuerzteFelder(daten, vordruck);
+    if (eindeutig.length === 0) {
+        return "";
+    }
+    return `Zu lang für den Vordruck, wird mit „…“ gekürzt gedruckt: ${eindeutig.join(", ")}`;
+}
+
+/** Namen der einzeiligen Felder, die gekürzt gedruckt würden. */
+export function gekuerzteFelder(daten: VordruckDaten, vordruck: VordruckWahl): string[] {
     messPdf ??= new jsPDF("p", "mm", "a5");
     const namen = [
         ...(vordruck !== "meldung" ? nachrichtenvordruckGekuerzt(messPdf, daten) : []),
@@ -91,11 +100,21 @@ export function gekuerztMeldung(daten: VordruckDaten, vordruck: VordruckWahl): s
         ?? SPALTEN.find(spalte => spalte.schluessel === name)?.titel
         ?? SPALTEN.find(spalte => spalte.schluessel === name.replace("vermerk", ""))?.titel
         ?? name);
-    const eindeutig = [...new Set(namen)];
-    if (eindeutig.length === 0) {
-        return "";
-    }
-    return `Zu lang für den Vordruck, wird mit „…“ gekürzt gedruckt: ${eindeutig.join(", ")}`;
+    return [...new Set(namen)];
+}
+
+/**
+ * Kurzer Prüfvermerk für den Bogen selbst: was dort anders steht als
+ * eingegeben. Leer, wenn alles passt.
+ */
+export function pruefvermerk(daten: VordruckDaten, vordruck: VordruckWahl, fehler: readonly string[], verteilt: boolean): string {
+    const punkte = [
+        !verteilt && istKritisch(pruefeTextlaenge(daten.inhalt, vordruck)) ? "Text gekürzt" : "",
+        gekuerzteFelder(daten, vordruck).length > 0 ? `gekürzt: ${gekuerzteFelder(daten, vordruck).join(", ")}` : "",
+        fehler.some(text => /kein gültiger Wert|weder ja noch nein|gibt es nicht/.test(text)) ? "Wert verworfen" : "",
+        fehler.some(text => text.startsWith("Zeichen ")) ? "Zeichen als „?“" : ""
+    ].filter(Boolean);
+    return punkte.length > 0 ? `Prüfen: ${punkte.join("; ")}` : "";
 }
 
 /**

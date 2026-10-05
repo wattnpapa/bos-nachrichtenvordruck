@@ -108,7 +108,12 @@ export function zeichneMeldevordruck(
         zeichneEinzeilig(pdf, { text: wert, x: offsetX + 123.6, y, maxWidth: 16.4, fontSize: 9 });
     }
 
-    // Folgebogen: rechts in der Zeile „Inhalt:“.
+    // Prüfvermerk und Folgebogen in der Zeile „Inhalt:“.
+    if (daten.pruefvermerk) {
+        pdf.setFont("helvetica", "bold");
+        zeichneEinzeilig(pdf, { text: daten.pruefvermerk, x: offsetX + 31, y: 49.5, maxWidth: daten.blatt ? 67 : 109, fontSize: 9 });
+        pdf.setFont("helvetica", "normal");
+    }
     if (daten.blatt) {
         pdf.setFont("helvetica", "bold");
         zeichneEinzeilig(pdf, { text: daten.blatt, x: offsetX + 100, y: 49.5, maxWidth: 40, fontSize: 9 });

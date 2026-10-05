@@ -118,7 +118,9 @@ for (const [alias, schluessel] of [
  * Einlesen still übergangen statt als unbekannt gemeldet.
  */
 export const ERSTELLT_SPALTE = "Erstellt";
-const UEBERGANGEN = new Set([normiere(ERSTELLT_SPALTE)]);
+/** Weitere Spalten der Listen-CSV, die beim Wiedereinlesen übergangen werden. */
+export const LISTEN_SPALTEN = ["Vordruck", "Erstellung"] as const;
+const UEBERGANGEN = new Set([ERSTELLT_SPALTE, ...LISTEN_SPALTEN].map(normiere));
 
 /** Ordnet einen Spaltenkopf einem Feld zu; unbekannte Köpfe ergeben `undefined`. */
 export function schluesselZuKopf(kopf: string): Schluessel | undefined {
@@ -274,8 +276,18 @@ function pruefeFormat(eingabe: Eingabe, hinweise: string[]): void {
         const teile = /^(\d{2})(\d{2})(\d{2})([a-zäöü]{3})(\d{2})$/i.exec(dtg);
         if (!teile || !MONATE_DTG.has((teile[4] ?? "").toLowerCase())) {
             hinweise.push(`Abfassungszeit „${dtg}“ ist keine Datum-Zeit-Gruppe TTHHMMmonJJ (z. B. 041416okt26)`);
-        } else if (!(Number(teile[1]) >= 1 && Number(teile[1]) <= 31 && Number(teile[2]) <= 23 && Number(teile[3]) <= 59)) {
-            hinweise.push(`Abfassungszeit „${dtg}“ ist ${UNMOEGLICH} (Tag 01–31, Stunde 00–23, Minute 00–59)`);
+        } else {
+            const MONAT: Record<string, number> = {
+                jan: 0, feb: 1, mrz: 2, mär: 2, mar: 2, apr: 3, mai: 4, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, okt: 9, oct: 9, nov: 10, dez: 11, dec: 11
+            };
+            const monat = MONAT[(teile[4] ?? "").toLowerCase()] ?? 0;
+            const jahr = 2000 + Number(teile[5]);
+            const tageImMonat = new Date(jahr, monat + 1, 0).getDate();
+            if (!(Number(teile[1]) >= 1 && Number(teile[1]) <= tageImMonat && Number(teile[2]) <= 23 && Number(teile[3]) <= 59)) {
+                hinweise.push(`Abfassungszeit „${dtg}“ ist ${UNMOEGLICH} (Tag passend zum Monat, Stunde 00–23, Minute 00–59)`);
+            } else if (Math.abs(jahr - new Date().getFullYear()) > 1) {
+                hinweise.push(`Abfassungszeit „${dtg}“: Jahr ${jahr}? Zahlendreher prüfen`);
+            }
         }
     }
     for (const schluessel of UHRZEIT_FELDER) {
@@ -486,9 +498,12 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         zeilen.push({ zeile: index + kopfIndex + 2, eingabe, daten, fehler, hinweise });
     });
 
-    // Doppelte Nummern: im Betriebsbuch muss jede Nummer eindeutig sein.
+    // Doppelte Nummern: im Betriebsbuch muss jede Nummer eindeutig sein. Eine
+    // wieder eingelesene Liste erstellter Vordrucke enthält Korrekturen und
+    // frühere Übungen; dort ist die gleiche Nr. kein Konflikt.
+    const istListe = kopf.some(zelle => normiere(zelle) === normiere(ERSTELLT_SPALTE));
     const nachNummer = new Map<string, number[]>();
-    for (const zeile of zeilen) {
+    for (const zeile of istListe ? [] : zeilen) {
         if (zeile.daten.nummer) {
             nachNummer.set(zeile.daten.nummer, [...nachNummer.get(zeile.daten.nummer) ?? [], zeile.zeile]);
         }

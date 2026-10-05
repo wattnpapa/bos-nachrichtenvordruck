@@ -38,14 +38,18 @@
       var kasten = document.createElement("div");
       kasten.id = "laedt-nicht";
       kasten.setAttribute("role", "alert");
-      kasten.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:50;padding:12px 16px;background:#a4231c;color:#fff;font:16px/1.4 system-ui,sans-serif";
+      // Nachts gedämpft: dunkles Rot statt heller Fläche.
+      var nachts = document.documentElement.classList.contains("nacht-modus");
+      kasten.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:50;padding:12px 16px;font:16px/1.4 system-ui,sans-serif;"
+        + (nachts ? "background:#3a1610;color:#e8c9a8;border-bottom:2px solid #e08a7e" : "background:#a4231c;color:#fff");
       kasten.appendChild(document.createTextNode("Die App ist noch nicht gestartet; Eingaben hier werden noch nicht gespeichert oder gedruckt. "
         + (mitSpeicher ? "Bei abgebrochenem Netz: neu laden, ohne Netz startet dann die gespeicherte Fassung. " : "Bei abgebrochenem Netz: neu laden, sobald wieder Netz da ist. ")
         + "Notfalls den Papiervordruck nehmen. "));
       var knopf = document.createElement("button");
       knopf.type = "button";
       knopf.textContent = "Neu laden";
-      knopf.style.cssText = "min-height:44px;padding:0 16px;font:inherit;font-weight:700;background:#fff;color:#a4231c;border:0";
+      knopf.style.cssText = "min-height:44px;padding:0 16px;font:inherit;font-weight:700;"
+        + (nachts ? "background:none;color:#e8c9a8;border:2px solid #e08a7e" : "background:#fff;color:#a4231c;border:0");
       knopf.onclick = function () { location.reload(); };
       kasten.appendChild(knopf);
       (document.body || document.documentElement).appendChild(kasten);
@@ -152,6 +156,8 @@
       <section id="ansicht-einzeln" role="tabpanel" aria-labelledby="reiter-einzeln" class="ansicht">
         <div class="arbeitsflaeche">
           <form id="maske" class="maske" autocomplete="off">
+            <!-- Nach „Nächster Vordruck“ steht man hier oben; das Zurücknehmen soll nicht Bildschirme tiefer liegen. -->
+            <p class="oben-zuruecknahme" hidden><button type="button" class="link" id="oben-rueckgaengig"></button></p>
             <section class="karte">
               <h3>Kopf</h3>
               <div class="zeile">
@@ -274,7 +280,7 @@
                 <button type="button" class="jetzt" data-jetzt="quittung" aria-label="Uhrzeit der Quittung jetzt eintragen">Jetzt</button>
                 <label class="feld schmal">Zeichen <input name="quittungZeichen" /></label>
                 <label class="feld schmal">Stelle <input name="quittungStelle" /></label>
-                <label class="feld">Vermerke <input name="vermerke" /></label>
+                <label class="feld">Vermerke <textarea name="vermerke" rows="2"></textarea></label>
               </div>
               <h4>Verteiler</h4>
               <p class="hinweis">Wie auf dem Bogen unter „TEL / EL / EAL / UEAL“: Leiter, darunter die Sachgebiete S1 bis S4 und S6 mit je drei Spalten.</p>
@@ -324,7 +330,7 @@
               <button type="button" class="abgesetzt" id="einzeln-leeren">Felder leeren</button>
             </div>
             <p class="nebentext" id="einzeln-status" role="status"><span id="einzeln-status-text"></span> <button type="button" class="link" id="einzeln-rueckgaengig" hidden>Zurücknehmen</button></p>
-            <p class="nebentext" id="verworfen" hidden><button type="button" class="link" id="verworfen-holen"></button></p>
+            <div class="ablage" id="verworfen" hidden></div>
             <p class="hinweis">„Nächster Vordruck“ behält Übermittlungsweg und Richtung, nach einem Ausgang auch Absender, Zeichen und Funktion, und zählt die Nr. hoch. „Felder leeren“ leert alles.</p>
             <p class="nebentext" id="entwurf-stand"></p>
             <p class="leere-zeile"><button type="button" class="link" id="leere-vordrucke">Leere Vordrucke zum Ausfüllen von Hand herunterladen</button></p>

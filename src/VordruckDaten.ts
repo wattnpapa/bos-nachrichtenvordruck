@@ -130,6 +130,12 @@ export class VordruckDaten {
     blatt = "";
 
     /**
+     * Kurzer Prüfvermerk, z. B. „Prüfen: Text gekürzt“. Steht fett in der Zeile
+     * „Inhalt“ links neben dem Blatt-Kennzeichen, im Formular statt am Blattrand.
+     */
+    pruefvermerk = "";
+
+    /**
      * Welche Ankreuzfelder aus den gesetzten Angaben folgen.
      *
      * Die Reihenfolge ist stabil, damit sich die PDF-Ausgabe bei gleicher
