@@ -341,7 +341,33 @@ function maskeSchreiben(eingabe: Eingabe): void {
     }
 }
 
-const vorgaben = maskeLesen();
+/**
+ * Die Vorgaben der Maske aus dem HTML, nicht aus den aktuellen Feldern: Wer vor
+ * dem Start der App schon getippt hat, dessen Text ist keine Vorgabe.
+ */
+function vorgabenLesen(): Eingabe {
+    const vorgabe: Eingabe = {};
+    for (const spalte of SPALTEN) {
+        const werte: string[] = [];
+        const feld = maske.elements.namedItem(spalte.schluessel);
+        const felder = feld instanceof RadioNodeList ? Array.from(feld) : feld ? [feld] : [];
+        for (const einzeln of felder) {
+            if (einzeln instanceof HTMLInputElement && (einzeln.type === "radio" || einzeln.type === "checkbox")) {
+                if (einzeln.defaultChecked) {
+                    werte.push(einzeln.value);
+                }
+            } else if (einzeln instanceof HTMLSelectElement) {
+                const gewaehlt = Array.from(einzeln.options).find(option => option.defaultSelected) ?? einzeln.options[0];
+                werte.push(gewaehlt?.value ?? "");
+            } else if (einzeln instanceof HTMLInputElement || einzeln instanceof HTMLTextAreaElement) {
+                werte.push(einzeln.defaultValue);
+            }
+        }
+        vorgabe[spalte.schluessel] = werte.join(spalte.schluessel === "verteiler" ? ", " : "");
+    }
+    return vorgabe;
+}
+const vorgaben = vorgabenLesen();
 
 // Was „Nächster Vordruck“ stehen lässt: Angaben, die von Nachricht zu Nachricht
 // gleich bleiben. Alles andere gehört zur Nachricht und wird geleert, damit
@@ -387,7 +413,15 @@ let wiederhergestellt: Entwurf | null = null;
 try {
     const entwurf = JSON.parse(tabSpeicher()?.getItem(ENTWURF_SCHLUESSEL)
         ?? speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
-    if (entwurf) {
+    if ((window as Window & { bnvVorStartGetippt?: boolean }).bnvVorStartGetippt && weichtAb(maskeLesen())) {
+        // Vor dem Start Getipptes gilt; ein älterer Entwurf kommt in die Ablage statt darüber.
+        if (entwurf && (entwurf.inhalt ?? "").trim()) {
+            const { _geaendert: _, ...alt } = entwurf;
+            const ablage = JSON.parse(speicher()?.getItem("bnv.ablage.v1") ?? "[]") as unknown[];
+            speicher()?.setItem("bnv.ablage.v1", JSON.stringify([...ablage, { eingabe: alt, wie: "vor dem Start ersetzt", zeit: new Date().toISOString() }].slice(-10)));
+        }
+        entwurfSpeichern();
+    } else if (entwurf) {
         maskeSchreiben(entwurf);
         // Ein leerer Folgevordruck (nur übernommene Angaben, kein Text) braucht keinen Hinweis.
         wiederhergestellt = weichtAb(maskeLesen()) && (entwurf.inhalt ?? "").trim() ? entwurf : null;
@@ -2093,7 +2127,12 @@ element<HTMLParagraphElement>("laedt").hidden = true;
     const fenster = window as Window & { bnvGestartet?: boolean; bnvLadeUhr?: number };
     fenster.bnvGestartet = true;
     clearTimeout(fenster.bnvLadeUhr);
-    document.getElementById("laedt-nicht")?.remove();
+    const meldung = document.getElementById("laedt-nicht");
+    if (meldung) {
+        meldung.remove();
+        // Stand die Meldung schon da, soll auch der späte Start auffallen.
+        zeigeKurzmeldung("Die App ist jetzt bereit; Eingaben werden gespeichert.", false);
+    }
 }
 if (wiederhergestellt || verlauf.length > 0) {
     document.documentElement.classList.add("wiederkehrend");
@@ -2124,19 +2163,22 @@ function netzZeigen(): void {
     element<HTMLParagraphElement>("netz-stand").hidden = navigator.onLine;
     const excel = element<HTMLSpanElement>("netz-excel");
     excel.hidden = true;
-    // Den Excel-Weg nur zusagen, wenn die Excel-Bibliothek tatsächlich im Offline-Speicher liegt.
-    if (!navigator.onLine && navigator.serviceWorker?.controller && "caches" in globalThis) {
-        void caches.keys()
-            .then(namen => Promise.all(namen.map(name => caches.open(name).then(speicher => speicher.keys()))))
-            .then(listen => {
-                excel.hidden = !listen.flat().some(anfrage => /exceljs/i.test(anfrage.url));
-            })
-            .catch(() => undefined);
+    // Den Excel-Weg nur zusagen, wenn er sich ohne Netz wirklich laden lässt:
+    // genau die Teile dieser Fassung, nicht irgendeine gespeicherte.
+    if (!navigator.onLine) {
+        void excelTeil().then(() => {
+            excel.hidden = navigator.onLine;
+        }).catch(() => undefined);
+        const hinweis = element<HTMLParagraphElement>("speicher-stand");
+        if (!hinweis.hidden && hinweis.textContent?.startsWith("Der Server ist wieder erreichbar")) {
+            hinweis.textContent = `Kein Netz: Es läuft die auf diesem Gerät gespeicherte Fassung ${__FASSUNG__}.`;
+        }
     }
     // Netz wieder da: Läuft die gespeicherte Fassung, prüfen, ob der Server wieder antwortet.
     if (navigator.onLine && !element<HTMLParagraphElement>("speicher-stand").hidden) {
         // HEAD geht am Offline-Dienst vorbei (er bedient nur GET) und fragt wirklich den Server.
-        void fetch("./manifest.webmanifest", { method: "HEAD", cache: "no-store" })
+        // Die Startseite selbst: Liefert der Server dafür noch einen Fehler, ist er nicht zurück.
+        void fetch("./", { method: "HEAD", cache: "no-store" })
             .then(antwort => {
                 if (antwort.ok) {
                     const hinweis = element<HTMLParagraphElement>("speicher-stand");
@@ -2184,7 +2226,7 @@ try {
 }
 
 // Fassung im Fuß, damit bei Rückfragen klar ist, welcher Stand läuft.
-element<HTMLSpanElement>("fassung").textContent = `Fassung ${__FASSUNG__} UTC`;
+element<HTMLSpanElement>("fassung").textContent = `Fassung ${__FASSUNG__}`;
 
 // Nach dem ersten Aufruf startet die Seite aus dem Cache, auch ohne Netz.
 // Der Dienst entsteht erst beim Bauen (web/vite.config.ts), im Entwicklungsserver gibt es ihn nicht.
@@ -2214,11 +2256,15 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
         }
         if (stand.ausSpeicher) {
             const hinweis = element<HTMLParagraphElement>("speicher-stand");
-            hinweis.textContent = `Server nicht erreichbar: Es läuft die auf diesem Gerät gespeicherte Fassung ${__FASSUNG__} UTC.`;
+            hinweis.textContent = `Server nicht erreichbar: Es läuft die auf diesem Gerät gespeicherte Fassung ${__FASSUNG__}.`;
             hinweis.hidden = false;
         }
     });
     navigator.serviceWorker.controller?.postMessage("stand?");
+    // Steuert schon ein Dienst die Seite (etwa beim Start ohne Netz), gilt die Zusage sofort.
+    if (navigator.serviceWorker.controller) {
+        element<HTMLElement>("offline-stand").hidden = false;
+    }
     navigator.serviceWorker.register("./sw.js")
         .then(() => navigator.serviceWorker.ready)
         .then(() => {

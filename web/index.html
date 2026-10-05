@@ -32,8 +32,14 @@
     // Startet das Programm nicht innerhalb von 12 s (Netz brach mitten im Laden ab), das klar
     // sagen. Steht im Kopf vor dem Stylesheet, damit ein hängendes Stylesheet die Meldung
     // nicht aufhält; deshalb mit eigenen Stilen und fest oben im Bild.
+    // Wer vor dem Start schon tippt, dessen Text soll der Start nicht überschreiben.
+    document.addEventListener("input", function () { window.bnvVorStartGetippt = !window.bnvGestartet; }, true);
     window.bnvLadeUhr = setTimeout(function () {
       if (window.bnvGestartet) return;
+      // Ein hängendes Stylesheet hält jede Anzeige auf; ohne es zeigt der Browser
+      // wenigstens diese Meldung und das Formular in Grundform.
+      var blaetter = document.querySelectorAll('link[rel="stylesheet"]');
+      for (var i = 0; i < blaetter.length; i++) if (!blaetter[i].sheet) blaetter[i].remove();
       var mitSpeicher = navigator.serviceWorker && navigator.serviceWorker.controller;
       var kasten = document.createElement("div");
       kasten.id = "laedt-nicht";

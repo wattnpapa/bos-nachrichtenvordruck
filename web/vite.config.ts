@@ -16,7 +16,7 @@ function fassung(): string {
     } catch {
         commit = "";
     }
-    const zeit = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const zeit = `${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`;
     return commit ? `${zeit} (${commit})` : zeit;
 }
 const FASSUNG = fassung();
