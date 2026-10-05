@@ -110,17 +110,9 @@ export function zeichneNachrichtenvordruck(
         height: 16.5
     });
 
-    // Prüfvermerk und Folgebogen in der Zeile „Inhalt“ (65,4–71,9 mm), rechts der Beschriftung.
-    if (daten.pruefvermerk) {
-        pdf.setFont("helvetica", "bold");
-        zeichneEinzeilig(pdf, { text: daten.pruefvermerk, x: offsetX + 41, y: 70.2, maxWidth: daten.blatt ? 57 : 100, fontSize: 9 });
-        pdf.setFont("helvetica", "normal");
-    }
-    if (daten.blatt) {
-        pdf.setFont("helvetica", "bold");
-        zeichneEinzeilig(pdf, { text: daten.blatt, x: offsetX + 100, y: 70.2, maxWidth: 41, fontSize: 10 });
-        pdf.setFont("helvetica", "normal");
-    }
+    // Betreff, Prüfvermerk und Folgebogen in der Zeile „Inhalt“ (65,4–71,9 mm),
+    // rechts der Beschriftung.
+    zeichneInhaltZeile(pdf, daten, inhaltZeile(offsetX));
 
     // Inhalt auf den zwölf Linien des Formulars (78,41–149,84 mm), je 1,3 mm über
     // der Linie. Längerer Text wird abgeschnitten, nicht verkleinert.
@@ -136,6 +128,73 @@ export function zeichneNachrichtenvordruck(
 
     if (!optionen.ohneRahmen) {
         zeichneRahmen(pdf, daten, offsetX);
+    }
+}
+
+/** Breite, die der Prüfvermerk neben einem Betreff höchstens bekommt. */
+const PRUEFVERMERK_NEBEN_BETREFF = 45;
+
+/** Lage der Zeile „Inhalt“ auf einem Vordruck, in mm. */
+export interface InhaltZeile {
+    /** Beginn rechts der Beschriftung. */
+    x: number;
+    /** Grundlinie. */
+    y: number;
+    /** Rechter Rand der Zeile. */
+    ende: number;
+    /** Beginn des Blatt-Kennzeichens ohne Betreff. */
+    blattX: number;
+    blattGroesse: number;
+}
+
+/**
+ * Teilt die Zeile „Inhalt“ auf: links der Betreff, rechts das Kennzeichen des
+ * Folgebogens. Ohne Betreff steht der Prüfvermerk links und das Kennzeichen ab
+ * `blattX`; mit Betreff rücken beide rechtsbündig ans Ende, damit dem Betreff
+ * mehr Platz bleibt. Zeichnet nichts.
+ */
+function inhaltZeileAufteilen(pdf: jsPDF, daten: VordruckDaten, zeile: InhaltZeile): { blattX: number; pruefX: number; pruefEnde: number; betreffEnde: number } {
+    const vorher = pdf.getFontSize();
+    pdf.setFont("helvetica", "bold");
+    let blattX = zeile.blattX;
+    if (daten.blatt && daten.betreff) {
+        pdf.setFontSize(zeile.blattGroesse);
+        blattX = Math.max(blattX, zeile.ende - pdf.getTextWidth(daten.blatt));
+    }
+    const ende = daten.blatt ? blattX - 2 : zeile.ende;
+    let pruefX = zeile.x;
+    let betreffEnde = ende;
+    if (daten.pruefvermerk && daten.betreff) {
+        pdf.setFontSize(9);
+        pruefX = ende - Math.min(pdf.getTextWidth(daten.pruefvermerk), PRUEFVERMERK_NEBEN_BETREFF);
+        betreffEnde = pruefX - 3;
+    }
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(vorher);
+    return { blattX, pruefX, pruefEnde: ende, betreffEnde };
+}
+
+/** Breite, die der Betreff in der Zeile „Inhalt“ bekommt. */
+export function betreffBreite(pdf: jsPDF, daten: VordruckDaten, zeile: InhaltZeile): number {
+    return inhaltZeileAufteilen(pdf, daten, zeile).betreffEnde - zeile.x;
+}
+
+/** Zeichnet Betreff, Prüfvermerk und Blatt-Kennzeichen in die Zeile „Inhalt“. */
+export function zeichneInhaltZeile(pdf: jsPDF, daten: VordruckDaten, zeile: InhaltZeile): void {
+    const { x, y } = zeile;
+    const { blattX, pruefX, pruefEnde, betreffEnde } = inhaltZeileAufteilen(pdf, daten, zeile);
+    if (daten.pruefvermerk) {
+        pdf.setFont("helvetica", "bold");
+        zeichneEinzeilig(pdf, { text: daten.pruefvermerk, x: pruefX, y, maxWidth: pruefEnde - pruefX, fontSize: 9 });
+        pdf.setFont("helvetica", "normal");
+    }
+    if (daten.betreff) {
+        zeichneEinzeilig(pdf, { text: daten.betreff, x, y, maxWidth: betreffEnde - x, fontSize: 10 });
+    }
+    if (daten.blatt) {
+        pdf.setFont("helvetica", "bold");
+        zeichneEinzeilig(pdf, { text: daten.blatt, x: blattX, y, maxWidth: zeile.ende - blattX, fontSize: zeile.blattGroesse });
+        pdf.setFont("helvetica", "normal");
     }
 }
 
@@ -157,7 +216,7 @@ function vermerkeAufteilen(pdf: jsPDF, text: string): { erste: string; rest: str
 /**
  * Felder des Nachrichtenvordrucks, deren Wert nicht ganz auf das Blatt passt und
  * gekürzt gedruckt würde: Namen wie in `VordruckDaten.textfelder()`, dazu
- * `nummer` und `absender`. Der Inhalt hat eine eigene Prüfung
+ * `nummer`, `absender` und `betreff`. Der Inhalt hat eine eigene Prüfung
  * (`nachrichtenvordruckInhaltZeilen`). Zeichnet nichts.
  */
 export function nachrichtenvordruckGekuerzt(pdf: jsPDF, daten: VordruckDaten): string[] {
@@ -168,6 +227,9 @@ export function nachrichtenvordruckGekuerzt(pdf: jsPDF, daten: VordruckDaten): s
     }
     if (daten.absender && wirdGekuerzt(pdf, daten.absender, 97)) {
         gekuerzt.push("absender");
+    }
+    if (daten.betreff && wirdGekuerzt(pdf, daten.betreff, betreffBreite(pdf, daten, inhaltZeile(0)))) {
+        gekuerzt.push("betreff");
     }
     for (const [name, wert] of Object.entries(daten.textfelder())) {
         if (!wert) {
@@ -203,6 +265,11 @@ function zeichneVermerke(pdf: jsPDF, text: string, offsetX: number): void {
         return;
     }
     zeichneZeilenBegrenzt(pdf, { text: rest, x: offsetX + 94, y: 178.4, maxWidth: 47.5, lineHeight: 4.2, fontSize: 9, maxZeilen: 6 });
+}
+
+/** Zeile „Inhalt“ des Nachrichtenvordrucks (65,4–71,9 mm), rechts der Beschriftung. */
+function inhaltZeile(offsetX: number): InhaltZeile {
+    return { x: offsetX + 41, y: 70.2, ende: offsetX + 141, blattX: offsetX + 100, blattGroesse: 10 };
 }
 
 /**

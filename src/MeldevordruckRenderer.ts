@@ -4,7 +4,10 @@ import type { Uebermittlungsweg } from "./felder.js";
 import { MELDEVORDRUCK_FORMULAR } from "./formularGeometrie.js";
 import { umbrechen, wirdGekuerzt, zeichneAngepasst, zeichneEinzeilig, zeichneZeilenBegrenzt } from "./pdfText.js";
 import {
+    betreffBreite,
     inhaltTeilen,
+    zeichneInhaltZeile,
+    type InhaltZeile,
     zeichneHintergrund,
     zeichneRahmen,
     type VordruckRenderOptionen
@@ -53,6 +56,11 @@ const INHALT_FELD = {
     schriftgroesse: 11.5,
     zeilen: 26
 };
+
+/** Zeile „Inhalt:“ des Meldevordrucks, rechts der Beschriftung. */
+function inhaltZeile(offsetX: number): InhaltZeile {
+    return { x: offsetX + 31, y: 49.5, ende: offsetX + 140, blattX: offsetX + 100, blattGroesse: 9 };
+}
 
 /**
  * Wie viele Zeilen `inhalt` auf dem Meldevordruck braucht und wie viele Platz
@@ -108,17 +116,8 @@ export function zeichneMeldevordruck(
         zeichneEinzeilig(pdf, { text: wert, x: offsetX + 123.6, y, maxWidth: 16.4, fontSize: 9 });
     }
 
-    // Prüfvermerk und Folgebogen in der Zeile „Inhalt:“.
-    if (daten.pruefvermerk) {
-        pdf.setFont("helvetica", "bold");
-        zeichneEinzeilig(pdf, { text: daten.pruefvermerk, x: offsetX + 31, y: 49.5, maxWidth: daten.blatt ? 67 : 109, fontSize: 9 });
-        pdf.setFont("helvetica", "normal");
-    }
-    if (daten.blatt) {
-        pdf.setFont("helvetica", "bold");
-        zeichneEinzeilig(pdf, { text: daten.blatt, x: offsetX + 100, y: 49.5, maxWidth: 40, fontSize: 9 });
-        pdf.setFont("helvetica", "normal");
-    }
+    // Betreff, Prüfvermerk und Folgebogen in der Zeile „Inhalt:“.
+    zeichneInhaltZeile(pdf, daten, inhaltZeile(offsetX));
 
     // Langer Inhalt wird abgeschnitten statt verkleinert und läuft nicht über
     // Verfasser, Abfassungszeit und den Blattrand.
@@ -160,7 +159,7 @@ function zeitfelder(daten: VordruckDaten): [string, number][] {
 
 /**
  * Felder des Meldevordrucks, deren Wert nicht ganz auf das Blatt passt und
- * gekürzt gedruckt würde: `nummer`, `absender`, `verfasser`, `abfassungszeit`,
+ * gekürzt gedruckt würde: `nummer`, `absender`, `betreff`, `verfasser`, `abfassungszeit`,
  * `ausgang`, `eingang`. Der Inhalt hat eine eigene Prüfung
  * (`meldevordruckInhaltZeilen`). Zeichnet nichts.
  */
@@ -170,6 +169,7 @@ export function meldevordruckGekuerzt(pdf: jsPDF, daten: VordruckDaten): string[
     const pruefungen: [string, string, number, number?][] = [
         ["nummer", daten.nummer, 16.5],
         ["absender", daten.absender, 70, 7],
+        ["betreff", daten.betreff, betreffBreite(pdf, daten, inhaltZeile(0))],
         ["verfasser", daten.verfasser, 40, 7],
         ["abfassungszeit", daten.abfassungszeit, 49],
         ["ausgang", `${ausgangDatum}`, 16.4],

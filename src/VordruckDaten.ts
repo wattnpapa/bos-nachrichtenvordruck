@@ -75,6 +75,9 @@ export class VordruckDaten {
 
     // ---- Inhalt -------------------------------------------------------------
 
+    /** Betreff in der Zeile „Inhalt“, einzeilig neben der Beschriftung. */
+    betreff = "";
+
     /** Nachrichtentext. Ein Zeilenumbruch im Text wird übernommen. */
     inhalt = "";
 

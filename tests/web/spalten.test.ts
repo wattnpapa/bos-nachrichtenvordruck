@@ -29,6 +29,11 @@ describe("zuVordruckDaten", () => {
         expect(daten.anschriften).toEqual(["TEL"]);
     });
 
+    it("übernimmt den Betreff, auch aus der Spalte „Thema“", () => {
+        expect(zuVordruckDaten({ betreff: " Lage B 211 " }).daten.betreff).toBe("Lage B 211");
+        expect(schluesselZuKopf("Thema")).toBe("betreff");
+    });
+
     it("setzt Vermerke, Quittung und Fußfelder", () => {
         const { daten } = zuVordruckDaten({
             annahmeUhrzeit: "14:16", quittungZeichen: "MK", abfassungszeit: "031415okt26", inhalt: "a\r\nb"

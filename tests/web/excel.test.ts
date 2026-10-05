@@ -20,8 +20,9 @@ describe("Excel", () => {
         blatt.getCell("A2").value = "17";
         blatt.getCell("B2").value = "Spruch";
         blatt.getCell("G2").value = "Heros Jever 21/10";
-        blatt.getCell("I2").value = { richText: [{ text: "Erkundung " }, { text: "abgeschlossen." }] };
-        blatt.getCell("I4").value = "Zweiter";
+        blatt.getCell("I2").value = "Lage B 211";
+        blatt.getCell("J2").value = { richText: [{ text: "Erkundung " }, { text: "abgeschlossen." }] };
+        blatt.getCell("J4").value = "Zweiter";
         const puffer = await mappe.xlsx.writeBuffer();
 
         const { zeilen } = leseTabelle(await leseExcel(puffer as ArrayBuffer));
@@ -30,6 +31,7 @@ describe("Excel", () => {
             [4, "", undefined, "Zweiter"]
         ]);
         expect(zeilen[0]?.daten.empfaenger).toEqual(["Heros Jever 21/10"]);
+        expect(zeilen[0]?.daten.betreff).toBe("Lage B 211");
     });
 
     it("nimmt ohne Blatt „Vordrucke“ das erste mit bekannten Spalten", async () => {
