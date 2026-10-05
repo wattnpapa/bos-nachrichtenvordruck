@@ -8,8 +8,8 @@ import {
 } from "../../src/index.js";
 import { HERKUNFT, type PdfOptionen } from "./pdf.js";
 
-// Vorschau als Bild für Browser, die PDFs nicht eingebettet zeigen (die
-// meisten Telefone). Die Renderer zeichnen in ein echtes jsPDF, damit
+// Vorschau als Bild, statt die PDF in einem Betrachter mit Werkzeugleiste
+// einzubetten. Die Renderer zeichnen in ein echtes jsPDF, damit
 // Umbruch und Schriftverkleinerung genau wie in der PDF ausfallen; hier
 // wird nur mitgeschrieben, was wohin geschrieben wird, und auf ein Canvas
 // übertragen. Die Schrift des Browsers weicht von Helvetica leicht ab.
