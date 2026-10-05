@@ -39,15 +39,19 @@
       // Ein hängendes Stylesheet hält jede Anzeige auf; ohne es zeigt der Browser
       // wenigstens diese Meldung und das Formular in Grundform.
       var blaetter = document.querySelectorAll('link[rel="stylesheet"]');
-      for (var i = 0; i < blaetter.length; i++) if (!blaetter[i].sheet) blaetter[i].remove();
+      // Gemerkt, damit der Start es nachholen kann, sobald es doch ankommt.
+      window.bnvEntfernteBlaetter = [];
+      for (var i = 0; i < blaetter.length; i++) if (!blaetter[i].sheet) { window.bnvEntfernteBlaetter.push(blaetter[i].href); blaetter[i].remove(); }
       var mitSpeicher = navigator.serviceWorker && navigator.serviceWorker.controller;
       var kasten = document.createElement("div");
       kasten.id = "laedt-nicht";
       kasten.setAttribute("role", "alert");
-      // Nachts gedämpft: dunkles Rot statt heller Fläche.
+      // Nachts und in Dunkel gedämpft: dunkles Rot statt heller Fläche, in Dunkel kühler.
       var nachts = document.documentElement.classList.contains("nacht-modus");
+      var dunkel = document.documentElement.classList.contains("dunkel-modus");
+      var farben = nachts ? ["#3a1610", "#e8c9a8", "#e08a7e"] : dunkel ? ["#2c1418", "#f0d4d6", "#e2777f"] : null;
       kasten.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:50;padding:12px 16px;font:16px/1.4 system-ui,sans-serif;"
-        + (nachts ? "background:#3a1610;color:#e8c9a8;border-bottom:2px solid #e08a7e" : "background:#a4231c;color:#fff");
+        + (farben ? "background:" + farben[0] + ";color:" + farben[1] + ";border-bottom:2px solid " + farben[2] : "background:#a4231c;color:#fff");
       kasten.appendChild(document.createTextNode("Die App ist noch nicht gestartet; Eingaben hier werden noch nicht gespeichert oder gedruckt. "
         + (mitSpeicher ? "Bei abgebrochenem Netz: neu laden, ohne Netz startet dann die gespeicherte Fassung. " : "Bei abgebrochenem Netz: neu laden, sobald wieder Netz da ist. ")
         + "Notfalls den Papiervordruck nehmen. "));
@@ -55,7 +59,7 @@
       knopf.type = "button";
       knopf.textContent = "Neu laden";
       knopf.style.cssText = "min-height:44px;padding:0 16px;font:inherit;font-weight:700;"
-        + (nachts ? "background:none;color:#e8c9a8;border:2px solid #e08a7e" : "background:#fff;color:#a4231c;border:0");
+        + (farben ? "background:none;color:" + farben[1] + ";border:2px solid " + farben[2] : "background:#fff;color:#a4231c;border:0");
       knopf.onclick = function () { location.reload(); };
       kasten.appendChild(knopf);
       (document.body || document.documentElement).appendChild(kasten);
@@ -111,13 +115,13 @@
       <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.<span id="offline-stand" hidden> Startet nach dem ersten Aufruf auch ohne Netz. Auf den Startbildschirm gelegt, bleibt sie dafür zuverlässig gespeichert.</span></p>
       <p class="warnung netz" id="netz-stand" role="status" hidden>Kein Netz. Ausfüllen, Vorschau und PDF funktionieren weiter<span id="netz-excel">, auch der Excel-Weg</span>.</p>
       <p class="nebentext" id="speicher-stand" role="status" hidden></p>
+      <p class="warnung" id="grundform" role="status" hidden>Vereinfachte Darstellung: Die Gestaltung kam bei langsamem Netz nicht an. Alles funktioniert; neu laden, sobald das Netz besser ist.</p>
 
       <!-- Vor den Einstellungen, damit er nach dem Laden ohne Scrollen zu sehen ist. -->
       <div class="warnung entwurf" id="entwurf-hinweis" role="status" hidden>
         <p id="entwurf-text"></p>
         <div class="aktionen">
           <button type="button" class="primaer" id="entwurf-naechster">Nächster Vordruck</button>
-          <button type="button" id="entwurf-rueckgaengig" hidden>Zurücknehmen</button>
           <button type="button" id="entwurf-behalten">Weiter bearbeiten</button>
         </div>
       </div>
@@ -163,7 +167,8 @@
         <div class="arbeitsflaeche">
           <form id="maske" class="maske" autocomplete="off">
             <!-- Nach „Nächster Vordruck“ steht man hier oben; das Zurücknehmen soll nicht Bildschirme tiefer liegen. -->
-            <p class="oben-zuruecknahme" hidden><button type="button" class="link" id="oben-rueckgaengig"></button></p>
+            <div class="oben-zuruecknahme" id="oben-zuruecknahme" role="status" hidden><span id="oben-status"></span> <button type="button" class="link" id="oben-rueckgaengig" hidden></button></div>
+            <p class="oben-ablage" hidden><button type="button" class="link" id="oben-ablage"></button></p>
             <section class="karte">
               <h3>Kopf</h3>
               <!-- Nr. und Gegenstelle zuerst: die Felder, die bei jeder Nachricht neu sind, auf dem ersten Bildschirm. -->
@@ -353,12 +358,14 @@
                   <tbody id="verlauf-liste"></tbody>
                 </table>
               </div>
+              <p class="nebentext" id="einsatz-stand"><span id="einsatz-text"></span> <button type="button" class="link" id="einsatz-aufheben" hidden>Grenze aufheben</button></p>
               <div class="aktionen">
+                <button type="button" id="einsatz-neu">Neuer Einsatz</button>
                 <button type="button" id="verlauf-csv">Liste als CSV</button>
                 <button type="button" class="abgesetzt gefahr" id="verlauf-loeschen">Liste löschen</button>
               </div>
             </details>
-            <p class="nebentext" id="verlauf-geloescht" role="status" hidden><span id="verlauf-geloescht-text">Liste gelöscht.</span> <button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button> · <button type="button" class="link" id="verlauf-verwerfen">Endgültig verwerfen</button></p>
+            <p class="nebentext" id="verlauf-geloescht" role="status" hidden><span id="verlauf-geloescht-text">Liste gelöscht.</span> <button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button> · <button type="button" class="link gefahr" id="verlauf-verwerfen">Endgültig verwerfen</button></p>
           </div>
         </div>
       </section>
@@ -393,6 +400,11 @@
           </div>
           <p id="ergebnis-zusammenfassung"></p>
           <div class="alarm-kasten" id="ergebnis-fehler" hidden></div>
+          <!-- Eine gesicherte Liste erstellter Vordrucke: zuerst die Frage, ob sie die Liste dieses Geräts wiederherstellen soll. -->
+          <div class="warnung" id="liste-uebernahme" hidden>
+            <p id="liste-text"></p>
+            <div class="aktionen"><button type="button" class="primaer" id="liste-uebernehmen">In die Liste übernehmen</button></div>
+          </div>
           <!-- Vor Hinweisen und Übersicht: bei vielen Zeilen stünden die Knöpfe sonst Bildschirme tiefer.
                Die Hinweise wiederholt die Rückfrage vor dem Erzeugen. -->
           <div class="aktionen">

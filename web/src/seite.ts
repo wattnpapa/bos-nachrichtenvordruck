@@ -49,6 +49,8 @@ function setzeModus(modus: Modus): void {
     const farbe = modus === "nacht" ? "#221f16" : modus === "dunkel" ? "#0f1116" : "#12275e";
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", farbe);
     erklaeren(modus);
+    // Am Telefon steht die Erklärung erst nach einer Wahl: Beim ersten Besuch schiebt sie sonst die Maske unter den Bildschirm.
+    document.getElementById("modus-erklaerung")?.classList.add("gewechselt");
 }
 
 for (const knopf of document.querySelectorAll<HTMLButtonElement>(".anzeige-schalter button")) {

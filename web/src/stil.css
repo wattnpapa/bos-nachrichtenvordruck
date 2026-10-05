@@ -385,6 +385,8 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 .kurzmeldung > span:first-child { flex: 1 1 14rem; }
 .kurzmeldung-knoepfe { display: flex; gap: var(--r-4); }
 @media (min-width: 64rem) { .kurzmeldung { bottom: var(--r-4); } }
+/* Im flachen Querformat oben: unten läge sie über dem Feld, in dem getippt wird. */
+@media (max-height: 30rem) { .kurzmeldung { top: var(--r-2); bottom: auto; } }
 
 /* Prüfübersicht: hoher Vorrang fällt auf, leere Auswahl ist als „leer“ gedämpft. */
 /* Rot bleibt den Fehlern vorbehalten; hoher Vorrang ist fett, Blitz zusätzlich mit Zeichen und Rahmen. */
@@ -630,6 +632,9 @@ table.uebersicht tr.mit-fehler td:first-child { box-shadow: inset 6px 0 0 var(--
 /* ---- Nacht und Dunkel: Feinschliff --------------------------------- */
 .nacht-modus { --strich: 2px; --strich-stark: 2px; }
 .nacht-modus button:disabled { opacity: 0.85; }
+/* Auch Nebenknöpfe gesperrt an der Form erkennbar: gestrichelt und gedämpft. */
+.nacht-modus button:disabled:not(.primaer):not(.link):not(.arbeitet),
+.dunkel-modus button:disabled:not(.primaer):not(.link):not(.arbeitet) { border-style: dashed; color: var(--text-2); }
 /* Deaktiviert im Dunkeln an der Form erkennbar, nicht nur an der Helligkeit: gestrichelter Rahmen statt Fläche. */
 .nacht-modus button.primaer:disabled, .dunkel-modus button.primaer:disabled {
   filter: none; background: none; color: var(--text-2); border: 2px dashed var(--linie-stark);
@@ -665,7 +670,11 @@ dialog.frage .aktionen { gap: var(--r-4); }
 iframe.nur-zum-drucken { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 /* Löschen ist kein gewöhnlicher Knopf: roter Rand und Schrift. */
 button.gefahr { color: var(--alarm); border-color: var(--alarm); }
-.leere-zeile { margin-bottom: var(--r-4); }
+/* Mindestens 16 px zwischen „Leere Vordrucke“ und „Erstellte Vordrucke“, auch nach einem Download. */
+.abschluss .leere-zeile { margin-bottom: var(--r-5); }
+.abschluss .leere-zeile + .verlauf { margin-top: var(--r-5); }
+/* Excel- und CSV-Vorlage nebeneinander mit demselben Abstand wie die übrigen Knopfpaare. */
+.karten-paar .aktionen { gap: var(--r-4); }
 /* Prüfübersicht beim Meldevordruck: nur, was er druckt. */
 table.uebersicht.meldung .nur-nachricht { display: none; }
 .nur-mobil { display: none; }
@@ -676,7 +685,18 @@ table.uebersicht.meldung .nur-nachricht { display: none; }
 /* Ablage nicht erstellter Vordrucke: deutlich abgesetzt vom Zurücknehmen darüber. */
 .ablage { margin-top: var(--r-4); }
 .ablage p { margin: 0 0 var(--r-2); }
-.oben-zuruecknahme { margin: 0 0 var(--r-3); }
+/* Einträge mit Abstand: zehn gleich aussehende Links sollen nicht ineinander laufen. */
+.ablage ul { margin: 0; padding-left: 1.2rem; }
+.ablage li + li { margin-top: var(--r-3); }
+.ablage summary { min-height: calc(var(--ziel-basis) + var(--ziel)); display: flex; align-items: center; cursor: pointer; }
+/* Rückmeldung und Rückweg über der Maske: dort, wo nach „Nächster Vordruck“ der Blick ist. */
+.oben-zuruecknahme { margin: 0 0 var(--r-3); padding: var(--r-2) var(--r-3); border-left: 4px solid var(--akzent); background: var(--flaeche); font-size: var(--t-s); }
+.oben-zuruecknahme button.link, .oben-ablage button.link, .ablage button.link { min-height: calc(var(--ziel-basis) + var(--ziel)); text-align: left; justify-content: flex-start; }
+.oben-ablage { margin: 0 0 var(--r-3); }
+/* Nach „Stehen gebliebene leeren“: geleerte Felder markiert, bis dort getippt wird. */
+.geleert { outline: 3px dashed var(--akzent); outline-offset: 3px; }
 /* Tabellenweg: Download und Vorschau mit Abstand wie im Einzelweg. */
 .ergebnis .aktionen { gap: var(--r-4); }
-@media (max-width: 40rem) { .wiederkehrend .modus-erklaerung { display: none; } }
+@media (max-width: 40rem) { .modus-erklaerung:not(.gewechselt) { display: none; } }
+/* Ein Vordruck ohne Text hat nichts zu prüfen: Die Leiste verdeckt dann nur die Felder darüber. */
+.maske.ohne-text .sprungleiste { visibility: hidden; pointer-events: none; }

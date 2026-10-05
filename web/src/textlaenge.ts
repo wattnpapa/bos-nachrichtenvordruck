@@ -105,16 +105,67 @@ export function gekuerzteFelder(daten: VordruckDaten, vordruck: VordruckWahl): s
 
 /**
  * Kurzer Prüfvermerk für den Bogen selbst: was dort anders steht als
- * eingegeben. Leer, wenn alles passt.
+ * eingegeben. Leer, wenn alles passt. Bei „beide“ gilt er für beide Vordrucke;
+ * für einen einzelnen Bogen `vordruck` auf dessen Art setzen.
  */
 export function pruefvermerk(daten: VordruckDaten, vordruck: VordruckWahl, fehler: readonly string[], verteilt: boolean): string {
+    const felder = gekuerzteFelder(daten, vordruck);
+    // Verworfene Werte mit Feldnamen: „Vorrang: „Eilig“ ist kein gültiger Wert“ ergibt „Vorrang“.
+    const verworfen = [...new Set(fehler
+        .filter(text => /kein gültiger Wert|weder ja noch nein|gibt es nicht/.test(text))
+        .map(text => /^([^:]+):/.exec(text)?.[1]?.trim() ?? "Wert"))];
     const punkte = [
+        fehler.some(text => /^\d+ Felder, aber nur \d+ Spalten/.test(text)) ? "Spalten verrutscht, Text und Absender vergleichen" : "",
         !verteilt && istKritisch(pruefeTextlaenge(daten.inhalt, vordruck)) ? "Text gekürzt" : "",
-        gekuerzteFelder(daten, vordruck).length > 0 ? `gekürzt: ${gekuerzteFelder(daten, vordruck).join(", ")}` : "",
-        fehler.some(text => /kein gültiger Wert|weder ja noch nein|gibt es nicht/.test(text)) ? "Wert verworfen" : "",
-        fehler.some(text => text.startsWith("Zeichen ")) ? "Zeichen als „?“" : ""
+        felder.length > 0 ? `${felder.join(", ")} gekürzt` : "",
+        verworfen.length > 0 ? `${verworfen.join(", ")} verworfen` : "",
+        fehler.some(text => text.startsWith("Zeichen ")) ? "Sonderzeichen als „?“" : ""
     ].filter(Boolean);
     return punkte.length > 0 ? `Prüfen: ${punkte.join("; ")}` : "";
+}
+
+/** Daten für genau einen Bogen; bei „beide“ sagt `nur`, welcher Vordruck. */
+export type Bogen = VordruckDaten & { nur?: "nachricht" | "meldung" };
+
+/**
+ * Die Bögen eines Stands: je Vordruckart einer, oder mit `verteilen` so viele,
+ * dass langer Text ganz aufs Papier kommt, jeder mit „Blatt n von m“. Bei
+ * „beide“ zählt jede Art für sich, und jeder Bogen trägt nur den Prüfvermerk
+ * seiner Art. Nachrichten- und Meldevordruck stehen abwechselnd, damit sie auf
+ * A4 quer nebeneinander liegen.
+ */
+export function bogenListe(daten: VordruckDaten, vordruck: VordruckWahl, fehler: readonly string[], verteilen: boolean): Bogen[] {
+    const arten = vordruck === "beide" ? ["nachricht", "meldung"] as const : [vordruck];
+    const jeArt = arten.map(art => {
+        const teile = verteilen && istKritisch(pruefeTextlaenge(daten.inhalt, art)) ? teileInhalt(daten.inhalt, art) : [daten.inhalt];
+        const vermerk = pruefvermerk(daten, art, fehler, teile.length > 1);
+        return teile.map((inhalt, index) => {
+            const bogen = Object.assign(Object.create(Object.getPrototypeOf(daten) as object) as Bogen, daten);
+            bogen.inhalt = inhalt;
+            bogen.blatt = teile.length > 1 ? `Blatt ${index + 1} von ${teile.length}` : "";
+            bogen.pruefvermerk = vermerk;
+            if (vordruck === "beide") {
+                bogen.nur = art === "meldung" ? "meldung" : "nachricht";
+            }
+            return bogen;
+        });
+    });
+    const laengste = Math.max(...jeArt.map(boegen => boegen.length));
+    return Array.from({ length: laengste }, (_, index) => jeArt.flatMap(boegen => boegen[index] ? [boegen[index]] : []))
+        .flat();
+}
+
+/**
+ * Wie viele Vordrucke beim Verteilen entstehen, als Wortgruppe: „3 Vordrucke“,
+ * bei „beide“ „3 Nachrichten- und 2 Meldevordrucke“.
+ */
+export function verteiltText(inhalt: string, vordruck: VordruckWahl): string {
+    const zahl = (art: "nachricht" | "meldung") => istKritisch(pruefeTextlaenge(inhalt, art)) ? teileInhalt(inhalt, art).length : 1;
+    if (vordruck === "beide") {
+        return `${zahl("nachricht")} Nachrichten- und ${zahl("meldung")} ${zahl("meldung") === 1 ? "Meldevordruck" : "Meldevordrucke"}`;
+    }
+    const anzahl = zahl(vordruck);
+    return `${anzahl} ${anzahl === 1 ? "Vordruck" : "Vordrucke"}`;
 }
 
 /**

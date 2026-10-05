@@ -398,7 +398,13 @@ export function istLeer(eingabe: Eingabe): boolean {
 }
 
 export interface TabellenErgebnis {
-    zeilen: { zeile: number; eingabe: Eingabe; daten: VordruckDaten; fehler: string[]; hinweise: string[] }[];
+    zeilen: {
+        zeile: number; eingabe: Eingabe; daten: VordruckDaten; fehler: string[]; hinweise: string[];
+        /** Nur in einer wieder eingelesenen Liste erstellter Vordrucke: die Spalten „Erstellt“, „Vordruck“, „Erstellung“. */
+        liste?: { erstellt: string; vordruck: string; erstellung: string };
+    }[];
+    /** Die Datei ist eine gesicherte Liste erstellter Vordrucke (Spalte „Erstellt“). */
+    istListe: boolean;
     /** Spalten des Kopfes, die einem Feld zugeordnet sind. */
     bekannteSpalten: number;
     /** Spaltenpaare für dasselbe Feld; genommen wird jeweils die rechte. */
@@ -447,6 +453,9 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
     const kopf = tabelle[kopfIndex] ?? [];
     const rest = tabelle.slice(kopfIndex + 1);
     const zuordnung = kopf.map(zelle => schluesselZuKopf(zelle));
+    const istListe = kopf.some(zelle => normiere(zelle) === normiere(ERSTELLT_SPALTE));
+    const listenSpalte = (name: string) => kopf.findIndex(zelle => normiere(zelle) === normiere(name));
+    const [erstelltSpalte, vordruckSpalte, erstellungSpalte] = [ERSTELLT_SPALTE, ...LISTEN_SPALTEN].map(listenSpalte);
     // Zwei Spalten für dasselbe Feld: die rechte gewinnt, das soll man erfahren.
     const doppelteSpalten = zuordnung.flatMap((schluessel, index) =>
         schluessel && zuordnung.indexOf(schluessel) !== index
@@ -495,13 +504,15 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
         if (werte.length > kopf.length && !trennerAmZeilenende) {
             fehler.unshift(`${werte.length} Felder, aber nur ${kopf.length} Spalten im Kopf. Steht ein Semikolon im Text? Dann die Zelle in Anführungszeichen setzen; die Werte sind sonst verrutscht`);
         }
-        zeilen.push({ zeile: index + kopfIndex + 2, eingabe, daten, fehler, hinweise });
+        const liste = istListe
+            ? { erstellt: (werte[erstelltSpalte ?? -1] ?? "").trim(), vordruck: (werte[vordruckSpalte ?? -1] ?? "").trim(), erstellung: (werte[erstellungSpalte ?? -1] ?? "").trim() }
+            : undefined;
+        zeilen.push({ zeile: index + kopfIndex + 2, eingabe, daten, fehler, hinweise, ...liste ? { liste } : {} });
     });
 
     // Doppelte Nummern: im Betriebsbuch muss jede Nummer eindeutig sein. Eine
     // wieder eingelesene Liste erstellter Vordrucke enthält Korrekturen und
     // frühere Übungen; dort ist die gleiche Nr. kein Konflikt.
-    const istListe = kopf.some(zelle => normiere(zelle) === normiere(ERSTELLT_SPALTE));
     const nachNummer = new Map<string, number[]>();
     for (const zeile of istListe ? [] : zeilen) {
         if (zeile.daten.nummer) {
@@ -516,7 +527,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
     }
 
     return {
-        zeilen, unbekannteSpalten, beispielZeilen, doppelteSpalten,
+        zeilen, unbekannteSpalten, beispielZeilen, doppelteSpalten, istListe,
         bekannteSpalten: zuordnung.filter(Boolean).length,
         kopfZeile: kopfIndex + 1
     };

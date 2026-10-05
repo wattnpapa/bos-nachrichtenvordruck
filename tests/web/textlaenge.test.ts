@@ -28,3 +28,26 @@ describe("Textlänge", () => {
         expect(pruefeTextlaenge(satz.repeat(20), "meldung")).toBeNull();
     });
 });
+
+describe("Prüfvermerk und Bögen", () => {
+    it("nennt verworfene und gekürzte Felder beim Namen", async () => {
+        const { pruefvermerk } = await import("../../web/src/textlaenge.js");
+        const { zuVordruckDaten } = await import("../../web/src/spalten.js");
+        const { daten, fehler } = zuVordruckDaten({ vorrang: "Eilig", inhalt: "Kurz.", absender: "A".repeat(120) });
+        expect(pruefvermerk(daten, "nachricht", fehler, false)).toBe("Prüfen: Absender gekürzt; Vorrang verworfen");
+    });
+
+    it("gibt bei „beide“ jedem Vordruck seine eigene Bogenzahl und seinen eigenen Vermerk", async () => {
+        const { bogenListe } = await import("../../web/src/textlaenge.js");
+        const { zuVordruckDaten } = await import("../../web/src/spalten.js");
+        const { daten, fehler } = zuVordruckDaten({ inhalt: satz.repeat(20) });
+        const boegen = bogenListe(daten, "beide", fehler, true);
+        const nachricht = boegen.filter(bogen => bogen.nur === "nachricht");
+        const meldung = boegen.filter(bogen => bogen.nur === "meldung");
+        expect(nachricht.length).toBeGreaterThan(meldung.length);
+        expect(meldung.every(bogen => !bogen.pruefvermerk)).toBe(true);
+        expect(boegen[0]?.nur).toBe("nachricht");
+        expect(boegen[1]?.nur).toBe("meldung");
+        expect(nachricht.map(bogen => bogen.blatt).at(-1)).toBe(`Blatt ${nachricht.length} von ${nachricht.length}`);
+    });
+});

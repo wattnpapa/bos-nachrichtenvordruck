@@ -132,11 +132,13 @@ function ladeBild(quelle: string): Promise<HTMLImageElement> {
 
 /**
  * Zeichnet die gewählten Vordrucke für `daten` untereinander auf `canvas`,
- * in der Breite des Canvas-Elements.
+ * in der Breite des Canvas-Elements. Bei „beide“ kann der Meldevordruck eigene
+ * Daten `meldung` haben, etwa einen anderen Prüfvermerk.
  */
-export async function zeichneBildvorschau(canvas: HTMLCanvasElement, daten: VordruckDaten, optionen: PdfOptionen): Promise<void> {
+export async function zeichneBildvorschau(canvas: HTMLCanvasElement, daten: VordruckDaten, optionen: PdfOptionen, meldung: VordruckDaten = daten): Promise<void> {
     // Wie die PDF: ohne Formular keine Herkunftszeile, dafür mit Druckversatz.
     daten.fusszeile = optionen.ohneHintergrund ? "" : HERKUNFT;
+    meldung.fusszeile = daten.fusszeile;
     const versatz = optionen.ohneHintergrund ? { x: optionen.versatzX ?? 0, y: optionen.versatzY ?? 0 } : { x: 0, y: 0 };
     const renderOptionen = { ohneHintergrund: optionen.ohneHintergrund };
     const seiten: Aufruf[][] = [];
@@ -144,7 +146,7 @@ export async function zeichneBildvorschau(canvas: HTMLCanvasElement, daten: Vord
         seiten.push(mitschreiben(pdf => zeichneNachrichtenvordruck(pdf, daten, renderOptionen)));
     }
     if (optionen.vordruck !== "nachricht") {
-        seiten.push(mitschreiben(pdf => zeichneMeldevordruck(pdf, daten, renderOptionen)));
+        seiten.push(mitschreiben(pdf => zeichneMeldevordruck(pdf, meldung, renderOptionen)));
     }
 
     // Breite der Spalte, nicht des Canvas: das wird am Desktop in der Höhe begrenzt und dadurch schmaler.

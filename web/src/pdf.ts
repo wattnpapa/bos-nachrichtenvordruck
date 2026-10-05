@@ -49,10 +49,12 @@ export function erzeugePdf(
     for (const daten of alle) {
         // Auf einen vorgedruckten Originalbogen gehört kein fremder Text.
         daten.fusszeile = optionen.ohneHintergrund ? "" : HERKUNFT;
-        if (optionen.vordruck !== "meldung") {
+        // Ein Bogen aus `bogenListe` kann bei „beide“ auf eine Art festgelegt sein.
+        const nur = (daten as VordruckDaten & { nur?: string }).nur;
+        if (optionen.vordruck !== "meldung" && nur !== "meldung") {
             stuecke.push({ zeichner: zeichneNachrichtenvordruck, daten });
         }
-        if (optionen.vordruck !== "nachricht") {
+        if (optionen.vordruck !== "nachricht" && nur !== "nachricht") {
             stuecke.push({ zeichner: zeichneMeldevordruck, daten });
         }
     }

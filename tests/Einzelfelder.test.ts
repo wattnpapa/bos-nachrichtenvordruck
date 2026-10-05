@@ -155,3 +155,28 @@ describe("Prüfvermerk und Blatt", () => {
         }
     });
 });
+
+describe("Umbruch an eigenen Bruchstellen", () => {
+    it("bricht eine Adresse am Schrägstrich um, ohne Trennstrich einzufügen", () => {
+        const { pdf, texte } = protokoll();
+        const daten = new VordruckDaten();
+        daten.inhalt = "https://www.example-ortsverband.de/einsatz/2026/lagemeldungen/abschnitt-nord/stand-0800.html";
+
+        zeichneNachrichtenvordruck(pdf, daten, { ohneHintergrund: true, ohneRahmen: true });
+
+        const zeilen = texte.filter(t => t.groesse === 12 && t.y > 75 && t.y < 151).map(t => t.text);
+        expect(zeilen.length).toBeGreaterThan(1);
+        expect(zeilen.join("")).toBe(daten.inhalt);
+    });
+
+    it("teilt den ersten Vermerk nicht zwischen Streifen und freier Fläche", () => {
+        const { pdf, texte } = protokoll();
+        const daten = new VordruckDaten();
+        daten.vermerke = "19:40 S2 informiert\n19:45 Rückruf";
+
+        zeichneNachrichtenvordruck(pdf, daten, { ohneHintergrund: true, ohneRahmen: true });
+
+        const zeilen = texte.filter(t => t.y > 170).map(t => t.text);
+        expect(zeilen).toContain("19:40 S2 informiert");
+    });
+});
