@@ -14,7 +14,7 @@ import {
 
 export type Schluessel =
     | "nummer" | "art" | "vorrang" | "weg" | "richtung" | "gespraechsnotiz"
-    | "empfaenger" | "anschrift" | "inhalt" | "absender" | "verfasser"
+    | "empfaenger" | "anschrift" | "betreff" | "inhalt" | "absender" | "verfasser"
     | "abfassungszeit" | "zeichen" | "funktion"
     | "quittungUhrzeit" | "quittungZeichen" | "quittungStelle" | "vermerke"
     | "aufnahmeDatum" | "aufnahmeUhrzeit" | "aufnahmeHdz"
@@ -54,6 +54,7 @@ export const SPALTEN: readonly Spalte[] = [
     { schluessel: "gespraechsnotiz", titel: "Gesprächsnotiz", beschreibung: "ja: Kästchen „Gesprächsnotiz“ ankreuzen.", beispiel: "nein", auswahl: JA_NEIN, breite: 14, nurNachricht: true },
     { schluessel: "empfaenger", titel: "Gegenstelle", beschreibung: "Rufname der Gegenstelle (Nachrichtenvordruck) bzw. Empfänger (Meldevordruck). Mehrere mit Semikolon trennen. Die Spalte darf auch „Empfänger“ heißen.", beispiel: "Heros Jever 21/10", breite: 24 },
     { schluessel: "anschrift", titel: "Anschrift", beschreibung: "Anschrift bzw. Stelle der Gegenstelle. Mehrere mit Semikolon trennen.", beispiel: "Technische Einsatzleitung", breite: 24, nurNachricht: true },
+    { schluessel: "betreff", titel: "Betreff", beschreibung: "Kurzer Betreff, steht in der Zeile „Inhalt“ neben der Beschriftung.", beispiel: "Erkundung B 211", breite: 20 },
     { schluessel: "inhalt", titel: "Inhalt", beschreibung: "Nachrichtentext. Zeilenumbrüche in der Zelle (Alt+Enter) werden übernommen.", beispiel: "Erkundung abgeschlossen. Zufahrt ist frei.", breite: 50 },
     { schluessel: "absender", titel: "Absender", beschreibung: "Rufname des Absenders.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
     { schluessel: "verfasser", titel: "Verfasser", beschreibung: "Verfasser; nur der Meldevordruck hat dafür ein Feld.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
@@ -103,7 +104,7 @@ for (const [alias, schluessel] of [
     ["nummer", "nummer"], ["nr.", "nummer"], ["lfdnr", "nummer"],
     ["weg", "weg"], ["uebermittlung", "weg"],
     ["rufname", "empfaenger"], ["empfaenger", "empfaenger"], ["an", "empfaenger"],
-    ["anschriften", "anschrift"], ["text", "inhalt"], ["nachricht", "inhalt"],
+    ["anschriften", "anschrift"], ["thema", "betreff"], ["text", "inhalt"], ["nachricht", "inhalt"],
     ["von", "absender"], ["dtg", "abfassungszeit"], ["handzeichen", "zeichen"],
     ["prio", "vorrang"], ["prioritaet", "vorrang"], ["dringlichkeit", "vorrang"],
     ["datumzeitgruppe", "abfassungszeit"], ["zeit", "abfassungszeit"], ["abfassung", "abfassungszeit"],
@@ -367,6 +368,7 @@ export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     daten.empfaenger = liste(eingabe.empfaenger);
     daten.anschriften = liste(eingabe.anschrift);
     // Windows-Zeilenenden aus Excel und CSV, sonst stehen sie als Zeichen im PDF.
+    daten.betreff = text("betreff");
     daten.inhalt = (eingabe.inhalt ?? "").replace(/\r\n?/g, "\n").trim();
     daten.absender = text("absender");
     daten.verfasser = text("verfasser");

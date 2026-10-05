@@ -793,7 +793,7 @@ function altFelder(eingabe: Eingabe): typeof SPALTEN[number][] {
     const gleicheStelle = (eingabe.empfaenger ?? "").trim() === (zuletzt.empfaenger ?? "").trim();
     const behalten = eingabe.richtung === "Eingang" && !gleicheStelle ? BEHALTEN_EINGANG : BEHALTEN_AUSGANG;
     return SPALTEN.filter(spalte => !behalten.includes(spalte.schluessel)
-        && !["nummer", "inhalt", "empfaenger", "anschrift"].includes(spalte.schluessel)
+        && !["nummer", "betreff", "inhalt", "empfaenger", "anschrift"].includes(spalte.schluessel)
         && !angefasst.has(spalte.schluessel)
         && (eingabe[spalte.schluessel] ?? "") !== (vorgaben[spalte.schluessel] ?? "")
         && eingabe[spalte.schluessel] === zuletzt[spalte.schluessel]);
