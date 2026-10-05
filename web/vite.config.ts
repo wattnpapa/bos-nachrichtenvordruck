@@ -13,6 +13,10 @@ function fassung(): string {
     let commit = "";
     try {
         commit = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+        // Gebaut aus einem geänderten Arbeitsbaum: Das soll die Fassung zeigen.
+        if (execSync("git status --porcelain", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim()) {
+            commit += ", geändert";
+        }
     } catch {
         commit = "";
     }

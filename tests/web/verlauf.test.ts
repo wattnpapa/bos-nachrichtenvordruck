@@ -59,6 +59,8 @@ describe("Einsatz und Fassungen", () => {
         expect(einsatzBeginn(nacht, null, jetzt)).toBe(jetzt - 30 * stunde);
         // Eine gesetzte Grenze geht vor.
         expect(einsatzBeginn(nacht, jetzt - 2 * stunde, jetzt)).toBe(jetzt - 2 * stunde);
+        // Eine gesetzte Grenze gilt auch über lange Pausen hinweg.
+        expect(einsatzBeginn([eintrag(jetzt - 40 * stunde, "1"), eintrag(jetzt - 20 * stunde, "2")], jetzt - 48 * stunde, jetzt)).toBe(jetzt - 48 * stunde);
     });
 
     it("unterscheidet Korrektur und erneuten Druck derselben Nr.", async () => {
@@ -91,5 +93,16 @@ describe("Einsatz und Fassungen", () => {
         expect(eintraege.map(e => [e.zeit, e.vordruck, e.zusatz, e.eingabe.nummer])).toEqual(gesichert.map(e => [e.zeit, e.vordruck, e.zusatz, e.eingabe.nummer]));
         expect(uebernimmEintraege(eintraege).neu).toBe(2);
         expect(uebernimmEintraege(eintraege).neu).toBe(0);
+    });
+});
+
+describe("Einsatzfolgen", () => {
+    it("trennt nach langer Pause und an der Grenze, nicht über eine Pause nach der Grenze", async () => {
+        const { einsatzFolgen } = await import("../../web/src/verlauf.js");
+        const h = 60 * 60 * 1000;
+        const t0 = Date.UTC(2026, 9, 1, 8);
+        const liste: Eintrag[] = [0, 1, 20, 21, 50].map(stunden => ({ zeit: new Date(t0 + stunden * h).toISOString(), eingabe: { nummer: String(stunden) } }));
+        expect(einsatzFolgen(liste, null)).toEqual([0, 0, 1, 1, 2]);
+        expect(einsatzFolgen(liste, t0 + 10 * h)).toEqual([0, 0, 1, 1, 1]);
     });
 });

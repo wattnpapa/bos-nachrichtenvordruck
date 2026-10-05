@@ -50,8 +50,13 @@ function setzeModus(modus: Modus): void {
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", farbe);
     erklaeren(modus);
     // Am Telefon steht die Erklärung erst nach einer Wahl: Beim ersten Besuch schiebt sie sonst die Maske unter den Bildschirm.
-    document.getElementById("modus-erklaerung")?.classList.add("gewechselt");
+    // Am Telefon nach einigen Sekunden wieder weg, damit die Maske nicht dauerhaft tiefer rückt.
+    const zeile = document.getElementById("modus-erklaerung");
+    zeile?.classList.add("gewechselt");
+    clearTimeout(erklaerungUhr);
+    erklaerungUhr = setTimeout(() => zeile?.classList.remove("gewechselt"), 8_000);
 }
+let erklaerungUhr: ReturnType<typeof setTimeout> | undefined;
 
 for (const knopf of document.querySelectorAll<HTMLButtonElement>(".anzeige-schalter button")) {
     knopf.addEventListener("click", () => setzeModus(knopf.dataset["modus"] as Modus));

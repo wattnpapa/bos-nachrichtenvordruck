@@ -141,17 +141,21 @@ export function listenEintraege(zeilen: readonly { eingabe: Eingabe; liste?: { e
     });
 }
 
+/** Ein Eintrag als Ganzes: Zeitpunkt auf die Minute, Vordruck, Druckfassung und Stand. */
+export function eintragKennung(eintrag: Eintrag): string {
+    return `${eintrag.zeit.slice(0, 16)}|${eintrag.vordruck ?? ""}|${eintrag.zusatz ?? ""}|${verlaufKennung(eintrag.eingabe)}`;
+}
+
 /**
  * Übernimmt Einträge in die Liste, zeitlich einsortiert. Ein Eintrag, der mit
- * Zeitpunkt (auf die Minute), Vordruck und Stand schon dasteht, kommt nicht
- * doppelt hinein.
+ * Zeitpunkt (auf die Minute), Vordruck, Druckfassung und Stand schon dasteht,
+ * kommt nicht doppelt hinein.
  */
 export function uebernimmEintraege(dazu: readonly Eintrag[]): Gemerkt {
     const bisher = ladeVerlauf();
-    const minute = (iso: string) => iso.slice(0, 16);
-    const schon = new Set(bisher.map(eintrag => `${minute(eintrag.zeit)}|${eintrag.vordruck ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
+    const schon = new Set(bisher.map(eintragKennung));
     const neu = dazu.filter(eintrag => {
-        const kennung = `${minute(eintrag.zeit)}|${eintrag.vordruck ?? ""}|${verlaufKennung(eintrag.eingabe)}`;
+        const kennung = eintragKennung(eintrag);
         if (schon.has(kennung)) {
             return false;
         }
@@ -167,11 +171,16 @@ export function uebernimmEintraege(dazu: readonly Eintrag[]): Gemerkt {
 export const EINSATZ_PAUSE = 12 * 60 * 60 * 1000;
 
 /**
- * Beginn des laufenden Einsatzes: die ausdrücklich gesetzte Grenze, sonst der
- * erste Eintrag einer Folge ohne Pause von `EINSATZ_PAUSE`, die bis jetzt
- * reicht. Liegt der letzte Eintrag länger zurück, beginnt der Einsatz jetzt.
+ * Beginn des laufenden Einsatzes: die ausdrücklich gesetzte Grenze („Neuer
+ * Einsatz“ oder „Einsatz fortsetzen“); sie gilt, bis sie geändert wird, auch
+ * über lange Pausen. Ohne Grenze der erste Eintrag einer Folge ohne Pause von
+ * `EINSATZ_PAUSE`, die bis jetzt reicht. Liegt der letzte Eintrag länger
+ * zurück, beginnt der Einsatz jetzt.
  */
 export function einsatzBeginn(liste: readonly Eintrag[], grenze: number | null, jetzt = Date.now()): number {
+    if (grenze !== null && grenze <= jetzt) {
+        return grenze;
+    }
     const zeiten = liste.map(eintrag => new Date(eintrag.zeit).getTime()).filter(zeit => !Number.isNaN(zeit)).sort((a, b) => b - a);
     let beginn = jetzt;
     let spaeter = jetzt;
@@ -182,7 +191,28 @@ export function einsatzBeginn(liste: readonly Eintrag[], grenze: number | null, 
         beginn = Math.min(beginn, zeit);
         spaeter = zeit;
     }
-    return grenze === null ? beginn : Math.max(beginn, grenze);
+    return beginn;
+}
+
+/**
+ * Je Eintrag die laufende Nummer seines Einsatzes, ab 0: neu nach einer Pause
+ * von `EINSATZ_PAUSE` vor der gesetzten Grenze und an der Grenze selbst.
+ */
+export function einsatzFolgen(liste: readonly Eintrag[], grenze: number | null): number[] {
+    let folge = 0;
+    let vorher = Number.NaN;
+    return liste.map(eintrag => {
+        const zeit = new Date(eintrag.zeit).getTime();
+        if (!Number.isNaN(vorher)) {
+            const ueberGrenze = grenze !== null && vorher < grenze && zeit >= grenze;
+            const pause = zeit - vorher > EINSATZ_PAUSE && (grenze === null || zeit < grenze);
+            if (ueberGrenze || pause) {
+                folge++;
+            }
+        }
+        vorher = zeit;
+        return folge;
+    });
 }
 
 /**
@@ -192,14 +222,12 @@ export function einsatzBeginn(liste: readonly Eintrag[], grenze: number | null, 
  */
 export function fassungen(liste: readonly Eintrag[], grenze: number | null): ("" | "Korrektur" | "erneut")[] {
     const gesehen = new Map<string, Set<string>>();
-    let vorher = Number.NEGATIVE_INFINITY;
-    return liste.map(eintrag => {
-        const zeit = new Date(eintrag.zeit).getTime();
+    const folgen = einsatzFolgen(liste, grenze);
+    return liste.map((eintrag, index) => {
         // Neuer Einsatz: nach langer Pause oder über die gesetzte Grenze hinweg.
-        if (zeit - vorher > EINSATZ_PAUSE || (grenze !== null && vorher < grenze && zeit >= grenze)) {
+        if (index > 0 && folgen[index] !== folgen[index - 1]) {
             gesehen.clear();
         }
-        vorher = zeit;
         const nummer = (eintrag.eingabe.nummer ?? "").trim();
         if (!nummer) {
             return "";

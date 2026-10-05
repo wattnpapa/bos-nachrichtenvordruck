@@ -387,6 +387,8 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 @media (min-width: 64rem) { .kurzmeldung { bottom: var(--r-4); } }
 /* Im flachen Querformat oben: unten läge sie über dem Feld, in dem getippt wird. */
 @media (max-height: 30rem) { .kurzmeldung { top: var(--r-2); bottom: auto; } }
+/* Nicht wie ein zweiter Knopf über der Sprungleiste: dünner Rahmen, Akzent nur links. */
+.kurzmeldung { border: var(--strich) solid var(--linie-stark); border-left: 6px solid var(--akzent); }
 
 /* Prüfübersicht: hoher Vorrang fällt auf, leere Auswahl ist als „leer“ gedämpft. */
 /* Rot bleibt den Fehlern vorbehalten; hoher Vorrang ist fett, Blitz zusätzlich mit Zeichen und Rahmen. */
@@ -700,3 +702,12 @@ table.uebersicht.meldung .nur-nachricht { display: none; }
 @media (max-width: 40rem) { .modus-erklaerung:not(.gewechselt) { display: none; } }
 /* Ein Vordruck ohne Text hat nichts zu prüfen: Die Leiste verdeckt dann nur die Felder darüber. */
 .maske.ohne-text .sprungleiste { visibility: hidden; pointer-events: none; }
+/* Einsatzgrenze über der Liste, abgesetzt von ihr. */
+.einsatz { margin: var(--r-3) 0 var(--r-4); padding-left: var(--r-3); border-left: 4px solid var(--linie-stark); }
+.einsatz .aktionen { margin-top: var(--r-2); gap: var(--r-4); }
+#einsatz-aufheben { margin-top: var(--r-3); }
+/* Gelöschte Liste: zwischen Wiederherstellen und Endgültig verwerfen mindestens 24 px. */
+.geloescht-knoepfe { display: flex; flex-wrap: wrap; gap: var(--r-2) var(--r-5); }
+.geloescht-knoepfe button.link { min-height: calc(var(--ziel-basis) + var(--ziel)); }
+/* Trennzeile in der Liste erstellter Vordrucke: hier beginnt ein anderer Einsatz. */
+table.uebersicht tr.einsatz-trenner td { font-weight: 700; color: var(--text-2); border-top: 3px solid var(--linie-stark); background: var(--flaeche-2); }

@@ -42,6 +42,17 @@
       // Gemerkt, damit der Start es nachholen kann, sobald es doch ankommt.
       window.bnvEntfernteBlaetter = [];
       for (var i = 0; i < blaetter.length; i++) if (!blaetter[i].sheet) { window.bnvEntfernteBlaetter.push(blaetter[i].href); blaetter[i].remove(); }
+      // Ohne Stylesheet gälte der dunkle Modus nur für den Seitengrund: Felder, Knöpfe und
+      // die Bildvorschau wären hell. Eine knappe Grundgestaltung hält sie dunkel.
+      if (window.bnvEntfernteBlaetter.length && /(nacht|dunkel)-modus/.test(document.documentElement.className)) {
+        var grund = document.createElement("style");
+        var nachtFarben = document.documentElement.classList.contains("nacht-modus");
+        var f = nachtFarben ? ["#221f16", "#2c281d", "#d8c39a", "#7a6a45"] : ["#0f1116", "#1a1d24", "#dfe3ea", "#566070"];
+        grund.textContent = "html,body{background:" + f[0] + ";color:" + f[2] + "}"
+          + "input,textarea,select,button,summary{background:" + f[1] + ";color:" + f[2] + ";border:2px solid " + f[3] + "}"
+          + "a{color:" + f[2] + "}canvas,iframe{filter:brightness(.35)}";
+        document.head.appendChild(grund);
+      }
       var mitSpeicher = navigator.serviceWorker && navigator.serviceWorker.controller;
       var kasten = document.createElement("div");
       kasten.id = "laedt-nicht";
@@ -355,20 +366,27 @@
             <details class="verlauf" id="verlauf" hidden>
               <summary>Erstellte Vordrucke <span class="stand" id="verlauf-zahl"></span></summary>
               <p class="nebentext">Liste auf diesem Gerät, zum Abgleich mit dem Betriebsbuch; maßgeblich bleibt der Papierbogen. Eingetragen wird, was heruntergeladen oder gedruckt wurde, nicht das Ansehen in einem neuen Tab. Es bleiben die letzten 1000; als CSV lässt sie sich sichern und wieder einlesen.</p>
+              <!-- Vor der Liste: Bei vielen Einträgen läge der Knopf sonst Bildschirme tiefer. -->
+              <div class="einsatz">
+                <p class="nebentext" id="einsatz-text"></p>
+                <div class="aktionen">
+                  <button type="button" id="einsatz-neu">Neuer Einsatz</button>
+                  <button type="button" id="einsatz-fortsetzen" hidden>Früheren Einsatz fortsetzen</button>
+                </div>
+                <p class="nebentext"><button type="button" class="link" id="einsatz-aufheben" hidden>Gesetzte Grenze aufheben</button></p>
+              </div>
               <div class="tabellen-scroll">
                 <table class="uebersicht">
                   <thead><tr><th>Zeit</th><th>Vordruck</th><th>Nr.</th><th>Richtung</th><th>Vorrang</th><th>Gegenstelle</th><th>Inhalt</th></tr></thead>
                   <tbody id="verlauf-liste"></tbody>
                 </table>
               </div>
-              <p class="nebentext" id="einsatz-stand"><span id="einsatz-text"></span> <button type="button" class="link" id="einsatz-aufheben" hidden>Grenze aufheben</button></p>
               <div class="aktionen">
-                <button type="button" id="einsatz-neu">Neuer Einsatz</button>
                 <button type="button" id="verlauf-csv">Liste als CSV</button>
                 <button type="button" class="abgesetzt gefahr" id="verlauf-loeschen">Liste löschen</button>
               </div>
             </details>
-            <p class="nebentext" id="verlauf-geloescht" role="status" hidden><span id="verlauf-geloescht-text">Liste gelöscht.</span> <button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button> · <button type="button" class="link gefahr" id="verlauf-verwerfen">Endgültig verwerfen</button></p>
+            <p class="nebentext" id="verlauf-geloescht" role="status" hidden><span id="verlauf-geloescht-text">Liste gelöscht.</span> <span class="geloescht-knoepfe"><button type="button" class="link" id="verlauf-wiederherstellen">Wiederherstellen</button> <button type="button" class="link gefahr" id="verlauf-verwerfen">Endgültig verwerfen</button></span></p>
           </div>
         </div>
       </section>

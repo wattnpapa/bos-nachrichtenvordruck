@@ -407,6 +407,8 @@ export interface TabellenErgebnis {
     }[];
     /** Die Datei ist eine gesicherte Liste erstellter Vordrucke (Spalte „Erstellt“). */
     istListe: boolean;
+    /** Spalten der Liste („Vordruck“, „Erstellung“) in einer gewöhnlichen Tabelle: Sie werden nicht ausgewertet. */
+    uebergangen: string[];
     /** Spalten des Kopfes, die einem Feld zugeordnet sind. */
     bekannteSpalten: number;
     /** Spaltenpaare für dasselbe Feld; genommen wird jeweils die rechte. */
@@ -530,6 +532,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
 
     return {
         zeilen, unbekannteSpalten, beispielZeilen, doppelteSpalten, istListe,
+        uebergangen: istListe ? [] : kopf.filter(zelle => LISTEN_SPALTEN.some(name => normiere(name) === normiere(zelle))).map(zelle => zelle.trim()),
         bekannteSpalten: zuordnung.filter(Boolean).length,
         kopfZeile: kopfIndex + 1
     };

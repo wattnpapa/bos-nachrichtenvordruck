@@ -51,3 +51,22 @@ describe("Prüfvermerk und Bögen", () => {
         expect(nachricht.map(bogen => bogen.blatt).at(-1)).toBe(`Blatt ${nachricht.length} von ${nachricht.length}`);
     });
 });
+
+describe("Betreff in der Zeile „Inhalt“", () => {
+    it("meldet einen Betreff, der erst neben Vermerk und Blattangabe gekürzt wird", async () => {
+        const { bogenListe, gekuerzteFelder, gekuerzteFelderAufBoegen } = await import("../../web/src/textlaenge.js");
+        const { zuVordruckDaten } = await import("../../web/src/spalten.js");
+        const { daten, fehler } = zuVordruckDaten({ betreff: "Sandsacknachschub Deich Nord, Sielhafen, Lage am Abschnitt B, Verpflegung Helfer", inhalt: satz.repeat(20) });
+        expect(gekuerzteFelder(daten, "nachricht")).not.toContain("Betreff");
+        const boegen = bogenListe(daten, "nachricht", fehler, true);
+        expect(boegen[0]?.pruefvermerk).toContain("Betreff gekürzt");
+        expect(gekuerzteFelderAufBoegen(boegen, "nachricht")).toContain("Betreff");
+    });
+
+    it("nennt im Meldevordruck keine Felder, die er nicht hat", async () => {
+        const { pruefvermerk } = await import("../../web/src/textlaenge.js");
+        const { zuVordruckDaten } = await import("../../web/src/spalten.js");
+        const { daten, fehler } = zuVordruckDaten({ vorrang: "Eilig", weg: "Fnuk", inhalt: "Kurz." });
+        expect(pruefvermerk(daten, "meldung", fehler, false)).toBe("Prüfen: Übermittlungsweg verworfen");
+    });
+});
