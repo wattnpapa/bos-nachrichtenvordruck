@@ -122,3 +122,20 @@ describe("Inhalt teilen", () => {
         expect(nachrichtenvordruckInhaltTeilen(pdf, "Kurz.")).toEqual(["Kurz."]);
     });
 });
+
+describe("Lange Wörter", () => {
+    it("trennt ein Wort, das breiter als die Zeile ist, mit Trennstrich", () => {
+        const { pdf, texte } = protokoll();
+        const daten = new VordruckDaten();
+        daten.vermerke = "Rückfrage Wasserschadenpumpeneinsatzabschnittsleitungsstellenvertretung erledigt";
+
+        zeichneNachrichtenvordruck(pdf, daten, { ohneHintergrund: true, ohneRahmen: true });
+
+        const zeilen = texte.filter(t => t.y > 170);
+        expect(zeilen.some(z => z.text.endsWith("-"))).toBe(true);
+        for (const zeile of zeilen) {
+            expect(zeile.x + zeile.breite).toBeLessThanOrEqual(142.6);
+        }
+        expect(zeilen.map(z => z.text).join(" ").replace(/- /g, "")).toContain("Wasserschadenpumpeneinsatzabschnittsleitungsstellenvertretung");
+    });
+});

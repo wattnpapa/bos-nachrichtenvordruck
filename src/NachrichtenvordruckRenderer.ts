@@ -8,7 +8,7 @@ import {
 import type { VordruckDaten } from "./VordruckDaten.js";
 import { zeichneFormular, type Formular } from "./formular.js";
 import { NACHRICHTENVORDRUCK_FORMULAR } from "./formularGeometrie.js";
-import { umbrechen, wirdGekuerzt, zeichneEinzeilig, zeichneInZelle, zeichneZeilenBegrenzt } from "./pdfText.js";
+import { trenneLangeWoerter, umbrechen, wirdGekuerzt, zeichneEinzeilig, zeichneInZelle, zeichneZeilenBegrenzt } from "./pdfText.js";
 
 /** Bilddaten, die `jsPDF.addImage` als Formularbild annimmt. */
 export type VordruckHintergrund = string | Uint8Array;
@@ -139,8 +139,10 @@ function vermerkeAufteilen(pdf: jsPDF, text: string): { erste: string; rest: str
     pdf.setFontSize(9);
     // Eigene Zeilenumbrüche bleiben: nur der erste Absatz beginnt im Streifen.
     const [absatz = "", ...weitere] = String(text).replace(/\\n/g, "\n").split(/\r?\n/);
-    const erste = (pdf.splitTextToSize(absatz, 22) as string[])[0] ?? "";
-    const restAbsatz = absatz.slice(absatz.indexOf(erste) + erste.length).trim();
+    const erste = (pdf.splitTextToSize(trenneLangeWoerter(pdf, absatz, 22), 22) as string[])[0] ?? "";
+    // Endet die erste Zeile mit einem Trennstrich, geht das Wort in der nächsten Zeile weiter.
+    const verbraucht = erste.endsWith("-") && !absatz.startsWith(erste) ? erste.slice(0, -1) : erste;
+    const restAbsatz = absatz.slice(absatz.indexOf(verbraucht) + verbraucht.length).trim();
     return { erste, rest: [restAbsatz, ...weitere].filter((zeile, index) => index > 0 || zeile).join("\n").trim() };
 }
 

@@ -126,7 +126,30 @@ export function zeichneInZelle(pdf: jsPDF, options: {
 export function umbrechen(pdf: jsPDF, text: string, maxWidth: number, fontSize: number): string[] {
     pdf.setFontSize(fontSize);
     return String(text).replace(/\\n/g, "\n").split("\n").flatMap(absatz =>
-        absatz.trim() === "" ? [""] : pdf.splitTextToSize(absatz, maxWidth) as string[]);
+        absatz.trim() === "" ? [""] : pdf.splitTextToSize(trenneLangeWoerter(pdf, absatz, maxWidth), maxWidth) as string[]);
+}
+
+/**
+ * Wörter, die breiter als eine Zeile sind, in Stücke mit Trennstrich teilen,
+ * statt sie ohne Zeichen zu zerreißen: „Wasserschadenpumpen-“ / „einsatz“.
+ */
+export function trenneLangeWoerter(pdf: jsPDF, absatz: string, maxWidth: number): string {
+    return absatz.replace(/\S+/g, wort => {
+        if (pdf.getTextWidth(wort) <= maxWidth) {
+            return wort;
+        }
+        const stuecke: string[] = [];
+        let rest = wort;
+        while (pdf.getTextWidth(rest) > maxWidth) {
+            let laenge = rest.length - 1;
+            while (laenge > 1 && pdf.getTextWidth(`${rest.slice(0, laenge)}-`) > maxWidth) {
+                laenge--;
+            }
+            stuecke.push(`${rest.slice(0, laenge)}-`);
+            rest = rest.slice(laenge);
+        }
+        return [...stuecke, rest].join(" ");
+    });
 }
 
 /**
