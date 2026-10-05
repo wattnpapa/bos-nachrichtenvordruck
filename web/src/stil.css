@@ -555,7 +555,8 @@ footer.seite {
 /* Nachts ist man meist draußen: die großen Tippziele des Feld-Modus gelten mit. */
 .nacht-modus { --ziel: 0.25rem; }
 /* Der Primärknopf wäre sonst die hellste Fläche im Bild. */
-.nacht-modus button.primaer { filter: brightness(0.85); }
+/* Nachts ohne Helligkeitsfilter: Er senkte den Kontrast der Schrift auf etwa 3,9:1, ohne Filter rund 5:1. */
+.nacht-modus button.primaer { filter: none; }
 .nacht-modus input[type="checkbox"], .nacht-modus input[type="radio"] { width: 1.7rem; height: 1.7rem; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -678,3 +679,4 @@ table.uebersicht.meldung .nur-nachricht { display: none; }
 .oben-zuruecknahme { margin: 0 0 var(--r-3); }
 /* Tabellenweg: Download und Vorschau mit Abstand wie im Einzelweg. */
 .ergebnis .aktionen { gap: var(--r-4); }
+@media (max-width: 40rem) { .wiederkehrend .modus-erklaerung { display: none; } }

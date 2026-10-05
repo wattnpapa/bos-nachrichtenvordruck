@@ -166,10 +166,18 @@
             <p class="oben-zuruecknahme" hidden><button type="button" class="link" id="oben-rueckgaengig"></button></p>
             <section class="karte">
               <h3>Kopf</h3>
+              <!-- Nr. und Gegenstelle zuerst: die Felder, die bei jeder Nachricht neu sind, auf dem ersten Bildschirm. -->
               <div class="zeile">
                 <label class="feld schmal">Nr.
                   <input name="nummer" inputmode="numeric" />
                 </label>
+                <label class="feld"><span id="empfaenger-titel">Rufname der Gegenstelle</span>
+                  <input name="empfaenger" placeholder="z. B. Heros Jever 21/10" />
+                </label>
+              </div>
+              <p class="hinweis" data-nur="nachricht">Gegenstelle: bei Ausgang die Station, an die gesendet wird, bei Eingang die Station, von der die Nachricht kommt. Mehrere mit Semikolon trennen.</p>
+              <p class="hinweis" data-nur="meldung">Mehrere Empfänger mit Semikolon trennen.</p>
+              <div class="zeile">
                 <label class="feld mittel">Übermittlungsweg
                   <select name="weg">
                     <option value="">–</option>
@@ -185,7 +193,7 @@
               <p class="hinweis" id="richtung-hinweis"></p>
             </section>
 
-            <section class="karte">
+            <section class="karte" data-nur="nachricht">
               <h3 id="spruchkopf-titel">Spruchkopf</h3>
               <div class="zeile" data-nur="nachricht">
                 <label class="feld mittel">Art
@@ -203,16 +211,11 @@
                 <label class="inline unten"><input type="checkbox" name="gespraechsnotiz" value="ja" /> Gesprächsnotiz</label>
               </div>
               <div class="zeile">
-                <label class="feld"><span id="empfaenger-titel">Rufname der Gegenstelle</span>
-                  <input name="empfaenger" placeholder="z. B. Heros Jever 21/10" />
-                </label>
-                <label class="feld" data-nur="nachricht">Anschrift
+                <label class="feld">Anschrift
                   <input name="anschrift" placeholder="z. B. Technische Einsatzleitung" />
                 </label>
               </div>
-              <p class="hinweis" data-nur="nachricht">Gegenstelle: bei Ausgang die Station, an die gesendet wird, bei Eingang die Station, von der die Nachricht kommt.</p>
-              <p class="hinweis" data-nur="nachricht">Mehrere Rufnamen oder Anschriften mit Semikolon trennen.</p>
-              <p class="hinweis" data-nur="meldung">Mehrere Empfänger mit Semikolon trennen.</p>
+              <p class="hinweis">Mehrere Anschriften mit Semikolon trennen.</p>
             </section>
 
             <section class="karte">

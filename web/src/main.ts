@@ -87,7 +87,7 @@ function frageWahl(text: string, ja: string, nein = "Abbrechen", dritte = ""): P
         if (dialog.open) {
             element<HTMLButtonElement>("frage-nein").focus();
         }
-    }, 600);
+    }, 800);
     return new Promise(fertig => dialog.addEventListener("close", () => {
         const wert = dialog.returnValue;
         fertig(wert === "ja" || wert === "dritte" ? wert : "nein");
@@ -875,6 +875,9 @@ function einzelPruefen() {
     if (ausgeblendet.length > 0) {
         hinweise.push(`${aufzaehlen(ausgeblendet.map(spalte => spalte.titel))} ${ausgeblendet.length === 1 ? `gehört nur zum ${optionen().vordruck === "meldung" ? "Nachrichtenvordruck" : "Meldevordruck"}; das Feld ist ausgeblendet und bleibt gespeichert` : `gehören nur zum ${optionen().vordruck === "meldung" ? "Nachrichtenvordruck" : "Meldevordruck"}; die Felder sind ausgeblendet und bleiben gespeichert`}`);
     }
+    if (verlauf.length >= HOECHSTENS && daten.inhalt) {
+        hinweise.push(`Die Liste erstellter Vordrucke ist voll (${HOECHSTENS}); mit diesem PDF fällt der älteste Eintrag heraus. Vorher „Liste als CSV“ sichern`);
+    }
     const zeilen = [
         ...wichtig.map(text => ({ text, wichtig: true })),
         ...hinweise.map(text => ({ text, wichtig: false })),
@@ -1652,7 +1655,10 @@ function fehltIn(betroffen: readonly TabellenErgebnis["zeilen"][number][], was: 
 
 /** Zeilen, die genau so schon erstellt wurden, etwa beim erneuten Einlesen derselben Tabelle. */
 function schonGleichErstellt(zeilen: readonly { zeile: number; eingabe: Eingabe }[]): string {
-    const erstellt = new Map(verlauf.map(eintrag => [verlaufKennung(eintrag.eingabe), eintrag.zeit]));
+    // Nur dieselbe Vordruckart zählt: als Meldevordruck ist derselbe Stand ein neuer Bogen.
+    const { vordruck } = optionen();
+    const erstellt = new Map(verlauf.filter(eintrag => !eintrag.vordruck || eintrag.vordruck === vordruck)
+        .map(eintrag => [verlaufKennung(eintrag.eingabe), eintrag.zeit]));
     const gleich = zeilen.filter(zeile => erstellt.has(verlaufKennung(zeile.eingabe)));
     if (gleich.length === 0) {
         return "";
@@ -1876,7 +1882,10 @@ function tabelleAnzeigen(): void {
     const anzahl = zeilen.length * (vordruck === "beide" ? 2 : 1);
     // „Ohne Formular“ ist eine gemerkte Einstellung; am Knopf soll sie nicht überraschen.
     const ohne = optionen().ohneHintergrund ? ", ohne Formular" : "";
-    pdfKnopf.textContent = `PDF herunterladen (${anzahl} ${anzahl === 1 ? "Vordruck" : "Vordrucke"}${ohne})`;
+    // Mit langen Texten: wie viele es beim Verteilen auf Folgebögen werden.
+    const verteilt = zeilen.reduce((summe, zeile) => summe + (istKritisch(pruefeTextlaenge(zeile.daten.inhalt, vordruck))
+        ? teileInhalt(zeile.daten.inhalt, vordruck).length : 1), 0) * (vordruck === "beide" ? 2 : 1);
+    pdfKnopf.textContent = `PDF herunterladen (${anzahl} ${anzahl === 1 ? "Vordruck" : "Vordrucke"}${verteilt > anzahl ? `, verteilt ${verteilt}` : ""}${ohne})`;
     element<HTMLButtonElement>("tabelle-oeffnen").disabled = zeilen.length === 0;
 }
 
@@ -1964,6 +1973,7 @@ element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", async ereign
             }
             const lang = istKritisch(pruefeTextlaenge(zeile.daten.inhalt, vordruck));
             return [
+                `aus ${dateiName}`,
                 zeile.fehler.length > 0 ? "mit Fehlern gedruckt" : "",
                 lang && verteilen ? `auf ${teileInhalt(zeile.daten.inhalt, vordruck).length} Vordrucke verteilt`
                     : lang || gekuerztMeldung(zeile.daten, vordruck) ? "gekürzt gedruckt" : ""
