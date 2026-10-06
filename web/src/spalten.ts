@@ -14,7 +14,7 @@ import {
 
 export type Schluessel =
     | "nummer" | "art" | "vorrang" | "weg" | "richtung" | "gespraechsnotiz"
-    | "empfaenger" | "anschrift" | "betreff" | "inhalt" | "absender" | "verfasser"
+    | "empfaenger" | "anschrift" | "betreff" | "inhalt" | "absender"
     | "abfassungszeit" | "zeichen" | "funktion"
     | "quittungUhrzeit" | "quittungZeichen" | "quittungStelle" | "vermerke"
     | "aufnahmeDatum" | "aufnahmeUhrzeit" | "aufnahmeHdz"
@@ -57,7 +57,6 @@ export const SPALTEN: readonly Spalte[] = [
     { schluessel: "betreff", titel: "Betreff", beschreibung: "Kurzer Betreff, steht in der Zeile „Inhalt“ neben der Beschriftung.", beispiel: "Erkundung B 211", breite: 20 },
     { schluessel: "inhalt", titel: "Inhalt", beschreibung: "Nachrichtentext. Zeilenumbrüche in der Zelle (Alt+Enter) werden übernommen.", beispiel: "Erkundung abgeschlossen. Zufahrt ist frei.", breite: 50 },
     { schluessel: "absender", titel: "Absender", beschreibung: "Rufname des Absenders.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
-    { schluessel: "verfasser", titel: "Verfasser", beschreibung: "Verfasser; nur der Meldevordruck hat dafür ein Feld.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
     { schluessel: "abfassungszeit", titel: "Abfassungszeit", beschreibung: "Datum-Zeit-Gruppe, z. B. TTHHMMmonJJ.", beispiel: "031415okt26", breite: 15 },
     { schluessel: "zeichen", titel: "Zeichen", beschreibung: "Handzeichen des Verfassers.", beispiel: "JR", breite: 9, nurNachricht: true },
     { schluessel: "funktion", titel: "Funktion", beschreibung: "Funktion des Verfassers.", beispiel: "S 2", breite: 10, nurNachricht: true },
@@ -371,7 +370,8 @@ export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     daten.betreff = text("betreff");
     daten.inhalt = (eingabe.inhalt ?? "").replace(/\r\n?/g, "\n").trim();
     daten.absender = text("absender");
-    daten.verfasser = text("verfasser");
+    // Verfasser und Absender sind dieselbe Stelle; der Meldevordruck druckt beides.
+    daten.verfasser = daten.absender;
 
     daten.abfassungszeit = text("abfassungszeit");
     daten.zeichen = text("zeichen");

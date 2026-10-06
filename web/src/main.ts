@@ -387,7 +387,7 @@ const vorgaben = vorgabenLesen();
 // gleich bleiben. Alles andere gehört zur Nachricht und wird geleert, damit
 // nichts davon unbemerkt auf dem nächsten Bogen landet. Nach einem Ausgang sind
 // Absender, Zeichen und Funktion die eigenen, nach einem Eingang die der Gegenstelle.
-const BEHALTEN_AUSGANG: readonly Schluessel[] = ["weg", "richtung", "absender", "verfasser", "zeichen", "funktion", "titel", "hinweis"];
+const BEHALTEN_AUSGANG: readonly Schluessel[] = ["weg", "richtung", "absender", "zeichen", "funktion", "titel", "hinweis"];
 const BEHALTEN_EINGANG: readonly Schluessel[] = ["weg", "richtung", "titel", "hinweis"];
 
 /**
