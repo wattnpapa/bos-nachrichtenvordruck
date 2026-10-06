@@ -128,7 +128,7 @@ function leseZeitpunkt(text: string): Date | null {
  * Einträge aus einer wieder eingelesenen Liste (Spalten „Erstellt“, „Vordruck“,
  * „Erstellung“). Zeilen ohne lesbaren Zeitpunkt fehlen.
  */
-export function listenEintraege(zeilen: readonly { eingabe: Eingabe; liste?: { erstellt: string; vordruck: string; erstellung: string } }[]): Eintrag[] {
+export function listenEintraege(zeilen: readonly { eingabe: Eingabe; liste?: { erstellt: string; vordruck: string; erstellung: string; einsatz?: string } }[]): Eintrag[] {
     const art = Object.fromEntries(Object.entries(VORDRUCK).map(([schluessel, name]) => [name.toLowerCase(), schluessel]));
     return zeilen.flatMap(zeile => {
         const zeit = zeile.liste ? leseZeitpunkt(zeile.liste.erstellt) : null;
@@ -171,21 +171,44 @@ export function uebernimmEintraege(dazu: readonly Eintrag[]): Gemerkt {
 export const EINSATZ_PAUSE = 12 * 60 * 60 * 1000;
 
 /**
- * Beginn des laufenden Einsatzes: die ausdrücklich gesetzte Grenze („Neuer
- * Einsatz“ oder „Einsatz fortsetzen“); sie gilt, bis sie geändert wird, auch
- * über lange Pausen. Ohne Grenze der erste Eintrag einer Folge ohne Pause von
- * `EINSATZ_PAUSE`, die bis jetzt reicht. Liegt der letzte Eintrag länger
+ * Was der Helfer zur Einsatzgrenze gesagt hat. `grenzen`: „Neuer Einsatz“ zu
+ * diesen Zeitpunkten (ms). `bruecken`: Zeitpunkte von Einträgen, nach denen eine
+ * Pause von mehr als zwölf Stunden den Einsatz nicht beendet („Einsatz
+ * fortsetzen“).
+ */
+export interface Einsatzstand {
+    grenzen: number[];
+    bruecken: number[];
+}
+
+export const OHNE_GRENZE: Einsatzstand = { grenzen: [], bruecken: [] };
+
+/** Beide Stände zusammen, ohne Doppel, aufsteigend. */
+export function einsatzVereinen(a: Einsatzstand, b: Einsatzstand): Einsatzstand {
+    const vereint = (x: readonly number[], y: readonly number[]) => [...new Set([...x, ...y])].sort((m, n) => m - n);
+    return { grenzen: vereint(a.grenzen, b.grenzen), bruecken: vereint(a.bruecken, b.bruecken) };
+}
+
+/**
+ * Beginn des laufenden Einsatzes: der erste Eintrag einer Folge ohne Pause von
+ * `EINSATZ_PAUSE`, die bis jetzt reicht, höchstens bis zur letzten gesetzten
+ * Grenze. Die Grenze zählt dabei wie ein Eintrag: Auch sie läuft nach zwölf
+ * Stunden ohne Vordruck ab. `liste` darf mehr als erstellte Vordrucke enthalten
+ * (etwa Einträge der Ablage): Wer arbeitet, ist im Einsatz. Liegt alles länger
  * zurück, beginnt der Einsatz jetzt.
  */
-export function einsatzBeginn(liste: readonly Eintrag[], grenze: number | null, jetzt = Date.now()): number {
-    if (grenze !== null && grenze <= jetzt) {
-        return grenze;
+export function einsatzBeginn(liste: readonly { zeit: string }[], stand: Einsatzstand = OHNE_GRENZE, jetzt = Date.now()): number {
+    const grenze = Math.max(Number.NEGATIVE_INFINITY, ...stand.grenzen.filter(zeit => zeit <= jetzt));
+    const punkte = liste.map(eintrag => new Date(eintrag.zeit).getTime())
+        .filter(zeit => !Number.isNaN(zeit) && zeit >= grenze && zeit <= jetzt);
+    if (Number.isFinite(grenze)) {
+        punkte.push(grenze);
     }
-    const zeiten = liste.map(eintrag => new Date(eintrag.zeit).getTime()).filter(zeit => !Number.isNaN(zeit)).sort((a, b) => b - a);
+    punkte.sort((a, b) => b - a);
     let beginn = jetzt;
     let spaeter = jetzt;
-    for (const zeit of zeiten) {
-        if (spaeter - zeit > EINSATZ_PAUSE) {
+    for (const zeit of punkte) {
+        if (spaeter - zeit > EINSATZ_PAUSE && !stand.bruecken.includes(zeit)) {
             break;
         }
         beginn = Math.min(beginn, zeit);
@@ -195,17 +218,17 @@ export function einsatzBeginn(liste: readonly Eintrag[], grenze: number | null, 
 }
 
 /**
- * Je Eintrag die laufende Nummer seines Einsatzes, ab 0: neu nach einer Pause
- * von `EINSATZ_PAUSE` vor der gesetzten Grenze und an der Grenze selbst.
+ * Je Eintrag die laufende Nummer seines Einsatzes, ab 0: neu an einer Grenze und
+ * nach einer Pause von `EINSATZ_PAUSE`, außer sie ist überbrückt.
  */
-export function einsatzFolgen(liste: readonly Eintrag[], grenze: number | null): number[] {
+export function einsatzFolgen(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE): number[] {
     let folge = 0;
     let vorher = Number.NaN;
     return liste.map(eintrag => {
         const zeit = new Date(eintrag.zeit).getTime();
         if (!Number.isNaN(vorher)) {
-            const ueberGrenze = grenze !== null && vorher < grenze && zeit >= grenze;
-            const pause = zeit - vorher > EINSATZ_PAUSE && (grenze === null || zeit < grenze);
+            const ueberGrenze = stand.grenzen.some(grenze => vorher < grenze && grenze <= zeit);
+            const pause = zeit - vorher > EINSATZ_PAUSE && !stand.bruecken.includes(vorher);
             if (ueberGrenze || pause) {
                 folge++;
             }
@@ -220,11 +243,11 @@ export function einsatzFolgen(liste: readonly Eintrag[], grenze: number | null):
  * Gegenstelle im selben Einsatz ist: „Korrektur“ bei anderem Stand, „erneut“
  * bei gleichem Stand in anderer Druckform. Sonst leer.
  */
-export function fassungen(liste: readonly Eintrag[], grenze: number | null): ("" | "Korrektur" | "erneut")[] {
+export function fassungen(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE): ("" | "Korrektur" | "erneut")[] {
     const gesehen = new Map<string, Set<string>>();
-    const folgen = einsatzFolgen(liste, grenze);
+    const folgen = einsatzFolgen(liste, stand);
     return liste.map((eintrag, index) => {
-        // Neuer Einsatz: nach langer Pause oder über die gesetzte Grenze hinweg.
+        // Neuer Einsatz: nach langer Pause oder über eine gesetzte Grenze hinweg.
         if (index > 0 && folgen[index] !== folgen[index - 1]) {
             gesehen.clear();
         }
@@ -242,10 +265,37 @@ export function fassungen(liste: readonly Eintrag[], grenze: number | null): (""
 }
 
 /**
+ * Der Einsatzstand, den eine gesicherte Liste mitbringt (Spalte „Einsatz“):
+ * neue Nummer des Einsatzes ergibt eine Grenze, dieselbe Nummer über eine
+ * lange Pause hinweg eine Brücke.
+ */
+export function listenEinsatz(zeilen: readonly { eingabe: Eingabe; liste?: { erstellt: string; einsatz?: string } }[]): Einsatzstand {
+    const reihe = zeilen.flatMap(zeile => {
+        const zeit = zeile.liste ? leseZeitpunkt(zeile.liste.erstellt) : null;
+        const folge = zeile.liste?.einsatz?.trim();
+        return zeit && folge ? [{ zeit: zeit.getTime(), folge }] : [];
+    }).sort((a, b) => a.zeit - b.zeit);
+    const stand: Einsatzstand = { grenzen: [], bruecken: [] };
+    reihe.forEach((eintrag, index) => {
+        const vorher = reihe[index - 1];
+        if (!vorher) {
+            return;
+        }
+        if (vorher.folge !== eintrag.folge) {
+            stand.grenzen.push(eintrag.zeit);
+        } else if (eintrag.zeit - vorher.zeit > EINSATZ_PAUSE) {
+            stand.bruecken.push(vorher.zeit);
+        }
+    });
+    return stand;
+}
+
+/**
  * CSV im Format der Vorlage, damit sie im Reiter „Aus Excel oder CSV“ wieder
  * eingelesen werden kann; vorn steht, wann der Vordruck erstellt wurde.
  */
-export function verlaufAlsCsv(liste: readonly Eintrag[]): string {
+export function verlaufAlsCsv(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE): string {
+    const folgen = einsatzFolgen(liste, stand);
     const zwei = (zahl: number) => String(zahl).padStart(2, "0");
     const zeitpunkt = (iso: string) => {
         const zeit = new Date(iso);
@@ -253,10 +303,11 @@ export function verlaufAlsCsv(liste: readonly Eintrag[]): string {
     };
     return schreibeCsv([
         [ERSTELLT_SPALTE, ...LISTEN_SPALTEN, ...SPALTEN.map(spalte => spalte.titel)],
-        ...liste.map(eintrag => [
+        ...liste.map((eintrag, index) => [
             zeitpunkt(eintrag.zeit),
             VORDRUCK[eintrag.vordruck ?? ""] ?? "",
             eintrag.zusatz ?? "",
+            String((folgen[index] ?? 0) + 1),
             ...SPALTEN.map(spalte => eintrag.eingabe[spalte.schluessel] ?? "")
         ])
     ]);

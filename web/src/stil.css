@@ -712,3 +712,11 @@ table.uebersicht.meldung .nur-nachricht { display: none; }
 .geloescht-knoepfe button.link { min-height: calc(var(--ziel-basis) + var(--ziel)); }
 /* Trennzeile in der Liste erstellter Vordrucke: hier beginnt ein anderer Einsatz. */
 table.uebersicht tr.einsatz-trenner td { font-weight: 700; color: var(--text-2); border-top: 3px solid var(--linie-stark); background: var(--flaeche-2); }
+/* Meldung zu einer eben getippten Wahl (Richtung, Einsatz): deutlich vom festen Erklärtext darüber abgesetzt. */
+.hinweis.wichtig, .nebentext.wichtig { color: var(--text); font-weight: 700; font-size: var(--t-s); border-left: 4px solid var(--akzent); padding-left: var(--r-2); }
+/* Trennzeile in der Liste: am Telefon über die ganze Breite der Karten, nicht in ihrem Raster. */
+@media (max-width: 40rem) {
+  table.uebersicht tr.einsatz-trenner { display: block; width: 100%; padding: var(--r-2) 0; border-left: none; border-right: none; background: var(--flaeche-2); }
+  table.uebersicht tr.einsatz-trenner td { display: block; width: 100%; padding: 0.15rem 0.5rem; }
+  table.uebersicht tr.einsatz-trenner td::before { content: none; }
+}

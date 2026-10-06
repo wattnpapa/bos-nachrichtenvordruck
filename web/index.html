@@ -34,25 +34,48 @@
     // nicht aufhält; deshalb mit eigenen Stilen und fest oben im Bild.
     // Wer vor dem Start schon tippt, dessen Text soll der Start nicht überschreiben.
     document.addEventListener("input", function () { window.bnvVorStartGetippt = !window.bnvGestartet; }, true);
+    // Ohne Stylesheet gälte der dunkle Modus nur für den Seitengrund: Felder, Knöpfe, Meldungen
+    // und die Bildvorschau wären hell. Eine knappe Grundgestaltung hält sie dunkel, gleich welcher
+    // Modus gerade gewählt ist; sie fällt weg, sobald das Stylesheet doch ankommt.
+    window.bnvEntfernteBlaetter = [];
+    window.bnvNotStil = function () {
+      if (document.getElementById("bnv-notstil")) return;
+      var nacht = ["#221f16", "#2c281d", "#d8c39a", "#7a6a45"], dunkel = ["#0f1116", "#1a1d24", "#dfe3ea", "#566070"];
+      function regeln(klasse, f) {
+        var k = "html." + klasse + "-modus ";
+        return k + "{background:" + f[0] + ";color:" + f[2] + "}"
+          + k + "body{background:" + f[0] + ";color:" + f[2] + "}"
+          + k + "input," + k + "textarea," + k + "select," + k + "button," + k + "summary{background:" + f[1] + ";color:" + f[2] + ";border:2px solid " + f[3] + "}"
+          + k + ".kurzmeldung{background:" + f[1] + ";color:" + f[2] + ";border-color:" + f[2] + "}"
+          + k + "a{color:" + f[2] + "}" + k + "canvas," + k + "iframe{filter:brightness(.35)}";
+      }
+      var stil = document.createElement("style");
+      stil.id = "bnv-notstil";
+      stil.textContent = regeln("nacht", nacht)
+        + regeln("dunkel", dunkel)
+        // Der Satz „Vorschau abgedunkelt“ gehört nur zu den dunklen Modi.
+        + "html:not(.nacht-modus):not(.dunkel-modus) .nur-dunkel{display:none}";
+      document.head.appendChild(stil);
+    };
+    // Bricht ein Stylesheet sofort ab (statt zu hängen), ist das schon vor dem Start bekannt.
+    document.addEventListener("error", function (e) {
+      var t = e.target;
+      // Ein von der App erneut angeforderter Versuch (data-nachgeholt) meldet seinen Fehler selbst.
+      if (t && t.tagName === "LINK" && t.rel === "stylesheet" && !t.hasAttribute("data-nachgeholt")) {
+        window.bnvEntfernteBlaetter.push(t.href);
+        t.parentNode && t.parentNode.removeChild(t);
+        window.bnvNotStil();
+        if (window.bnvNachholen) window.bnvNachholen();
+      }
+    }, true);
     window.bnvLadeUhr = setTimeout(function () {
       if (window.bnvGestartet) return;
       // Ein hängendes Stylesheet hält jede Anzeige auf; ohne es zeigt der Browser
       // wenigstens diese Meldung und das Formular in Grundform.
       var blaetter = document.querySelectorAll('link[rel="stylesheet"]');
       // Gemerkt, damit der Start es nachholen kann, sobald es doch ankommt.
-      window.bnvEntfernteBlaetter = [];
       for (var i = 0; i < blaetter.length; i++) if (!blaetter[i].sheet) { window.bnvEntfernteBlaetter.push(blaetter[i].href); blaetter[i].remove(); }
-      // Ohne Stylesheet gälte der dunkle Modus nur für den Seitengrund: Felder, Knöpfe und
-      // die Bildvorschau wären hell. Eine knappe Grundgestaltung hält sie dunkel.
-      if (window.bnvEntfernteBlaetter.length && /(nacht|dunkel)-modus/.test(document.documentElement.className)) {
-        var grund = document.createElement("style");
-        var nachtFarben = document.documentElement.classList.contains("nacht-modus");
-        var f = nachtFarben ? ["#221f16", "#2c281d", "#d8c39a", "#7a6a45"] : ["#0f1116", "#1a1d24", "#dfe3ea", "#566070"];
-        grund.textContent = "html,body{background:" + f[0] + ";color:" + f[2] + "}"
-          + "input,textarea,select,button,summary{background:" + f[1] + ";color:" + f[2] + ";border:2px solid " + f[3] + "}"
-          + "a{color:" + f[2] + "}canvas,iframe{filter:brightness(.35)}";
-        document.head.appendChild(grund);
-      }
+      if (window.bnvEntfernteBlaetter.length) window.bnvNotStil();
       var mitSpeicher = navigator.serviceWorker && navigator.serviceWorker.controller;
       var kasten = document.createElement("div");
       kasten.id = "laedt-nicht";
@@ -375,7 +398,7 @@
                   <button type="button" id="einsatz-neu">Neuer Einsatz</button>
                   <button type="button" id="einsatz-fortsetzen" hidden>Früheren Einsatz fortsetzen</button>
                 </div>
-                <p class="nebentext"><button type="button" class="link" id="einsatz-aufheben" hidden>Gesetzte Grenze aufheben</button></p>
+                <p class="nebentext wichtig" id="einsatz-meldung" role="status" hidden></p>
               </div>
               <div class="tabellen-scroll">
                 <table class="uebersicht">

@@ -11,7 +11,7 @@ const liste: Eintrag[] = [
 describe("Liste erstellter Vordrucke", () => {
     it("lässt sich als CSV im Format der Vorlage wieder einlesen", () => {
         const csv = verlaufAlsCsv(liste);
-        expect(csv.split("\r\n")[0]).toMatch(/^\uFEFF?Erstellt;Vordruck;Erstellung;Nr;/);
+        expect(csv.split("\r\n")[0]).toMatch(/^\uFEFF?Erstellt;Vordruck;Erstellung;Einsatz;Nr;/);
         const { zeilen, unbekannteSpalten } = leseTabelle(leseCsv(csv));
         expect(unbekannteSpalten).toEqual([]);
         expect(zeilen.map(zeile => [zeile.daten.nummer, zeile.daten.inhalt, zeile.daten.vorrang])).toEqual([
@@ -50,17 +50,22 @@ describe("Einsatz und Fassungen", () => {
         ({ zeit: new Date(zeit).toISOString(), eingabe: { nummer, empfaenger: "Heros Jever 21/10", inhalt }, vordruck: "nachricht", ...zusatz ? { zusatz } : {} });
 
     it("lässt einen Einsatz nach zwölf Stunden Pause neu beginnen, über Nacht mit kürzerer Pause nicht", async () => {
-        const { einsatzBeginn } = await import("../../web/src/verlauf.js");
+        const { einsatzBeginn, OHNE_GRENZE } = await import("../../web/src/verlauf.js");
         const jetzt = Date.UTC(2026, 9, 5, 8);
         // Übung am Vortag bis 18 Uhr, 14 Stunden Pause: neuer Einsatz.
-        expect(einsatzBeginn([eintrag(jetzt - 20 * stunde, "1"), eintrag(jetzt - 14 * stunde, "40")], null, jetzt)).toBe(jetzt);
+        expect(einsatzBeginn([eintrag(jetzt - 20 * stunde, "1"), eintrag(jetzt - 14 * stunde, "40")], OHNE_GRENZE, jetzt)).toBe(jetzt);
         // Einsatz über Nacht mit acht Stunden Pause: dieselbe Folge, auch nach mehr als 24 Stunden.
         const nacht = [eintrag(jetzt - 30 * stunde, "1"), eintrag(jetzt - 20 * stunde, "4"), eintrag(jetzt - 9 * stunde, "5"), eintrag(jetzt - 1 * stunde, "6")];
-        expect(einsatzBeginn(nacht, null, jetzt)).toBe(jetzt - 30 * stunde);
+        expect(einsatzBeginn(nacht, OHNE_GRENZE, jetzt)).toBe(jetzt - 30 * stunde);
         // Eine gesetzte Grenze geht vor.
-        expect(einsatzBeginn(nacht, jetzt - 2 * stunde, jetzt)).toBe(jetzt - 2 * stunde);
-        // Eine gesetzte Grenze gilt auch über lange Pausen hinweg.
-        expect(einsatzBeginn([eintrag(jetzt - 40 * stunde, "1"), eintrag(jetzt - 20 * stunde, "2")], jetzt - 48 * stunde, jetzt)).toBe(jetzt - 48 * stunde);
+        expect(einsatzBeginn(nacht, { grenzen: [jetzt - 2 * stunde], bruecken: [] }, jetzt)).toBe(jetzt - 2 * stunde);
+        // Auch eine gesetzte Grenze läuft nach zwölf Stunden ohne Vordruck ab: Die Übung der Woche darauf beginnt neu.
+        expect(einsatzBeginn([eintrag(jetzt - 40 * stunde, "1")], { grenzen: [jetzt - 48 * stunde], bruecken: [] }, jetzt)).toBe(jetzt);
+        // Eine Brücke („Einsatz fortsetzen“) überspringt die Pause nach dem angegebenen Eintrag.
+        const vorPause = eintrag(jetzt - 30 * stunde, "1");
+        expect(einsatzBeginn([vorPause, eintrag(jetzt - 1 * stunde, "2")], { grenzen: [], bruecken: [jetzt - 30 * stunde] }, jetzt)).toBe(jetzt - 30 * stunde);
+        // Auch abgelegte Entwürfe zählen als Arbeit: Ohne erstelltes PDF beginnt der Einsatz nicht erst jetzt.
+        expect(einsatzBeginn([{ zeit: new Date(jetzt - 3 * stunde).toISOString() }], OHNE_GRENZE, jetzt)).toBe(jetzt - 3 * stunde);
     });
 
     it("unterscheidet Korrektur und erneuten Druck derselben Nr.", async () => {
@@ -72,7 +77,7 @@ describe("Einsatz und Fassungen", () => {
             eintrag(start + 120_000, "40", "Lage korrigiert"),
             eintrag(start + 20 * stunde, "40", "Neuer Einsatz")
         ];
-        expect(fassungen(liste, null)).toEqual(["", "erneut", "Korrektur", ""]);
+        expect(fassungen(liste)).toEqual(["", "erneut", "Korrektur", ""]);
     });
 
     it("übernimmt eine wieder eingelesene Liste mit Zeit und Vordruck, ohne Doppel", async () => {
@@ -97,12 +102,31 @@ describe("Einsatz und Fassungen", () => {
 });
 
 describe("Einsatzfolgen", () => {
-    it("trennt nach langer Pause und an der Grenze, nicht über eine Pause nach der Grenze", async () => {
+    const h = 60 * 60 * 1000;
+    const t0 = Date.UTC(2026, 9, 1, 8);
+    const liste: Eintrag[] = [0, 1, 20, 21, 50].map(stunden => ({ zeit: new Date(t0 + stunden * h).toISOString(), eingabe: { nummer: String(stunden) } }));
+
+    it("trennt nach langer Pause und an einer Grenze", async () => {
         const { einsatzFolgen } = await import("../../web/src/verlauf.js");
-        const h = 60 * 60 * 1000;
-        const t0 = Date.UTC(2026, 9, 1, 8);
-        const liste: Eintrag[] = [0, 1, 20, 21, 50].map(stunden => ({ zeit: new Date(t0 + stunden * h).toISOString(), eingabe: { nummer: String(stunden) } }));
-        expect(einsatzFolgen(liste, null)).toEqual([0, 0, 1, 1, 2]);
-        expect(einsatzFolgen(liste, t0 + 10 * h)).toEqual([0, 0, 1, 1, 1]);
+        expect(einsatzFolgen(liste)).toEqual([0, 0, 1, 1, 2]);
+        expect(einsatzFolgen(liste, { grenzen: [t0 + 10 * h], bruecken: [] })).toEqual([0, 0, 1, 1, 2]);
+        expect(einsatzFolgen(liste, { grenzen: [t0 + 30 * h], bruecken: [] })).toEqual([0, 0, 1, 1, 2]);
+        expect(einsatzFolgen(liste, { grenzen: [t0 + 0.5 * h], bruecken: [] })).toEqual([0, 1, 2, 2, 3]);
+    });
+
+    it("überbrückt eine Pause nach einem Eintrag", async () => {
+        const { einsatzFolgen } = await import("../../web/src/verlauf.js");
+        expect(einsatzFolgen(liste, { grenzen: [], bruecken: [new Date(liste[1]?.zeit ?? "").getTime()] })).toEqual([0, 0, 0, 0, 1]);
+    });
+
+    it("nimmt die Einsatzgrenzen einer gesicherten Liste auf einem anderen Gerät mit", async () => {
+        const { listenEinsatz, verlaufAlsCsv: alsCsv, einsatzFolgen: folgen } = await import("../../web/src/verlauf.js");
+        const stand = { grenzen: [t0 + 0.5 * h], bruecken: [new Date(liste[3]?.zeit ?? "").getTime()] };
+        const csv = alsCsv(liste, stand);
+        expect(csv.split("\r\n")[0]).toMatch(/Erstellt;Vordruck;Erstellung;Einsatz;Nr/);
+        const tabelle = leseTabelle(leseCsv(csv));
+        const geladen = listenEinsatz(tabelle.zeilen);
+        // Auf dem Ersatzgerät entstehen dieselben Einsätze.
+        expect(folgen(liste, geladen)).toEqual(folgen(liste, stand));
     });
 });

@@ -120,7 +120,7 @@ for (const [alias, schluessel] of [
  */
 export const ERSTELLT_SPALTE = "Erstellt";
 /** Weitere Spalten der Listen-CSV, die beim Wiedereinlesen übergangen werden. */
-export const LISTEN_SPALTEN = ["Vordruck", "Erstellung"] as const;
+export const LISTEN_SPALTEN = ["Vordruck", "Erstellung", "Einsatz"] as const;
 const UEBERGANGEN = new Set([ERSTELLT_SPALTE, ...LISTEN_SPALTEN].map(normiere));
 
 /** Ordnet einen Spaltenkopf einem Feld zu; unbekannte Köpfe ergeben `undefined`. */
@@ -403,7 +403,7 @@ export interface TabellenErgebnis {
     zeilen: {
         zeile: number; eingabe: Eingabe; daten: VordruckDaten; fehler: string[]; hinweise: string[];
         /** Nur in einer wieder eingelesenen Liste erstellter Vordrucke: die Spalten „Erstellt“, „Vordruck“, „Erstellung“. */
-        liste?: { erstellt: string; vordruck: string; erstellung: string };
+        liste?: { erstellt: string; vordruck: string; erstellung: string; einsatz: string };
     }[];
     /** Die Datei ist eine gesicherte Liste erstellter Vordrucke (Spalte „Erstellt“). */
     istListe: boolean;
@@ -459,7 +459,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
     const zuordnung = kopf.map(zelle => schluesselZuKopf(zelle));
     const istListe = kopf.some(zelle => normiere(zelle) === normiere(ERSTELLT_SPALTE));
     const listenSpalte = (name: string) => kopf.findIndex(zelle => normiere(zelle) === normiere(name));
-    const [erstelltSpalte, vordruckSpalte, erstellungSpalte] = [ERSTELLT_SPALTE, ...LISTEN_SPALTEN].map(listenSpalte);
+    const [erstelltSpalte, vordruckSpalte, erstellungSpalte, einsatzSpalte] = [ERSTELLT_SPALTE, ...LISTEN_SPALTEN].map(listenSpalte);
     // Zwei Spalten für dasselbe Feld: die rechte gewinnt, das soll man erfahren.
     const doppelteSpalten = zuordnung.flatMap((schluessel, index) =>
         schluessel && zuordnung.indexOf(schluessel) !== index
@@ -509,7 +509,7 @@ export function leseTabelle(tabelle: string[][]): TabellenErgebnis {
             fehler.unshift(`${werte.length} Felder, aber nur ${kopf.length} Spalten im Kopf. Steht ein Semikolon im Text? Dann die Zelle in Anführungszeichen setzen; die Werte sind sonst verrutscht`);
         }
         const liste = istListe
-            ? { erstellt: (werte[erstelltSpalte ?? -1] ?? "").trim(), vordruck: (werte[vordruckSpalte ?? -1] ?? "").trim(), erstellung: (werte[erstellungSpalte ?? -1] ?? "").trim() }
+            ? { erstellt: (werte[erstelltSpalte ?? -1] ?? "").trim(), vordruck: (werte[vordruckSpalte ?? -1] ?? "").trim(), erstellung: (werte[erstellungSpalte ?? -1] ?? "").trim(), einsatz: (werte[einsatzSpalte ?? -1] ?? "").trim() }
             : undefined;
         zeilen.push({ zeile: index + kopfIndex + 2, eingabe, daten, fehler, hinweise, ...liste ? { liste } : {} });
     });
