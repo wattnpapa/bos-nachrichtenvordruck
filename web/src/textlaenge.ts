@@ -77,6 +77,8 @@ export function textlaengeMeldung(laenge: Textlaenge): string {
 
 /** Feldnamen der Bibliothek, die keine eigene Spalte haben. */
 const FELDNAMEN: Record<string, string> = {
+    // Der Verfasser ist der Absender; die App hat dafür kein eigenes Feld mehr.
+    verfasser: "Absender",
     ausgang: "Ausgang (Datum, Uhrzeit)",
     eingang: "Eingang (Datum, Uhrzeit)"
 };
