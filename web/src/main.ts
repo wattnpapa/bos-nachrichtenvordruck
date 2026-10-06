@@ -319,6 +319,15 @@ for (const zeile of [1, 2, 3, 4, 6]) {
         box.setAttribute("aria-label", `S${zeile}, Spalte ${spalte}`);
         label.append(box);
         td.append(label);
+        // Spalte 2 und 3 haben auf dem Bogen daneben ein freies Feld für den Empfänger.
+        if (spalte > 1) {
+            const text = document.createElement("input");
+            text.type = "text";
+            text.name = `verteilerS${zeile}Text${spalte}`;
+            text.className = "verteiler-text";
+            text.setAttribute("aria-label", `Empfänger S${zeile}, Spalte ${spalte}`);
+            td.append(text);
+        }
         tr.append(td);
     }
     raster.append(tr);

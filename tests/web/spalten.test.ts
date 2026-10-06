@@ -45,6 +45,14 @@ describe("zuVordruckDaten", () => {
     });
 });
 
+describe("Verteiler-Empfänger", () => {
+    it("liest die Textfelder der Spalten 2 und 3", () => {
+        const { daten } = zuVordruckDaten({ verteilerS2Text2: " Heros 3 ", verteilerS4Text3: "TEL" });
+        expect(daten.verteilerText).toEqual({ S2: { spalte2: "Heros 3", spalte3: "" }, S4: { spalte2: "", spalte3: "TEL" } });
+        expect(daten.textfelder()).toMatchObject({ verteilerS2Text2: "Heros 3", verteilerS4Text3: "TEL" });
+    });
+});
+
 describe("leseVerteiler", () => {
     it("liest Leiter und Rasterfelder", () => {
         const fehler: string[] = [];

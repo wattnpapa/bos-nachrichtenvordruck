@@ -139,7 +139,20 @@ export const NACHRICHTENVORDRUCK_TEXTFELDER = {
     quittungStelle: { x: 78, y: 173.2, schriftgroesse: 11, maxBreite: 14 },
 
     /** Freifläche rechts der Beschriftung „Vermerke". */
-    vermerke: { x: 118.8, y: 173.2, schriftgroesse: 9, maxBreite: 22 }
+    vermerke: { x: 118.8, y: 173.2, schriftgroesse: 9, maxBreite: 22 },
+
+    // Verteiler: die freien Felder neben den Kästchen der Spalten 2 und 3, in
+    // die der Sichter die Empfänger einträgt (je 10,65 × 3,85 mm).
+    verteilerS1Text2: { x: 59.2, y: 186.9, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS2Text2: { x: 59.2, y: 190.8, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS3Text2: { x: 59.2, y: 194.7, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS4Text2: { x: 59.2, y: 198.7, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS6Text2: { x: 59.2, y: 202.4, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS1Text3: { x: 78.5, y: 186.6, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS2Text3: { x: 78.5, y: 190.5, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS3Text3: { x: 78.5, y: 194.4, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS4Text3: { x: 78.5, y: 198.4, schriftgroesse: 7, maxBreite: 9.4 },
+    verteilerS6Text3: { x: 78.5, y: 202.1, schriftgroesse: 7, maxBreite: 9.4 }
 } as const satisfies Record<string, VordruckTextfeldPosition>;
 
 /** Name eines Textfeldes auf dem Nachrichtenvordruck. */
