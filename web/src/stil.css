@@ -321,6 +321,9 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 }
 /* Ein gesetztes Kreuz soll im Raster auffallen, ein falsches auch. */
 .verteiler td label:has(input:checked) { background: var(--warn-fond); border-color: var(--warn-linie); }
+/* Freies Feld für den Empfänger, wie auf dem Bogen neben dem Kästchen. */
+.verteiler td { white-space: nowrap; }
+.verteiler td input.verteiler-text { width: 7rem; max-width: 100%; vertical-align: middle; margin-left: var(--r-1); }
 
 /* ---- Arbeitsfläche: Maske links, Vorschau rechts ------------------ */
 .arbeitsflaeche { display: grid; gap: 0 var(--r-4); }

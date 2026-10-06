@@ -115,6 +115,12 @@ export class VordruckDaten {
      */
     weitereAnkreuzfelder: NachrichtenvordruckAnkreuzfeld[] = [];
 
+    /**
+     * Empfänger im Verteiler: Text in den freien Feldern neben den Kästchen der
+     * Spalten 2 und 3, je Zeile S1 bis S4 und S6.
+     */
+    verteilerText: Partial<Record<"S1" | "S2" | "S3" | "S4" | "S6", { spalte2?: string; spalte3?: string }>> = {};
+
     // ---- Rahmen (nicht Teil des Formulars) ----------------------------------
 
     /** Überschrift am oberen Blattrand, z. B. der Name einer Übung. */
@@ -234,6 +240,15 @@ export class VordruckDaten {
         }
         if (this.vermerke) {
             felder.vermerke = this.vermerke;
+        }
+        for (const zeile of ["S1", "S2", "S3", "S4", "S6"] as const) {
+            const text = this.verteilerText[zeile];
+            if (text?.spalte2) {
+                felder[`verteiler${zeile}Text2`] = text.spalte2;
+            }
+            if (text?.spalte3) {
+                felder[`verteiler${zeile}Text3`] = text.spalte3;
+            }
         }
 
         return felder;

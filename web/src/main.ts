@@ -321,6 +321,15 @@ for (const zeile of [1, 2, 3, 4, 6]) {
         box.setAttribute("aria-label", `S${zeile}, Spalte ${spalte}`);
         label.append(box);
         td.append(label);
+        // Spalte 2 und 3 haben auf dem Bogen daneben ein freies Feld für den Empfänger.
+        if (spalte > 1) {
+            const text = document.createElement("input");
+            text.type = "text";
+            text.name = `verteilerS${zeile}Text${spalte}`;
+            text.className = "verteiler-text";
+            text.setAttribute("aria-label", `Empfänger S${zeile}, Spalte ${spalte}`);
+            td.append(text);
+        }
         tr.append(td);
     }
     raster.append(tr);
@@ -389,7 +398,7 @@ const vorgaben = vorgabenLesen();
 // gleich bleiben. Alles andere gehört zur Nachricht und wird geleert, damit
 // nichts davon unbemerkt auf dem nächsten Bogen landet. Nach einem Ausgang sind
 // Absender, Zeichen und Funktion die eigenen, nach einem Eingang die der Gegenstelle.
-const BEHALTEN_AUSGANG: readonly Schluessel[] = ["weg", "richtung", "absender", "verfasser", "zeichen", "funktion", "titel", "hinweis"];
+const BEHALTEN_AUSGANG: readonly Schluessel[] = ["weg", "richtung", "absender", "zeichen", "funktion", "titel", "hinweis"];
 const BEHALTEN_EINGANG: readonly Schluessel[] = ["weg", "richtung", "titel", "hinweis"];
 
 /**
@@ -1231,35 +1240,23 @@ function einzelPruefen() {
     return daten;
 }
 
-// Telefone zeigen eine PDF im iframe meist gar nicht an. Dann zeigt ein Bild den
-// Vordruck. In Dunkel und Nacht ebenso: Der PDF-Betrachter wäre die hellste Fläche.
+// Die Vorschau ist immer ein Bild: Ein eingebetteter PDF-Betrachter bringt je nach
+// Browser eine eigene Werkzeugleiste mit (Firefox übergeht #toolbar=0), Telefone
+// zeigen ihn oft gar nicht, und in Dunkel und Nacht wäre er die hellste Fläche.
+// Der Rahmen bleibt unsichtbar geladen, wo der Browser PDFs einbettet: daraus wird gedruckt.
 const eingebettet = (navigator as Navigator & { pdfViewerEnabled?: boolean }).pdfViewerEnabled !== false;
 const bildvorschau = element<HTMLCanvasElement>("einzeln-bild");
-let pdfImRahmen = eingebettet;
+vorschau.hidden = !eingebettet;
+vorschau.classList.add("nur-zum-drucken");
+bildvorschau.hidden = false;
+element<HTMLElement>("vorschau-ersatz").hidden = false;
 
-function vorschauArtSetzen(): void {
-    const klassen = document.documentElement.classList;
-    const vorher = pdfImRahmen;
-    pdfImRahmen = eingebettet && !klassen.contains("dunkel-modus") && !klassen.contains("nacht-modus");
-    // Der Rahmen bleibt zum Drucken geladen, auch wenn das Bild gezeigt wird.
-    vorschau.hidden = !eingebettet;
-    vorschau.classList.toggle("nur-zum-drucken", !pdfImRahmen);
-    bildvorschau.hidden = pdfImRahmen;
-    element<HTMLElement>("vorschau-ersatz").hidden = pdfImRahmen;
-    if (vorher !== pdfImRahmen) {
-        planeVorschau();
-    }
-}
-vorschauArtSetzen();
-new MutationObserver(vorschauArtSetzen).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-
-/** Lädt die PDF in den Vorschaurahmen; daraus wird auch gedruckt. */
+/** Lädt die PDF in den unsichtbaren Rahmen, aus dem gedruckt wird. */
 function pdfInRahmenLaden(verteilen: boolean): void {
     const pdf = erzeugePdf(einzelDaten(verteilen), optionen());
     const alt = vorschauUrl;
     vorschauUrl = URL.createObjectURL(pdf.output("blob"));
-    // Seitenbreite einpassen, keine Werkzeugleiste: die Vorschau ist ein Blick, kein Betrachter.
-    vorschau.src = `${vorschauUrl}#toolbar=0&view=Fit`;
+    vorschau.src = vorschauUrl;
     if (alt) {
         setTimeout(() => URL.revokeObjectURL(alt), 1_000);
     }
@@ -1271,13 +1268,9 @@ function vorschauAktualisieren(): void {
     }
     // Langer Text wie auf dem vorgeschlagenen Weg: verteilt, das Bild zeigt Blatt 1.
     const verteilen = istKritisch(pruefeTextlaenge(maskeLesen().inhalt ?? "", optionen().vordruck));
-    if (!pdfImRahmen) {
-        const boegen = einzelDaten(verteilen);
-        const erster = boegen[0] ?? einzelPruefen();
-        void zeichneBildvorschau(bildvorschau, erster, optionen(), boegen.find(bogen => bogen.nur === "meldung") ?? erster);
-        return;
-    }
-    pdfInRahmenLaden(verteilen);
+    const boegen = einzelDaten(verteilen);
+    const erster = boegen[0] ?? einzelPruefen();
+    void zeichneBildvorschau(bildvorschau, erster, optionen(), boegen.find(bogen => bogen.nur === "meldung") ?? erster);
 }
 
 function planeVorschau(): void {

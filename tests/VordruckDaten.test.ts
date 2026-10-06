@@ -30,6 +30,13 @@ describe("VordruckDaten", () => {
         ]);
     });
 
+    it("übernimmt die Empfänger im Verteiler als Textfelder", () => {
+        const daten = new VordruckDaten();
+        daten.verteilerText = { S1: { spalte2: "Heros 1" }, S6: { spalte3: "Heros 2" } };
+
+        expect(daten.textfelder()).toEqual({ verteilerS1Text2: "Heros 1", verteilerS6Text3: "Heros 2" });
+    });
+
     it("kreuzt ohne Weg und Richtung nichts davon an", () => {
         const daten = new VordruckDaten();
         delete daten.uebermittlungsweg;

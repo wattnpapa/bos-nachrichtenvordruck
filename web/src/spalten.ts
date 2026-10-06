@@ -14,13 +14,16 @@ import {
 
 export type Schluessel =
     | "nummer" | "art" | "vorrang" | "weg" | "richtung" | "gespraechsnotiz"
-    | "empfaenger" | "anschrift" | "betreff" | "inhalt" | "absender" | "verfasser"
+    | "empfaenger" | "anschrift" | "betreff" | "inhalt" | "absender"
     | "abfassungszeit" | "zeichen" | "funktion"
     | "quittungUhrzeit" | "quittungZeichen" | "quittungStelle" | "vermerke"
     | "aufnahmeDatum" | "aufnahmeUhrzeit" | "aufnahmeHdz"
     | "annahmeDatum" | "annahmeUhrzeit" | "annahmeHdz"
     | "befoerderungDatum" | "befoerderungUhrzeit" | "befoerderungHdz"
-    | "verteiler" | "titel" | "hinweis";
+    | "verteiler" | VerteilerTextSchluessel | "titel" | "hinweis";
+
+export const VERTEILER_ZEILEN = ["S1", "S2", "S3", "S4", "S6"] as const;
+export type VerteilerTextSchluessel = `verteiler${typeof VERTEILER_ZEILEN[number]}Text${2 | 3}`;
 
 export type Eingabe = Partial<Record<Schluessel, string>>;
 
@@ -57,7 +60,6 @@ export const SPALTEN: readonly Spalte[] = [
     { schluessel: "betreff", titel: "Betreff", beschreibung: "Kurzer Betreff, steht in der Zeile „Inhalt“ neben der Beschriftung.", beispiel: "Erkundung B 211", breite: 20 },
     { schluessel: "inhalt", titel: "Inhalt", beschreibung: "Nachrichtentext. Zeilenumbrüche in der Zelle (Alt+Enter) werden übernommen.", beispiel: "Erkundung abgeschlossen. Zufahrt ist frei.", breite: 50 },
     { schluessel: "absender", titel: "Absender", beschreibung: "Rufname des Absenders.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
-    { schluessel: "verfasser", titel: "Verfasser", beschreibung: "Verfasser; nur der Meldevordruck hat dafür ein Feld.", beispiel: "Heros Oldenburg 16/11", breite: 22 },
     { schluessel: "abfassungszeit", titel: "Abfassungszeit", beschreibung: "Datum-Zeit-Gruppe, z. B. TTHHMMmonJJ.", beispiel: "031415okt26", breite: 15 },
     { schluessel: "zeichen", titel: "Zeichen", beschreibung: "Handzeichen des Verfassers.", beispiel: "JR", breite: 9, nurNachricht: true },
     { schluessel: "funktion", titel: "Funktion", beschreibung: "Funktion des Verfassers.", beispiel: "S 2", breite: 10, nurNachricht: true },
@@ -75,6 +77,14 @@ export const SPALTEN: readonly Spalte[] = [
     { schluessel: "befoerderungUhrzeit", titel: "Beförderung Uhrzeit", beschreibung: "Beförderungsvermerk: Uhrzeit. Auf dem Meldevordruck unter „Ausgang“.", beispiel: "", breite: 10 },
     { schluessel: "befoerderungHdz", titel: "Beförderung Hdz", beschreibung: "Beförderungsvermerk: Handzeichen.", beispiel: "", breite: 8, nurNachricht: true },
     { schluessel: "verteiler", titel: "Verteiler", beschreibung: "Kreuze im Verteilerraster: „Leiter“ sowie Zeile/Spalte wie S1/1, S2/3 (Zeilen S1–S4, S6; Spalten 1–3). Mit Komma trennen.", beispiel: "Leiter, S3/1", breite: 16, nurNachricht: true },
+    ...VERTEILER_ZEILEN.flatMap(zeile => ([2, 3] as const).map((spalte): Spalte => ({
+        schluessel: `verteiler${zeile}Text${spalte}`,
+        titel: `Verteiler ${zeile} Spalte ${spalte}`,
+        beschreibung: `Empfänger im freien Feld neben dem Kästchen ${zeile}/${spalte} des Verteilers (kurz, das Feld ist schmal).`,
+        beispiel: "",
+        breite: 12,
+        nurNachricht: true
+    }))),
     { schluessel: "titel", titel: "Titel", beschreibung: "Überschrift am oberen Blattrand, außerhalb des Formulars.", beispiel: "", breite: 16 },
     { schluessel: "hinweis", titel: "Hinweis", beschreibung: "Zeile am unteren Blattrand, außerhalb des Formulars.", beispiel: "", breite: 16 }
 ];
@@ -371,7 +381,8 @@ export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     daten.betreff = text("betreff");
     daten.inhalt = (eingabe.inhalt ?? "").replace(/\r\n?/g, "\n").trim();
     daten.absender = text("absender");
-    daten.verfasser = text("verfasser");
+    // Verfasser und Absender sind dieselbe Stelle; der Meldevordruck druckt beides.
+    daten.verfasser = daten.absender;
 
     daten.abfassungszeit = text("abfassungszeit");
     daten.zeichen = text("zeichen");
@@ -388,6 +399,13 @@ export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     daten.befoerderungsvermerk = { datum: text("befoerderungDatum"), uhrzeit: text("befoerderungUhrzeit"), handzeichen: text("befoerderungHdz") };
 
     daten.weitereAnkreuzfelder = leseVerteiler(eingabe.verteiler ?? "", fehler);
+    for (const zeile of VERTEILER_ZEILEN) {
+        const spalte2 = text(`verteiler${zeile}Text2`);
+        const spalte3 = text(`verteiler${zeile}Text3`);
+        if (spalte2 || spalte3) {
+            daten.verteilerText[zeile] = { spalte2, spalte3 };
+        }
+    }
     daten.titel = text("titel");
     daten.hinweis = text("hinweis");
 
