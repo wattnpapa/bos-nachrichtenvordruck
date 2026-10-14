@@ -322,8 +322,21 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 /* Ein gesetztes Kreuz soll im Raster auffallen, ein falsches auch. */
 .verteiler td label:has(input:checked) { background: var(--warn-fond); border-color: var(--warn-linie); }
 /* Freies Feld für den Empfänger, wie auf dem Bogen neben dem Kästchen. */
+.verteiler { max-width: 100%; overflow-x: auto; }
 .verteiler td { white-space: nowrap; }
-.verteiler td input.verteiler-text { width: 7rem; max-width: 100%; vertical-align: middle; margin-left: var(--r-1); }
+/* Mindestens 12 px zwischen Kästchen und Feld, damit ein Tipp am Rand nicht im falschen Ziel landet. */
+.verteiler td input.verteiler-text { width: 7rem; max-width: 100%; vertical-align: middle; margin-left: var(--r-3); }
+.verteiler td { padding-top: var(--r-2); padding-bottom: var(--r-2); }
+/* Am Telefon sind die drei Spalten feste Drittel der Breite, das Feld steht unter dem Kästchen: So bleibt die Seite so breit wie der Bildschirm. */
+@media (max-width: 40rem) {
+  .verteiler table { width: 100%; table-layout: fixed; }
+  .verteiler td { white-space: normal; vertical-align: top; padding-right: var(--r-2); }
+  .verteiler td label { display: flex; justify-content: flex-start; }
+  .verteiler td input.verteiler-text { display: block; width: 100%; margin: var(--r-3) 0 0; padding-inline: var(--r-2); }
+  .verteiler th[scope="row"] { width: 2.5rem; padding-right: var(--r-1); }
+}
+/* Ein Empfängerfeld, das auf dem Bogen gekürzt würde. */
+.verteiler td input.verteiler-text.zu-lang-feld { border-style: dashed; border-color: var(--alarm); }
 
 /* ---- Arbeitsfläche: Maske links, Vorschau rechts ------------------ */
 .arbeitsflaeche { display: grid; gap: 0 var(--r-4); }
@@ -708,7 +721,7 @@ table.uebersicht.meldung .nur-nachricht { display: none; }
 .maske.ohne-text .sprungleiste { visibility: hidden; pointer-events: none; }
 /* Einsatzgrenze über der Liste, abgesetzt von ihr. */
 .einsatz { margin: var(--r-3) 0 var(--r-4); padding-left: var(--r-3); border-left: 4px solid var(--linie-stark); }
-.einsatz .aktionen { margin-top: var(--r-2); gap: var(--r-4); }
+.einsatz .aktionen { margin-top: var(--r-2); gap: var(--r-5); }
 #einsatz-aufheben { margin-top: var(--r-3); }
 /* Gelöschte Liste: zwischen Wiederherstellen und Endgültig verwerfen mindestens 24 px. */
 .geloescht-knoepfe { display: flex; flex-wrap: wrap; gap: var(--r-2) var(--r-5); }

@@ -67,11 +67,13 @@ export function merkeVordrucke(
     eingaben: readonly Eingabe[],
     zeit = new Date(),
     vordruck?: string,
-    zusatz: (index: number) => string = () => ""
+    zusatz: (index: number) => string = () => "",
+    /** Nur Einträge ab diesem Zeitpunkt (ms) gelten als „schon drin“: Nach „Neuer Einsatz“ zählt derselbe Stand neu. */
+    ab = Number.NEGATIVE_INFINITY
 ): Gemerkt {
     const bisher = ladeVerlauf();
     // Derselbe Stand in anderer Druckfassung (gekürzt, verteilt) bekommt einen eigenen Eintrag.
-    const schon = new Set(bisher.map(eintrag => `${eintrag.vordruck ?? ""}|${eintrag.zusatz ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
+    const schon = new Set(bisher.filter(eintrag => new Date(eintrag.zeit).getTime() >= ab).map(eintrag => `${eintrag.vordruck ?? ""}|${eintrag.zusatz ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
     const dazu: Eintrag[] = [];
     eingaben.forEach((eingabe, index) => {
         const text = zusatz(index);
@@ -90,8 +92,8 @@ export function merkeVordrucke(
 }
 
 /** Ein einzelner Vordruck. */
-export function merkeVordruck(eingabe: Eingabe, zeit = new Date(), vordruck?: string, zusatz = ""): Gemerkt {
-    return merkeVordrucke([eingabe], zeit, vordruck, () => zusatz);
+export function merkeVordruck(eingabe: Eingabe, zeit = new Date(), vordruck?: string, zusatz = "", ab = Number.NEGATIVE_INFINITY): Gemerkt {
+    return merkeVordrucke([eingabe], zeit, vordruck, () => zusatz, ab);
 }
 
 /** Schreibt eine ganze Liste zurück, etwa nach „Liste löschen“ und „Wiederherstellen“. */
@@ -113,14 +115,14 @@ export function mitNummer(liste: readonly Eintrag[], nummer: string): Eintrag[] 
 
 const VORDRUCK: Record<string, string> = { nachricht: "Nachrichtenvordruck", meldung: "Meldevordruck", beide: "Beide" };
 
-/** „05.10.2026 07:42“ aus der Spalte „Erstellt“ als Zeitpunkt; ungültig ergibt `null`. */
+/** „05.10.2026 07:42“ oder „… 07:42:31“ aus der Spalte „Erstellt“ als Zeitpunkt; ungültig ergibt `null`. */
 function leseZeitpunkt(text: string): Date | null {
-    const teile = /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/.exec(text.trim());
+    const teile = /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(text.trim());
     if (!teile) {
         return null;
     }
-    const [, tag, monat, jahr, stunde = "0", minute = "0"] = teile;
-    const zeit = new Date(Number(jahr), Number(monat) - 1, Number(tag), Number(stunde), Number(minute));
+    const [, tag, monat, jahr, stunde = "0", minute = "0", sekunde = "0"] = teile;
+    const zeit = new Date(Number(jahr), Number(monat) - 1, Number(tag), Number(stunde), Number(minute), Number(sekunde));
     return Number.isNaN(zeit.getTime()) || zeit.getDate() !== Number(tag) ? null : zeit;
 }
 
@@ -299,7 +301,8 @@ export function verlaufAlsCsv(liste: readonly Eintrag[], stand: Einsatzstand = O
     const zwei = (zahl: number) => String(zahl).padStart(2, "0");
     const zeitpunkt = (iso: string) => {
         const zeit = new Date(iso);
-        return `${zwei(zeit.getDate())}.${zwei(zeit.getMonth() + 1)}.${zeit.getFullYear()} ${zwei(zeit.getHours())}:${zwei(zeit.getMinutes())}`;
+        // Mit Sekunden: Ein „Neuer Einsatz“ in derselben Minute wie der letzte Vordruck bleibt so erhalten.
+        return `${zwei(zeit.getDate())}.${zwei(zeit.getMonth() + 1)}.${zeit.getFullYear()} ${zwei(zeit.getHours())}:${zwei(zeit.getMinutes())}:${zwei(zeit.getSeconds())}`;
     };
     return schreibeCsv([
         [ERSTELLT_SPALTE, ...LISTEN_SPALTEN, ...SPALTEN.map(spalte => spalte.titel)],

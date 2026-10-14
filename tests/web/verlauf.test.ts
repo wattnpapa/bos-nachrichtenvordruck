@@ -130,3 +130,29 @@ describe("Einsatzfolgen", () => {
         expect(folgen(liste, geladen)).toEqual(folgen(liste, stand));
     });
 });
+
+describe("Einsatz und Eintragen", () => {
+    it("trägt denselben Stand nach „Neuer Einsatz“ noch einmal ein", async () => {
+        const daten = new Map<string, string>();
+        globalThis.localStorage = {
+            getItem: (k: string) => daten.get(k) ?? null,
+            setItem: (k: string, v: string) => void daten.set(k, v),
+            removeItem: (k: string) => void daten.delete(k)
+        } as Storage;
+        const { merkeVordruck } = await import("../../web/src/verlauf.js");
+        const stand = { nummer: "1", inhalt: "Gleich" };
+        expect(merkeVordruck(stand, new Date(), "nachricht").neu).toBe(1);
+        expect(merkeVordruck(stand, new Date(), "nachricht").neu).toBe(0);
+        // Mit „ab“ nach dem ersten Eintrag gilt der Stand wieder als neu.
+        expect(merkeVordruck(stand, new Date(), "nachricht", "", Date.now() + 1000).neu).toBe(1);
+    });
+
+    it("liest die Spalte „Erstellt“ mit und ohne Sekunden", async () => {
+        const { listenEintraege } = await import("../../web/src/verlauf.js");
+        const zeile = (erstellt: string) => ({ eingabe: { nummer: "1" }, liste: { erstellt, vordruck: "", erstellung: "" } });
+        const mit = listenEintraege([zeile("05.10.2026 07:42:31")]);
+        const ohne = listenEintraege([zeile("05.10.2026 07:42")]);
+        expect(new Date(mit[0]?.zeit ?? "").getSeconds()).toBe(31);
+        expect(new Date(ohne[0]?.zeit ?? "").getSeconds()).toBe(0);
+    });
+});

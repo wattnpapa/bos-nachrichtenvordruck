@@ -46,7 +46,7 @@
         return k + "{background:" + f[0] + ";color:" + f[2] + "}"
           + k + "body{background:" + f[0] + ";color:" + f[2] + "}"
           + k + "input," + k + "textarea," + k + "select," + k + "button," + k + "summary{background:" + f[1] + ";color:" + f[2] + ";border:2px solid " + f[3] + "}"
-          + k + ".kurzmeldung{background:" + f[1] + ";color:" + f[2] + ";border-color:" + f[2] + "}"
+          + k + ".kurzmeldung," + k + "dialog{background:" + f[1] + ";color:" + f[2] + ";border-color:" + f[2] + "}"
           + k + "a{color:" + f[2] + "}" + k + "canvas," + k + "iframe{filter:brightness(.35)}";
       }
       var stil = document.createElement("style");
@@ -333,7 +333,7 @@
                 <label class="feld">Vermerke <textarea name="vermerke" rows="2"></textarea></label>
               </div>
               <h4>Verteiler</h4>
-              <p class="hinweis">Wie auf dem Bogen unter „TEL / EL / EAL / UEAL“: Leiter, darunter die Sachgebiete S1 bis S4 und S6 mit je drei Spalten.</p>
+              <p class="hinweis">Wie auf dem Bogen unter „TEL / EL / EAL / UEAL“: Leiter, darunter die Sachgebiete S1 bis S4 und S6 mit je drei Spalten. Die Felder neben den Kästchen der Spalten 2 und 3 sind schmal (etwa 8 Zeichen, z. B. „Heros J.“); Längeres wird gekürzt gedruckt, das Feld ist dann gestrichelt rot.</p>
               <p class="nebentext" id="verteiler-stand" aria-live="polite"></p>
               <div class="verteiler" role="group" aria-label="Verteiler">
                 <label class="inline"><input type="checkbox" name="verteiler" value="Leiter" /> Leiter</label>
