@@ -119,6 +119,17 @@ describe("Einsatzfolgen", () => {
         expect(einsatzFolgen(liste, { grenzen: [], bruecken: [new Date(liste[1]?.zeit ?? "").getTime()] })).toEqual([0, 0, 0, 0, 1]);
     });
 
+    it("zählt Arbeit außerhalb der Liste (abgelegte Entwürfe) mit: Pausen werden dort unterbrochen und überbrückt", async () => {
+        const { einsatzFolgen } = await import("../../web/src/verlauf.js");
+        // Vordrucke nach 0, 1 und 50 Stunden; ein Entwurf bei 25 Stunden teilt die Pause von 49 Stunden in zwei von 24.
+        const mitEntwurf: Eintrag[] = [0, 1, 50].map(stunden => ({ zeit: new Date(t0 + stunden * h).toISOString(), eingabe: { nummer: String(stunden) } }));
+        const entwurf = t0 + 25 * h;
+        expect(einsatzFolgen(mitEntwurf, { grenzen: [], bruecken: [] }, [entwurf])).toEqual([0, 0, 1]);
+        // Die Brücke am Ende der ersten Pause genügt nicht, die zweite bleibt.
+        expect(einsatzFolgen(mitEntwurf, { grenzen: [], bruecken: [t0 + h] }, [entwurf])).toEqual([0, 0, 1]);
+        expect(einsatzFolgen(mitEntwurf, { grenzen: [], bruecken: [t0 + h, entwurf] }, [entwurf])).toEqual([0, 0, 0]);
+    });
+
     it("nimmt die Einsatzgrenzen einer gesicherten Liste auf einem anderen Gerät mit", async () => {
         const { listenEinsatz, verlaufAlsCsv: alsCsv, einsatzFolgen: folgen } = await import("../../web/src/verlauf.js");
         const stand = { grenzen: [t0 + 0.5 * h], bruecken: [new Date(liste[3]?.zeit ?? "").getTime()] };

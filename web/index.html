@@ -43,7 +43,9 @@
       var nacht = ["#221f16", "#2c281d", "#d8c39a", "#7a6a45"], dunkel = ["#0f1116", "#1a1d24", "#dfe3ea", "#566070"];
       function regeln(klasse, f) {
         var k = "html." + klasse + "-modus ";
-        return k + "{background:" + f[0] + ";color:" + f[2] + "}"
+        // color-scheme dunkel: Auswahlkreise und Kästchen der Browser sind sonst weiß; Gruppenrahmen in der Linienfarbe.
+        return k + "{background:" + f[0] + ";color:" + f[2] + ";color-scheme:dark}"
+          + k + "fieldset{border:1px solid " + f[3] + "}"
           + k + "body{background:" + f[0] + ";color:" + f[2] + "}"
           + k + "input," + k + "textarea," + k + "select," + k + "button," + k + "summary{background:" + f[1] + ";color:" + f[2] + ";border:2px solid " + f[3] + "}"
           + k + ".kurzmeldung," + k + "dialog{background:" + f[1] + ";color:" + f[2] + ";border-color:" + f[2] + "}"
@@ -148,8 +150,9 @@
       <p class="laedt" id="laedt">Die Seite lädt noch. Bei schwachem Netz kann das einige Sekunden dauern.</p>
       <p class="offline-badge">✓ Läuft komplett im Browser. Texte und Tabellen verlassen dieses Gerät nicht.<span id="offline-stand" hidden> Startet nach dem ersten Aufruf auch ohne Netz. Auf den Startbildschirm gelegt, bleibt sie dafür zuverlässig gespeichert.</span></p>
       <p class="warnung netz" id="netz-stand" role="status" hidden>Kein Netz. Ausfüllen, Vorschau und PDF funktionieren weiter<span id="netz-excel">, auch der Excel-Weg</span>.</p>
+      <p class="warnung" id="speicher-warnung" role="alert" hidden></p>
       <p class="nebentext" id="speicher-stand" role="status" hidden></p>
-      <p class="warnung" id="grundform" role="status" hidden>Vereinfachte Darstellung: Die Gestaltung kam bei langsamem Netz nicht an. Alles funktioniert; neu laden, sobald das Netz besser ist.</p>
+      <p class="warnung" id="grundform" role="status" hidden>Vereinfachte Darstellung: Die Gestaltung kam nicht an (Netz zu langsam oder Server nicht erreichbar). Alles funktioniert; die App versucht es jede Minute und bei Netzwechsel erneut, neu laden geht auch.</p>
 
       <!-- Vor den Einstellungen, damit er nach dem Laden ohne Scrollen zu sehen ist. -->
       <div class="warnung entwurf" id="entwurf-hinweis" role="status" hidden>
@@ -333,7 +336,7 @@
                 <label class="feld">Vermerke <textarea name="vermerke" rows="2"></textarea></label>
               </div>
               <h4>Verteiler</h4>
-              <p class="hinweis">Wie auf dem Bogen unter „TEL / EL / EAL / UEAL“: Leiter, darunter die Sachgebiete S1 bis S4 und S6 mit je drei Spalten. Die Felder neben den Kästchen der Spalten 2 und 3 sind schmal (etwa 8 Zeichen, z. B. „Heros J.“); Längeres wird gekürzt gedruckt, das Feld ist dann gestrichelt rot.</p>
+              <p class="hinweis">Wie auf dem Bogen unter „TEL / EL / EAL / UEAL“: Leiter, darunter die Sachgebiete S1 bis S4 und S6 mit je drei Spalten. Die Felder neben den Kästchen der Spalten 2 und 3 sind schmal (etwa 7 Zeichen, z. B. „Heros 1“). Ist ein Eintrag zu lang, steht „zu lang“ unter dem Feld, und er wird gekürzt gedruckt.</p>
               <p class="nebentext" id="verteiler-stand" aria-live="polite"></p>
               <div class="verteiler" role="group" aria-label="Verteiler">
                 <label class="inline"><input type="checkbox" name="verteiler" value="Leiter" /> Leiter</label>
@@ -478,6 +481,7 @@
     <dialog class="frage" id="frage" aria-labelledby="frage-text">
       <form method="dialog">
         <p id="frage-text"></p>
+        <p class="frage-hinweis" id="frage-hinweis" role="status" hidden>Eben geöffnet: Dieser Tipp wurde nicht ausgeführt (Schutz vor Doppeltipp). Bitte noch einmal tippen.</p>
         <div class="aktionen">
           <button value="nein" class="primaer" id="frage-nein">Abbrechen</button>
           <button value="dritte" id="frage-dritte" hidden>Aufteilen</button>

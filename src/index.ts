@@ -1,5 +1,6 @@
 export { VordruckDaten, type VordruckQuittung, type VordruckVermerk } from "./VordruckDaten.js";
 export {
+    PRUEFVERMERK_NEBEN_BETREFF,
     nachrichtenvordruckGekuerzt,
     nachrichtenvordruckInhaltTeilen,
     nachrichtenvordruckInhaltZeilen,

@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import {
+    PRUEFVERMERK_NEBEN_BETREFF,
     meldevordruckGekuerzt,
     meldevordruckInhaltTeilen,
     meldevordruckInhaltZeilen,
@@ -133,6 +134,31 @@ export function pruefvermerk(daten: VordruckDaten, vordruck: VordruckWahl, fehle
     return punkte.length > 0 ? `Prüfen: ${punkte.join("; ")}` : "";
 }
 
+/**
+ * Passt der Vermerk neben einem Betreff nicht in seine Breite, würde er mitten im Wort abgeschnitten.
+ * Dann bleiben die ersten Punkte, die ganz passen, und „u. a.“ sagt, dass es mehr gibt; die Statusmeldung nennt alle.
+ */
+function vermerkKompakt(vermerk: string): string {
+    if (!vermerk) {
+        return vermerk;
+    }
+    messPdf ??= new jsPDF("p", "mm", "a5");
+    messPdf.setFont("helvetica", "bold");
+    messPdf.setFontSize(9);
+    const breite = (text: string) => messPdf?.getTextWidth(text) ?? 0;
+    if (breite(vermerk) <= PRUEFVERMERK_NEBEN_BETREFF) {
+        return vermerk;
+    }
+    const punkte = vermerk.replace(/^Prüfen: /, "").split("; ");
+    for (let behalten = punkte.length - 1; behalten >= 1; behalten--) {
+        const kandidat = `Prüfen: ${punkte.slice(0, behalten).join("; ")}; u. a.`;
+        if (breite(kandidat) <= PRUEFVERMERK_NEBEN_BETREFF) {
+            return kandidat;
+        }
+    }
+    return "Prüfen: mehrere Punkte";
+}
+
 const BETREFF = SPALTEN.find(spalte => spalte.schluessel === "betreff")?.titel ?? "Betreff";
 
 /**
@@ -142,12 +168,16 @@ const BETREFF = SPALTEN.find(spalte => spalte.schluessel === "betreff")?.titel ?
 export function gekuerzteFelderAufBoegen(boegen: readonly Bogen[], vordruck: VordruckWahl): string[] {
     return [...new Set(boegen.flatMap(bogen => [
         ...gekuerzteFelder(bogen, bogen.nur ?? vordruck),
-        ...bogen.pruefvermerk.includes("Betreff gekürzt") ? [BETREFF] : []
+        ...bogen.pruefvermerk.includes("Betreff gekürzt") || bogen.betreffGekuerzt ? [BETREFF] : []
     ]))];
 }
 
 /** Daten für genau einen Bogen; bei „beide“ sagt `nur`, welcher Vordruck. */
-export type Bogen = VordruckDaten & { nur?: "nachricht" | "meldung" };
+export type Bogen = VordruckDaten & {
+    nur?: "nachricht" | "meldung";
+    /** Der Betreff wird auf dem Bogen gekürzt, auch wenn der knappe Vermerk es nicht mehr nennt. */
+    betreffGekuerzt?: boolean;
+};
 
 /**
  * Die Bögen eines Stands: je Vordruckart einer, oder mit `verteilen` so viele,
@@ -171,11 +201,17 @@ export function bogenListe(daten: VordruckDaten, vordruck: VordruckWahl, fehler:
                 vermerk = vermerk ? `${vermerk}; Betreff gekürzt` : "Prüfen: Betreff gekürzt";
             }
         }
+        // Neben einem Betreff ist für den Vermerk wenig Platz: lieber knapp als mitten im Wort abgeschnitten.
+        const betreffGekuerzt = vermerk.includes("Betreff gekürzt");
+        if (daten.betreff) {
+            vermerk = vermerkKompakt(vermerk);
+        }
         return teile.map((inhalt, index) => {
             const bogen = Object.assign(Object.create(Object.getPrototypeOf(daten) as object) as Bogen, daten);
             bogen.inhalt = inhalt;
             bogen.blatt = teile.length > 1 ? `Blatt ${index + 1} von ${teile.length}` : "";
             bogen.pruefvermerk = vermerk;
+            bogen.betreffGekuerzt = betreffGekuerzt;
             if (vordruck === "beide") {
                 bogen.nur = art === "meldung" ? "meldung" : "nachricht";
             }

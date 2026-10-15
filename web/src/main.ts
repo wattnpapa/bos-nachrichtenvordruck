@@ -7,7 +7,8 @@ import { zeichneBildvorschau } from "./bildvorschau.js";
 import { dekodiereCsv, schreibeCsv, leseCsv } from "./csv.js";
 import { dateiname, erzeugePdf, type Blattformat, type PdfOptionen, type VordruckWahl } from "./pdf.js";
 import { bogenListe, gekuerzteFelderAufBoegen, istKritisch, pruefeTextlaenge, teileInhalt, textlaengeMeldung, verteiltText, type Bogen } from "./textlaenge.js";
-import { HOECHSTENS, einsatzBeginn, einsatzFolgen, einsatzVereinen, eintragKennung, fassungen, listenEinsatz, listenEintraege, uebernimmEintraege, verlaufKennung, ladeVerlauf, loescheVerlauf, merkeVordruck, merkeVordrucke, mitNummer, verlaufAlsCsv, type Eintrag, type Einsatzstand } from "./verlauf.js";
+import { beiSpeicherZustand, schreibe, schreibeImTab, speicherPruefen, speicherWarnung, speicherZustand } from "./speicherwache.js";
+import { EINSATZ_PAUSE, HOECHSTENS, einsatzBeginn, einsatzFolgen, einsatzVereinen, eintragKennung, fassungen, listenEinsatz, listenEintraege, uebernimmEintraege, verlaufKennung, ladeVerlauf, loescheVerlauf, merkeVordruck, merkeVordrucke, mitNummer, verlaufAlsCsv, type Eintrag, type Einsatzstand } from "./verlauf.js";
 import {
     SPALTEN,
     UNMOEGLICH,
@@ -37,6 +38,18 @@ function speicher(): Storage | null {
         return null;
     }
 }
+
+/** Fest oben auf der Seite, solange der Speicher des Geräts gesperrt oder voll ist. */
+// Wer die App schon benutzt hat, braucht die Einleitung nicht mehr: Die Maske rückt so ins erste Bild.
+if (ladeVerlauf().length > 0) {
+    document.querySelector<HTMLElement>(".einleitung")?.setAttribute("hidden", "");
+}
+const speicherWarnungZeile = element<HTMLParagraphElement>("speicher-warnung");
+beiSpeicherZustand(zustand => {
+    speicherWarnungZeile.textContent = speicherWarnung(zustand);
+    speicherWarnungZeile.hidden = zustand === "ok";
+});
+speicherPruefen(speicher());
 
 function herunterladen(blob: Blob, name: string): void {
     const url = URL.createObjectURL(blob);
@@ -70,6 +83,7 @@ function frageWahl(text: string, ja: string, nein = "Abbrechen", dritte = ""): P
     element<HTMLButtonElement>("frage-dritte").textContent = dritte;
     element<HTMLButtonElement>("frage-dritte").hidden = !dritte;
     dialog.returnValue = "";
+    element<HTMLParagraphElement>("frage-hinweis").hidden = true;
     dialog.showModal();
     frageGeoeffnet = performance.now();
     element<HTMLButtonElement>("frage-nein").focus();
@@ -107,6 +121,8 @@ element<HTMLDialogElement>("frage").addEventListener("click", ereignis => {
     if (performance.now() - frageGeoeffnet < 700 && ereignis.target instanceof HTMLButtonElement) {
         ereignis.preventDefault();
         ereignis.stopPropagation();
+        // Die Kurzmeldung läge unter der Rückfrage: Das Schlucken sagt die Rückfrage selbst.
+        element<HTMLParagraphElement>("frage-hinweis").hidden = false;
     }
 }, true);
 
@@ -291,7 +307,7 @@ document.querySelector(".einstellungen")?.addEventListener("change", ereignis =>
     if (feld instanceof HTMLInputElement && (feld.name === "versatzX" || feld.name === "versatzY")) {
         feld.value = String(versatzWert(feld.name));
     }
-    speicher()?.setItem(EINSTELLUNGEN_SCHLUESSEL, JSON.stringify(optionen()));
+    schreibe(speicher(), EINSTELLUNGEN_SCHLUESSEL, JSON.stringify(optionen()));
     einstellungenZeigen();
     felderFuerVordruckZeigen();
     planeVorschau();
@@ -329,6 +345,12 @@ for (const zeile of [1, 2, 3, 4, 6]) {
             text.className = "verteiler-text";
             text.setAttribute("aria-label", `Empfänger S${zeile}, Spalte ${spalte}`);
             td.append(text);
+            const wort = document.createElement("span");
+            wort.className = "verteiler-wort";
+            wort.textContent = "zu lang";
+            wort.title = "Wird auf dem Bogen gekürzt";
+            wort.hidden = true;
+            td.append(wort);
         }
         tr.append(td);
     }
@@ -421,9 +443,13 @@ function entwurfSpeichern(): void {
     const jetzt = new Date();
     const entwurf = JSON.stringify({ ...maskeLesen(), _geaendert: jetzt.toISOString(), _angefasst: [...angefasst], _geleert: [...frischGeleert] } satisfies Entwurf);
     // localStorage: für einen neuen Tab oder nach dem Neustart des Browsers.
-    speicher()?.setItem(ENTWURF_SCHLUESSEL, entwurf);
-    tabSpeicher()?.setItem(ENTWURF_SCHLUESSEL, entwurf);
-    entwurfStand.textContent = `Entwurf auf diesem Gerät gespeichert, ${jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr.`;
+    const aufGeraet = schreibe(speicher(), ENTWURF_SCHLUESSEL, entwurf);
+    const imTab = schreibeImTab(tabSpeicher(), ENTWURF_SCHLUESSEL, entwurf);
+    entwurfStand.textContent = aufGeraet
+        ? `Entwurf auf diesem Gerät gespeichert, ${jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr.`
+        : imTab
+            ? "Entwurf nicht auf dem Gerät gespeichert (Speicher gesperrt oder voll); er bleibt nur in diesem Tab, bis er geschlossen wird."
+            : "Entwurf nicht gespeichert (Speicher gesperrt oder voll); der Text geht beim Neuladen verloren.";
 }
 
 function entwurfEntfernen(): void {
@@ -463,7 +489,7 @@ function angefasstZuruecksetzen(): void {
         try {
             const roh = ort?.getItem(ENTWURF_SCHLUESSEL);
             if (roh) {
-                ort?.setItem(ENTWURF_SCHLUESSEL, JSON.stringify({ ...JSON.parse(roh) as Entwurf, _angefasst: [] }));
+                schreibeImTab(ort ?? null, ENTWURF_SCHLUESSEL, JSON.stringify({ ...JSON.parse(roh) as Entwurf, _angefasst: [] }));
             }
         } catch {
             // Kaputter Entwurf: nichts zu retten.
@@ -491,11 +517,11 @@ try {
             if ((alt.inhalt ?? "").trim() && !erstellt) {
                 const ablage = JSON.parse(speicher()?.getItem("bnv.ablage.v1") ?? "[]") as { eingabe?: Eingabe }[];
                 const neueAblage = [...ablage, { eingabe: alt, wie: "vor dem Start ersetzt", zeit: new Date().toISOString() }];
-                speicher()?.setItem("bnv.ablage.v1", JSON.stringify(neueAblage.slice(-10)));
+                const abgelegt = schreibe(speicher(), "bnv.ablage.v1", JSON.stringify(neueAblage.slice(-10)));
                 // Ist die Ablage voll, fällt der älteste heraus; das soll der Hinweis sagen.
                 const raus = neueAblage.length > 10 ? neueAblage[0]?.eingabe : undefined;
-                vorStartText = `Was vor dem Start getippt wurde, bleibt. Der ältere Entwurf${nummer ? ` Nr. ${nummer}` : ""} ${zeitpunkt(entwurf._geaendert)} liegt in der Ablage unter den Knöpfen und lässt sich von dort zurückholen.`
-                    + (raus ? ` Die Ablage fasst 10; dafür ist der älteste abgelegte Vordruck${raus.nummer?.trim() ? ` Nr. ${raus.nummer.trim()}` : ""} herausgefallen.` : "");
+                vorStartText = `Was vor dem Start getippt wurde, bleibt. Der ältere Entwurf${nummer ? ` Nr. ${nummer}` : ""} ${zeitpunkt(entwurf._geaendert)} ${abgelegt ? "liegt in der Ablage unter den Knöpfen und lässt sich von dort zurückholen." : "konnte nicht abgelegt werden (Speicher gesperrt oder voll) und ist verloren."}`
+                    + (raus && abgelegt ? ` Die Ablage fasst 10; dafür ist der älteste abgelegte Vordruck${raus.nummer?.trim() ? ` Nr. ${raus.nummer.trim()}` : ""} herausgefallen.` : "");
             } else if (!(alt.inhalt ?? "").trim()) {
                 const ergaenzt = SPALTEN.filter(spalte => (alt[spalte.schluessel] ?? "") !== (vorgaben[spalte.schluessel] ?? "")
                     && (getippt[spalte.schluessel] ?? "") === (vorgaben[spalte.schluessel] ?? ""));
@@ -546,7 +572,7 @@ function weitereZaehlen(): number {
     const empfaengerTexte = SPALTEN.filter(spalte => /^verteilerS\dText[23]$/.test(spalte.schluessel) && (eingabe[spalte.schluessel] ?? "").trim())
         .map(spalte => `${spalte.titel.replace(/^Verteiler /, "")} „${(eingabe[spalte.schluessel] ?? "").trim()}“`);
     element<HTMLParagraphElement>("verteiler-stand").textContent = [
-        verteiler ? `Angekreuzt: ${verteiler}.` : "Nichts angekreuzt.",
+        verteiler ? `Angekreuzt: ${verteiler.replace(/S(\d)\/(\d)/g, "S$1 Spalte $2")}.` : "Nichts angekreuzt.",
         empfaengerTexte.length > 0 ? `Empfänger eingetragen: ${empfaengerTexte.join(", ")}.` : ""
     ].filter(Boolean).join(" ");
     // Titel und Hinweis bleiben von Vordruck zu Vordruck stehen; zugeklappt sollen sie sichtbar sein.
@@ -637,12 +663,13 @@ function einsatzStand(): Einsatzstand {
         return { grenzen: [], bruecken: [] };
     }
 }
-function einsatzSchreiben(stand: Einsatzstand): void {
+/** `false`, wenn das Gerät den Stand nicht festhalten konnte. */
+function einsatzSchreiben(stand: Einsatzstand): boolean {
     if (stand.grenzen.length === 0 && stand.bruecken.length === 0) {
         speicher()?.removeItem(EINSATZ_SCHLUESSEL);
-    } else {
-        speicher()?.setItem(EINSATZ_SCHLUESSEL, JSON.stringify(stand));
+        return true;
     }
+    return schreibe(speicher(), EINSATZ_SCHLUESSEL, JSON.stringify(stand));
 }
 
 /**
@@ -676,8 +703,18 @@ function juengste(): Eintrag[] {
 }
 
 /** Rat für Meldungen über schon erstellte Nummern. */
-function einsatzRat(): string {
-    return " Beginnt ein neuer Einsatz oder eine neue Übung: unter „Erstellte Vordrucke“ „Neuer Einsatz“ wählen.";
+/** „Nr. 5 liegt in der Ablage“ nur, wenn das Gerät sie behalten konnte. */
+function inDerAblage(wer: string): string {
+    return speicherZustand() === "ok"
+        ? `${wer} liegt in der Ablage.`
+        : `${wer} ließ sich nicht ablegen (Speicher des Geräts gesperrt oder voll) und geht beim Neuladen verloren.`;
+}
+
+function einsatzRat(mitKnopf = false): string {
+    // Mit Knopf endet der Satz auf einen Doppelpunkt: Der Knopf „Neuer Einsatz …“ folgt gleich dahinter.
+    return mitKnopf
+        ? " Beginnt ein neuer Einsatz oder eine neue Übung:"
+        : " Beginnt ein neuer Einsatz oder eine neue Übung: unter „Erstellte Vordrucke“ „Neuer Einsatz“ wählen.";
 }
 
 /**
@@ -719,7 +756,7 @@ function zuruecknahmeZeigen(): void {
     oben.textContent = beschriftung;
     obenZeigen();
     if (zuruecknahme) {
-        tabSpeicher()?.setItem(RUECKGAENGIG_SCHLUESSEL, JSON.stringify(zuruecknahme));
+        schreibeImTab(tabSpeicher(), RUECKGAENGIG_SCHLUESSEL, JSON.stringify(zuruecknahme));
     } else {
         tabSpeicher()?.removeItem(RUECKGAENGIG_SCHLUESSEL);
     }
@@ -730,14 +767,17 @@ function zuruecknahmeSperren(): void {
     const knoepfe = [rueckgaengig, element<HTMLButtonElement>("oben-rueckgaengig")];
     // Der Knopf sagt selbst, dass er gleich geht: Ein Tipp ins Leere wäre sonst rätselhaft.
     const texte = knoepfe.map(knopf => knopf.textContent ?? "");
+    // aria-disabled statt disabled: Ein gesperrter Knopf schluckt den Tipp sonst stumm, so aber sagt die Kurzmeldung, warum nichts geschah.
     knoepfe.forEach((knopf, index) => {
-        knopf.disabled = true;
+        knopf.setAttribute("aria-disabled", "true");
+        knopf.classList.add("gesperrt");
         knopf.textContent = `${texte[index] ?? ""} (gleich möglich)`;
     });
     clearTimeout(zuruecknahmeUhr);
     zuruecknahmeUhr = setTimeout(() => {
         knoepfe.forEach((knopf, index) => {
-            knopf.disabled = false;
+            knopf.removeAttribute("aria-disabled");
+            knopf.classList.remove("gesperrt");
             // Hat sich der Text inzwischen geändert (neue Aktion), nicht überschreiben.
             if (knopf.textContent === `${texte[index] ?? ""} (gleich möglich)`) {
                 knopf.textContent = texte[index] ?? "";
@@ -800,11 +840,23 @@ function meldeStatus(text: string, zurueck: Zuruecknahme | null | "behalten" = n
  * Reiterwechsel.
  */
 let kurzmeldungUhr: ReturnType<typeof setTimeout> | undefined;
-// Die Kurzmeldung ist reine Anzeige ohne Knöpfe: Ein Tipp darauf schließt sie nur
-// und löst nichts darunter aus.
-function zeigeKurzmeldung(text: string, _mitZuruecknahme = false): void {
+// Die Kurzmeldung ist Anzeige: Ein Tipp darauf schließt sie nur und löst nichts darunter aus.
+// Nur mit `mitZuruecknahme` trägt sie einen eigenen Knopf (Rücknahme, die sonst weit oben läge);
+// der ist die ersten 1,5 s gesperrt, damit der Tipp, der sie ausgelöst hat, ihn nicht trifft.
+let kurzmeldungKnopfUhr: ReturnType<typeof setTimeout> | undefined;
+function zeigeKurzmeldung(text: string, mitZuruecknahme = false): void {
     element<HTMLSpanElement>("kurzmeldung-text").textContent = text;
-    kurzmeldungRueckgaengig.hidden = true;
+    clearTimeout(kurzmeldungKnopfUhr);
+    kurzmeldungRueckgaengig.hidden = !mitZuruecknahme;
+    kurzmeldung.classList.toggle("mit-knopf", mitZuruecknahme);
+    if (mitZuruecknahme) {
+        kurzmeldungRueckgaengig.disabled = true;
+        kurzmeldungRueckgaengig.textContent = "Zurücknehmen (gleich möglich)";
+        kurzmeldungKnopfUhr = setTimeout(() => {
+            kurzmeldungRueckgaengig.disabled = false;
+            kurzmeldungRueckgaengig.textContent = "Zurücknehmen";
+        }, 1_500);
+    }
     kurzmeldung.hidden = false;
     // Über der Sprungleiste statt auf ihr: Sonst braucht der Sprung zwei Tipps.
     const leiste = document.querySelector<HTMLElement>(".sprungleiste");
@@ -813,13 +865,22 @@ function zeigeKurzmeldung(text: string, _mitZuruecknahme = false): void {
         && rahmen.height > 0 && rahmen.bottom >= innerHeight - 2;
     kurzmeldung.style.bottom = leisteUnten && rahmen ? `${Math.round(innerHeight - rahmen.top + 8)}px` : "";
     clearTimeout(kurzmeldungUhr);
-    kurzmeldungUhr = setTimeout(kurzmeldungSchliessen, 7_000);
+    kurzmeldungUhr = setTimeout(kurzmeldungSchliessen, mitZuruecknahme ? 15_000 : 7_000);
 }
 function kurzmeldungSchliessen(): void {
     clearTimeout(kurzmeldungUhr);
     kurzmeldung.hidden = true;
 }
 element<HTMLButtonElement>("oben-rueckgaengig").addEventListener("click", () => zuruecknehmen(true));
+// Ein Tipp auf den noch gesperrten Knopf wird gemeldet, nicht verschluckt.
+for (const knopf of [rueckgaengig, element<HTMLButtonElement>("oben-rueckgaengig")]) {
+    knopf.addEventListener("click", ereignis => {
+        if (knopf.getAttribute("aria-disabled") === "true") {
+            ereignis.stopImmediatePropagation();
+            zeigeKurzmeldung("Zurücknehmen ist gleich möglich: Dieser Tipp wurde nicht ausgeführt (Schutz vor Doppeltipp). Bitte noch einmal tippen.", false);
+        }
+    }, true);
+}
 kurzmeldungRueckgaengig.addEventListener("click", () => {
     kurzmeldungSchliessen();
     rueckgaengig.click();
@@ -862,11 +923,11 @@ function zuruecknehmen(oben: boolean): void {
     // Das Zurücknehmen lässt sich seinerseits zurücknehmen: nichts geht verloren.
     const zurueckNr = jetzt.nummer?.trim();
     meldeStatus((aktion === "Zurücknehmen"
-        ? `Wieder der Stand${stand.nummer?.trim() ? ` mit Nr. ${stand.nummer.trim()}` : ""}.${abgelegt ? ` ${zurueckNr ? `Nr. ${zurueckNr}` : "Der vorige Stand"} liegt in der Ablage.` : ""}`
+        ? `Wieder der Stand${stand.nummer?.trim() ? ` mit Nr. ${stand.nummer.trim()}` : ""}.${abgelegt ? ` ${inDerAblage(zurueckNr ? `Nr. ${zurueckNr}` : "Der vorige Stand")}` : ""}`
         : /leeren/i.test(aktion)
             ? `Geleerte Angaben wiederhergestellt${stand.nummer?.trim() ? ` (Nr. ${stand.nummer.trim()})` : ""}.`
             : `„${aktion}“ zurückgenommen, voriger Stand${stand.nummer?.trim() ? ` (Nr. ${stand.nummer.trim()})` : ""} wiederhergestellt.`) + heraus,
-        weichtAb(jetzt) ? { stand: jetzt, aktion: "Zurücknehmen", beschriftung: zurueckNr ? `Doch wieder Nr. ${zurueckNr}` : "Doch wieder den Stand davor" } : null, oben);
+        weichtAb(jetzt) ? { stand: jetzt, aktion: "Zurücknehmen", beschriftung: /leeren/i.test(aktion) ? `Angaben wieder leeren${zurueckNr ? ` (zurück zu Nr. ${zurueckNr})` : ""}` : zurueckNr ? `Doch wieder Nr. ${zurueckNr}` : "Doch wieder den Stand davor" } : null, oben);
     if (oben) {
         // Oben weiterschreiben: ins erste Feld, ohne die Seite zu bewegen.
         (maske.elements.namedItem("nummer") as HTMLInputElement | null)?.focus({ preventScroll: true });
@@ -899,7 +960,7 @@ function ablageLesen(): Abgelegt[] {
 function ablageSchreiben(liste: readonly Abgelegt[]): Abgelegt[] {
     const behalten = liste.slice(-ABLAGE_HOECHSTENS);
     if (behalten.length > 0) {
-        speicher()?.setItem(ABLAGE_SCHLUESSEL, JSON.stringify(behalten));
+        schreibe(speicher(), ABLAGE_SCHLUESSEL, JSON.stringify(behalten));
     } else {
         speicher()?.removeItem(ABLAGE_SCHLUESSEL);
     }
@@ -1005,6 +1066,7 @@ element<HTMLButtonElement>("oben-ablage").addEventListener("click", () => {
     ablageBereich.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
 });
 ablageZeigen();
+let letzteFensterWarnung = -Infinity;
 // Andere Fenster mit derselben App ändern Ablage und Liste mit.
 addEventListener("storage", ereignis => {
     if (ereignis.key === ABLAGE_SCHLUESSEL || ereignis.key === null) {
@@ -1013,6 +1075,24 @@ addEventListener("storage", ereignis => {
     if (ereignis.key === EINSATZ_SCHLUESSEL || ereignis.key === "bnv.verlauf.v1" || ereignis.key === null) {
         verlauf = ladeVerlauf();
         verlaufZeigen();
+    }
+    // Zwei offene Fenster überschreiben sich: Der Entwurf auf dem Gerät gehört dem, der zuletzt tippt. Einmal pro Minute sagen.
+    if (ereignis.key === ENTWURF_SCHLUESSEL && ereignis.newValue && performance.now() - letzteFensterWarnung > 60_000) {
+        letzteFensterWarnung = performance.now();
+        zeigeKurzmeldung("Ein anderes Fenster dieser App hat den Entwurf geändert. Zwei Fenster überschreiben sich gegenseitig: Bitte nur in einem arbeiten.", false);
+    }
+    // „Einsatz fortsetzen“ in einem anderen Fenster hat die Nr. zurückgegeben: Dieses Fenster zieht nach, solange noch kein Text darin steht.
+    if (ereignis.key === EINSATZ_NUMMER_SCHLUESSEL && ereignis.newValue === null && ereignis.oldValue) {
+        try {
+            const gemerkt = JSON.parse(ereignis.oldValue) as { gesetzt?: string; vorher?: string };
+            const jetzt = maskeLesen();
+            if (gemerkt.gesetzt && gemerkt.vorher && (jetzt.nummer ?? "").trim() === gemerkt.gesetzt && !(jetzt.inhalt ?? "").trim()) {
+                setzeFeld("nummer", gemerkt.vorher);
+                zeigeKurzmeldung(`Der Einsatz wurde in einem anderen Fenster fortgesetzt: Die Maske steht wieder auf Nr. ${gemerkt.vorher}.`, false);
+            }
+        } catch {
+            // Kaputter Merker: nichts zurückgeben.
+        }
     }
 });
 
@@ -1144,7 +1224,7 @@ function einzelPruefen() {
         // Gleiche Nr. und Gegenstelle: eher eine Korrektur derselben Nachricht als eine doppelte Nummer.
         (letzter.eingabe.empfaenger ?? "") === (eingabe.empfaenger ?? "")
             ? hinweise.push(`Korrektur von Nr. ${daten.nummer}? Die Nummer wurde schon ${tag} um ${uhrzeit} Uhr erstellt`)
-            : wichtig.push(`Nr. ${daten.nummer} wurde schon ${tag} um ${uhrzeit} Uhr erstellt, ${letzter.eingabe.empfaenger ? `mit Gegenstelle ${letzter.eingabe.empfaenger}` : "ohne Gegenstelle"}.${Date.now() - zeit.getTime() > 2 * 60 * 60 * 1000 ? einsatzRat() : ""}`.replace(/\.$/, ""));
+            : wichtig.push(`Nr. ${daten.nummer} wurde schon ${tag} um ${uhrzeit} Uhr erstellt, ${letzter.eingabe.empfaenger ? `mit Gegenstelle ${letzter.eingabe.empfaenger}` : "ohne Gegenstelle"}.${Date.now() - zeit.getTime() > 2 * 60 * 60 * 1000 ? einsatzRat(true) : ""}`.replace(/\.$/, ""));
     }
     const alt = altwerte(eingabe);
     if (alt) {
@@ -1168,14 +1248,23 @@ function einzelPruefen() {
     // Ein Empfängerfeld im Verteiler, das auf dem Bogen gekürzt würde, schon beim Tippen kennzeichnen.
     for (const feld of maske.querySelectorAll<HTMLInputElement>("input.verteiler-text")) {
         const titel = SPALTEN.find(spalte => spalte.schluessel === feld.name)?.titel ?? "";
-        feld.classList.toggle("zu-lang-feld", gekuerzteNamen.includes(titel));
+        const zuLang = gekuerzteNamen.includes(titel);
+        feld.classList.toggle("zu-lang-feld", zuLang);
+        const wort = feld.nextElementSibling;
+        if (wort instanceof HTMLElement && wort.classList.contains("verteiler-wort")) {
+            wort.hidden = !zuLang;
+        }
     }
     // Dieselbe Nr. in einem früheren Einsatz: kein Fehler, aber sichtbar, falls der Einsatz weiterläuft.
     if (daten.nummer && !letzter) {
         const beginn = aktuellerEinsatzBeginn();
         const frueherer = mitNummer(verlauf.filter(eintrag => new Date(eintrag.zeit).getTime() < beginn), daten.nummer).at(-1);
         if (frueherer) {
-            hinweise.push(`Nr. ${daten.nummer} gab es schon ${zeitText(frueherer.zeit)}${frueherer.eingabe.empfaenger?.trim() ? ` an „${kurz(frueherer.eingabe.empfaenger, 30)}“` : ""}, in einem früheren Einsatz; sie zählt nicht als doppelt. Läuft dieser Einsatz noch: unter „Erstellte Vordrucke“ „Einsatz … fortsetzen“`);
+            // Der Knopf setzt den vorigen Einsatz fort; er gehört nur zum Satz, wenn die Nr. dort lag.
+            const vorigerEins = vorigerEinsatz();
+            const frueh = new Date(frueherer.zeit).getTime();
+            const imVorigen = Boolean(vorigerEins) && frueh >= (vorigerEins?.beginn ?? 0) && frueh <= (vorigerEins?.ende ?? 0);
+            hinweise.push(`Nr. ${daten.nummer} gab es schon ${zeitText(frueherer.zeit)}${frueherer.eingabe.empfaenger?.trim() ? ` an „${kurz(frueherer.eingabe.empfaenger, 30)}“` : ""}, in einem früheren Einsatz${(frueherer.eingabe.empfaenger ?? "").trim() !== (eingabe.empfaenger ?? "").trim() ? " und an eine andere Gegenstelle" : ""}; sie zählt nicht als doppelt.${imVorigen ? " Läuft dieser Einsatz noch:" : ""}`);
         }
     }
     // Unter derselben Nr. liegt ein anderer, nicht erstellter Spruch in der Ablage.
@@ -1196,6 +1285,10 @@ function einzelPruefen() {
     // Vermerke passen zur Richtung: Aufnahme beim Eingang, Annahme und Beförderung beim Ausgang.
     const vermerk = (gruppe: string) => ["Datum", "Uhrzeit", "Hdz"].some(teil => (eingabe[`${gruppe}${teil}` as Schluessel] ?? "").trim());
     wichtig.push(...vermerkWiderspruch(eingabe));
+    // Der Meldevordruck druckt unter „Ausgang“ die Beförderung, sonst die Annahme: beides gefüllt, fällt die Annahme weg.
+    if (optionen().vordruck === "meldung" && vermerk("annahme") && vermerk("befoerderung")) {
+        hinweise.push("Der Annahmevermerk wird nicht gedruckt: Der Meldevordruck zeigt unter „Ausgang“ die Beförderung, und die ist gefüllt");
+    }
     if (optionen().vordruck !== "meldung") {
         if (eingabe.richtung === "Eingang" && daten.inhalt && !vermerk("aufnahme")) {
             fehlt.push("Aufnahmevermerk (Datum, Uhrzeit, Hdz.)");
@@ -1211,7 +1304,7 @@ function einzelPruefen() {
     if (daten.inhalt && !(eingabe.empfaenger ?? "").trim()) {
         fehlt.push(optionen().vordruck === "meldung" ? "Empfänger" : "Gegenstelle");
     }
-    if (daten.inhalt && (eingabe.richtung === "Ausgang" || eingabe.richtung === "Eingang") && !(eingabe.absender ?? "").trim()) {
+    if (daten.inhalt && (optionen().vordruck === "meldung" || eingabe.richtung === "Ausgang" || eingabe.richtung === "Eingang") && !(eingabe.absender ?? "").trim()) {
         fehlt.push("Absender");
     }
     // Angaben, die der gewählte Vordruck nicht hat: sie bleiben erhalten, das soll man wissen.
@@ -1239,8 +1332,8 @@ function einzelPruefen() {
         li.textContent = zeile.text;
         li.classList.toggle("wichtig", zeile.wichtig);
         // Die Hinweise auf den Einsatz bieten den Knopf gleich an: Er liegt sonst in der zugeklappten Liste, weit unten.
-        const knopf = /in einem früheren Einsatz/.test(zeile.text) ? ["Einsatz fortsetzen …", "einsatz-fortsetzen"]
-            : /^Nr\. .* wurde schon .* erstellt, mit Gegenstelle/.test(zeile.text) ? ["Neuer Einsatz …", "einsatz-neu"] : null;
+        const knopf = /Läuft dieser Einsatz noch:$/.test(zeile.text) ? ["Einsatz fortsetzen …", "einsatz-fortsetzen"]
+            : /Beginnt ein neuer Einsatz oder eine neue Übung:$/.test(zeile.text) ? ["Neuer Einsatz …", "einsatz-neu"] : null;
         if (knopf && !element<HTMLButtonElement>(knopf[1] ?? "").hidden) {
             const aktion = document.createElement("button");
             aktion.type = "button";
@@ -1313,7 +1406,7 @@ function eigeneStation(): Eingabe | null {
 }
 function eigeneStationMerken(eingabe: Eingabe): void {
     if (eingabe.richtung === "Ausgang" && STATION_FELDER.some(feld => (eingabe[feld] ?? "").trim())) {
-        speicher()?.setItem(STATION_SCHLUESSEL, JSON.stringify(Object.fromEntries(STATION_FELDER.map(feld => [feld, eingabe[feld] ?? ""]))));
+        schreibe(speicher(), STATION_SCHLUESSEL, JSON.stringify(Object.fromEntries(STATION_FELDER.map(feld => [feld, eingabe[feld] ?? ""]))));
     }
 }
 
@@ -1322,7 +1415,7 @@ function maskeGeaendert(ereignis: Event): void {
     const name = ziel instanceof HTMLInputElement || ziel instanceof HTMLTextAreaElement || ziel instanceof HTMLSelectElement ? ziel.name : "";
     if (name) {
         angefasst.add(name);
-        tabSpeicher()?.setItem(ANGEFASST_SCHLUESSEL, JSON.stringify([...angefasst]));
+        schreibeImTab(tabSpeicher(), ANGEFASST_SCHLUESSEL, JSON.stringify([...angefasst]));
         feldRahmen(name)?.classList.remove("geleert");
         // Angefasst und leer gelassen ist eine Entscheidung, kein Versehen mehr.
         frischGeleert.delete(name as Schluessel);
@@ -1341,6 +1434,10 @@ function maskeGeaendert(ereignis: Event): void {
     richtungMeldung.textContent = meldung;
     richtungMeldung.hidden = !meldung;
     kurzmeldungSchliessen();
+    // Liegt die Meldung unter dem Bildrand (die Richtung steht oft weit unten), kommt sie zusätzlich als Kurzmeldung.
+    if (meldung && !imBild(richtungMeldung)) {
+        zeigeKurzmeldung(meldung, false);
+    }
     planeVorschau();
 }
 
@@ -1455,6 +1552,9 @@ function alsErstelltMerken(eingabe: Eingabe, jetzt: Date, zusatz = ""): void {
     if (gemerkt.verdraengt > 0) {
         statusText.textContent += ` Die Liste erstellter Vordrucke ist voll (${HOECHSTENS}); der älteste Eintrag ist herausgefallen.`;
     }
+    if (!gemerkt.gespeichert) {
+        statusText.textContent += ` Nicht in die Liste erstellter Vordrucke eingetragen: ${speicherZustand() === "voll" ? "Der Speicher des Geräts ist voll" : "Das Gerät speichert nichts"}; der Eintrag gilt nur bis zum Neuladen, danach fällt eine doppelte Nr. nicht mehr auf.`;
+    }
     verlaufZeigen();
 }
 
@@ -1522,7 +1622,7 @@ async function einzelBestaetigt(eingabe: Eingabe): Promise<false | { verteilen: 
         // Bestätigt: Bis zum nächsten Erstellen gilt die Stelle als bewusst gewählt.
         angefasst.add("empfaenger");
         angefasst.add("absender");
-        tabSpeicher()?.setItem(ANGEFASST_SCHLUESSEL, JSON.stringify([...angefasst]));
+        schreibeImTab(tabSpeicher(), ANGEFASST_SCHLUESSEL, JSON.stringify([...angefasst]));
     }
     // Ohne Abfassungszeit: eigene Frage mit „Jetzt“, in jedem Weg, auch bei langem Text. Beim
     // Meldevordruck unabhängig von der Richtung, die er nicht hat; bei einem Widerspruch zwischen
@@ -1564,8 +1664,8 @@ async function einzelBestaetigt(eingabe: Eingabe): Promise<false | { verteilen: 
         // Ohne Gegenstelle oder Absender ist ein Spruch auf Papier nicht zuzuordnen.
         daten.inhalt && !(eingabe.empfaenger ?? "").trim() ? `Der Vordruck hat keine${vordruck === "meldung" ? "n Empfänger" : " Gegenstelle"}.` : "",
         daten.inhalt && !(eingabe.absender ?? "").trim() && vordruck === "meldung" ? "Der Vordruck hat keinen Absender." : "",
-        daten.inhalt && vordruck !== "meldung" && eingabe.richtung === "Ausgang" && !(eingabe.absender ?? "").trim() ? "Der Ausgang hat keinen Absender." : "",
-        daten.inhalt && vordruck !== "meldung" && eingabe.richtung === "Eingang" && !(eingabe.absender ?? "").trim() ? "Der Eingang hat keinen Absender (die sendende Stelle)." : ""
+        daten.inhalt && vordruck !== "meldung" && eingabe.richtung === "Ausgang" && !(eingabe.absender ?? "").trim() ? "Der Vordruck hat keinen Absender (Ausgang)." : "",
+        daten.inhalt && vordruck !== "meldung" && eingabe.richtung === "Eingang" && !(eingabe.absender ?? "").trim() ? "Der Vordruck hat keinen Absender (Eingang: die sendende Stelle)." : ""
     ].filter(Boolean);
     if (probleme.length === 0) {
         return { verteilen: false };
@@ -1590,6 +1690,9 @@ async function einzelBestaetigt(eingabe: Eingabe): Promise<false | { verteilen: 
         if (!lang) {
             return { verteilen: false };
         }
+        // Bestätigt: Die folgende Frage nennt die stehen gebliebenen Angaben nicht noch einmal.
+        const satz = `${altwerte(eingabe)}.`;
+        probleme.splice(0, probleme.length, ...probleme.filter(text => text !== satz));
     }
     if (lang) {
         const verteilt = verteiltText(daten.inhalt, vordruck);
@@ -1655,7 +1758,7 @@ function stehenGebliebeneLeeren(eingabe: Eingabe, alt: readonly typeof SPALTEN[n
     const text = `Geleert: ${aufzaehlen(alt.map(spalte => spalte.titel))}. Die Felder sind markiert; bitte prüfen und erneut erzeugen.`;
     meldeStatus(text, { stand: eingabe, aktion: "Leeren", beschriftung: "Geleerte Angaben wiederherstellen" }, true);
     // Die Seite rollt gleich zum ersten geleerten Feld, weg von der Meldung oben: Sie kommt deshalb auch als Kurzmeldung.
-    zeigeKurzmeldung(`${text} Zurücknehmen: oben über der Maske.`, false);
+    zeigeKurzmeldung(text, true);
     // Zum ersten geleerten Feld, damit ein zweiter Tipp auf „PDF“ nicht ungeprüft erzeugt.
     const erstes = maske.elements.namedItem(alt[0]?.schluessel ?? "");
     const ziel = erstes instanceof RadioNodeList ? erstes[0] : erstes;
@@ -1833,11 +1936,13 @@ function verlaufZeigen(): void {
     // Eine spätere Fassung derselben Nr. an dieselbe Gegenstelle im selben Einsatz:
     // mit anderem Stand eine Korrektur, mit gleichem nur erneut gedruckt.
     const stand = einsatzStand();
-    const fassung = fassungen(verlauf, stand);
+    // Auch abgelegte Entwürfe zählen als Arbeit: Trennzeilen, „(Korrektur)“ und CSV folgen derselben Regel wie die Nummernprüfung.
+    const arbeit = aktivitaet().map(eintrag => new Date(eintrag.zeit).getTime());
+    const fassung = fassungen(verlauf, stand, arbeit);
     einsatzZeigen();
     // Die Ablage kennzeichnet Einträge, deren Nr. inzwischen anders erstellt wurde.
     ablageZeigen();
-    const folgen = einsatzFolgen(verlauf, stand);
+    const folgen = einsatzFolgen(verlauf, stand, arbeit);
     const VORDRUCK_NAME: Record<string, string> = { nachricht: "Nachricht", meldung: "Meldung", beide: "Beide" };
     element<HTMLTableSectionElement>("verlauf-liste").replaceChildren(...laufenderEinsatzLeer(), ...[...verlauf].map((eintrag, index) => ({ eintrag, index })).reverse().flatMap(({ eintrag, index }) => {
         const tr = document.createElement("tr");
@@ -1882,25 +1987,39 @@ function tagUhr(zeit: Date): string {
     return `${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}, ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr`;
 }
 
+/** „04.10., 08:00 bis 09:30 Uhr“ oder bei gleicher Minute „am 04.10. um 08:00 Uhr“. */
+function zeitraum(von: number, bis: number): string {
+    const a = tagUhr(new Date(von));
+    const b = tagUhr(new Date(bis));
+    return a === b ? `am ${a.replace(", ", " um ")}` : `vom ${a} bis ${b}`;
+}
+
 /**
- * Der Einsatz vor dem laufenden: Beginn, Ende und Zahl der erstellten Vordrucke; `null`, wenn es keinen
- * gibt. Auch abgelegte Entwürfe zählen als Arbeit, sie bestimmen aber nur Beginn und Ende.
+ * Der jüngste Einsatz vor dem laufenden, in dem Vordrucke erstellt wurden: Beginn, Ende und Zahl dieser
+ * Vordrucke; `null`, wenn es keinen gibt. Abgelegte Entwürfe zählen als Arbeit (sie bestimmen Beginn und
+ * Ende und tragen Pausen), ein Einsatz nur aus Entwürfen aber nicht: er wird übersprungen. `bruecken`:
+ * die Zeitpunkte, an denen eine Pause bis zum laufenden Einsatz zu überbrücken wäre.
  */
-function vorigerEinsatz(): { beginn: number; ende: number; anzahl: number } | null {
+function vorigerEinsatz(): { beginn: number; ende: number; anzahl: number; bruecken: number[] } | null {
     const stand = einsatzStand();
-    const beginn = aktuellerEinsatzBeginn();
-    const davor = aktivitaet().map(eintrag => new Date(eintrag.zeit).getTime()).filter(zeit => !Number.isNaN(zeit) && zeit < beginn).sort((x, y) => x - y);
-    const ende = davor.at(-1);
-    if (ende === undefined) {
-        return null;
+    const laufend = aktuellerEinsatzBeginn();
+    let rest = aktivitaet().map(eintrag => new Date(eintrag.zeit).getTime()).filter(zeit => !Number.isNaN(zeit) && zeit < laufend).sort((x, y) => x - y);
+    while (rest.length > 0) {
+        const ende = rest.at(-1) ?? 0;
+        const start = einsatzBeginn(rest.map(zeit => ({ zeit: new Date(zeit).toISOString() })),
+            { grenzen: stand.grenzen.filter(grenze => grenze <= ende), bruecken: stand.bruecken }, ende);
+        const anzahl = verlauf.filter(eintrag => {
+            const zeit = new Date(eintrag.zeit).getTime();
+            return zeit >= start && zeit <= ende;
+        }).length;
+        if (anzahl > 0) {
+            const punkte = [...new Set(aktivitaet().map(eintrag => new Date(eintrag.zeit).getTime()).filter(zeit => zeit >= ende && zeit < laufend))].sort((x, y) => x - y);
+            const bruecken = punkte.filter((zeit, index) => (punkte[index + 1] ?? laufend) - zeit > EINSATZ_PAUSE);
+            return { beginn: start, ende, anzahl, bruecken };
+        }
+        rest = rest.filter(zeit => zeit < start);
     }
-    const start = einsatzBeginn(davor.map(zeit => ({ zeit: new Date(zeit).toISOString() })),
-        { grenzen: stand.grenzen.filter(grenze => grenze <= ende), bruecken: stand.bruecken }, ende);
-    const anzahl = verlauf.filter(eintrag => {
-        const zeit = new Date(eintrag.zeit).getTime();
-        return zeit >= start && zeit <= ende;
-    }).length;
-    return anzahl > 0 ? { beginn: start, ende, anzahl } : null;
+    return null;
 }
 
 /** Ab wann Nummern geprüft werden, und die Knöpfe für die Einsatzgrenze. */
@@ -1911,81 +2030,117 @@ function einsatzZeigen(): void {
     const eintraege = anzahl === 0 ? "noch kein Eintrag" : anzahl === 1 ? "1 Eintrag" : `${anzahl} Einträge`;
     const vonHand = stand.grenzen.includes(beginn);
     element<HTMLParagraphElement>("einsatz-text").textContent = `Laufender Einsatz seit ${tagUhr(new Date(beginn))}${vonHand ? " (von Hand begonnen)" : ""}, ${eintraege}. `
-        + "Beim Prüfen und Hochzählen der Nummern zählen nur Einträge dieses Einsatzes; nach zwölf Stunden ohne Vordruck beginnt ein neuer von selbst.";
+        + "Beim Prüfen und Hochzählen der Nummern zählen nur Einträge dieses Einsatzes; nach zwölf Stunden ohne Vordruck oder abgelegten Entwurf beginnt ein neuer von selbst.";
     const vorher = vorigerEinsatz();
     const fortsetzen = element<HTMLButtonElement>("einsatz-fortsetzen");
     fortsetzen.hidden = !vorher && !vonHand;
     fortsetzen.textContent = vorher ? `Einsatz vom ${tagUhr(new Date(vorher.beginn))} fortsetzen` : "Neuen Einsatz zurücknehmen";
 }
 
-/** Speichert den Stand, zeigt Liste und Hinweise neu und sagt dort, wo getippt wurde, was geschah. */
-function einsatzSetzen(stand: Einsatzstand, meldung: string): void {
-    einsatzSchreiben(stand);
+/**
+ * Speichert den Stand, zeigt Liste und Hinweise neu und sagt dort, wo getippt wurde, was geschah.
+ * Die Meldung als Funktion läuft erst nach dem Speichern: Sie darf die Maske ändern und lesen, was
+ * dann gilt. Ergibt `false`, wenn das Gerät den Stand nicht festhalten konnte (nichts hat sich geändert).
+ */
+function einsatzSetzen(stand: Einsatzstand, meldung: string | (() => string)): boolean {
+    const zeile = element<HTMLParagraphElement>("einsatz-meldung");
+    if (!einsatzSchreiben(stand)) {
+        zeile.textContent = `Nicht gespeichert: Das Gerät kann nichts mehr speichern (${speicherZustand() === "voll" ? "Speicher voll" : "Speicher gesperrt"}). Der Einsatz bleibt unverändert.`;
+        zeile.hidden = false;
+        return false;
+    }
+    const text = typeof meldung === "function" ? meldung() : meldung;
     verlaufZeigen();
     einzelPruefen();
-    const zeile = element<HTMLParagraphElement>("einsatz-meldung");
-    zeile.textContent = meldung;
+    zeile.textContent = text;
     zeile.hidden = false;
+    // Wurde der Wechsel aus einem Hinweis angestoßen, liegt die Meldung in der zugeklappten Liste außerhalb des Bildes.
+    if (!imBild(zeile)) {
+        zeigeKurzmeldung(text, false);
+    }
+    return true;
 }
 
 /** Was „Neuer Einsatz“ an der Nr. der Maske geändert hat, damit „Fortsetzen“ es zurückgeben kann. */
 const EINSATZ_NUMMER_SCHLUESSEL = "bnv.einsatz.nummer.v1";
+
+/** Die Nr. nach `nummer`, die im laufenden Einsatz noch nicht erstellt oder abgelegt ist. */
+function freieNummerNach(nummer: string): string {
+    const abgelegt = new Set(ablageLesen().filter(eintrag => new Date(eintrag.zeit).getTime() >= aktuellerEinsatzBeginn())
+        .map(eintrag => (eintrag.eingabe.nummer ?? "").trim()));
+    let naechste = naechsteNummer(nummer);
+    for (let versuch = 0; versuch < 1000 && naechste && (mitNummer(juengste(), naechste).length > 0 || abgelegt.has(naechste)); versuch++) {
+        naechste = naechsteNummer(naechste);
+    }
+    return naechste;
+}
 
 element<HTMLButtonElement>("einsatz-neu").addEventListener("click", async () => {
     const ablage = ablageLesen().length;
     const letzter = verlauf.at(-1);
     const letzteNr = letzter?.eingabe.nummer?.trim();
     const beginnVorher = aktuellerEinsatzBeginn();
-    const imEinsatz = letzter && new Date(letzter.zeit).getTime() >= beginnVorher;
     const leer = einsatzStand().grenzen.includes(beginnVorher) && juengste().length === 0;
-    // Der Zeitpunkt „ab dem letzten Vordruck“ gilt für den, der erst nach Nr. 1 der neuen Übung „Neuer Einsatz“ wählt.
-    const wahl = await frageWahl(`Neuen Einsatz beginnen? Die Liste bleibt erhalten; frühere Nummern gelten aber nicht mehr als doppelt, und „Nächster Vordruck“ überspringt sie nicht mehr.${ablage > 0 ? ` Die Ablage (${ablage}) bleibt; ihre Nummern zählen im neuen Einsatz nicht.` : ""}${imEinsatz ? ` Gehört der zuletzt erstellte Vordruck${letzteNr ? ` (Nr. ${letzteNr})` : ""} vom ${tagUhr(new Date(letzter.zeit))} schon zum neuen Einsatz, „Ab dem letzten Vordruck“ wählen.` : ""} Zurücknehmen lässt sich das unter „Erstellte Vordrucke“ mit dem Knopf „Einsatz … fortsetzen“.`,
-        "Neuen Einsatz beginnen", "Abbrechen", imEinsatz ? "Ab dem letzten Vordruck" : "");
+    // Ein zweiter Wechsel in einem leeren Einsatz ändert nichts: gleich sagen, ohne Rückfrage.
+    if (leer) {
+        einsatzSetzen(einsatzStand(), "Der laufende Einsatz ist von Hand begonnen und noch leer; ein weiterer Wechsel ändert nichts.");
+        return;
+    }
+    // „Ab dem letzten Vordruck“ nur, wenn er jung ist und nicht ohnehin den Einsatz eröffnet: sonst trennte es nichts.
+    const letzteZeit = letzter ? new Date(letzter.zeit).getTime() : 0;
+    const dritteMoeglich = Boolean(letzter) && letzteZeit > beginnVorher && Date.now() - letzteZeit < 2 * 60 * 60 * 1000;
+    const wahl = await frageWahl([
+        `Neuen Einsatz beginnen? Frühere Nummern gelten dann nicht mehr als doppelt; die Liste bleibt.${ablage > 0 ? ` Die Ablage (${ablage}) bleibt, ihre Nummern zählen im neuen Einsatz nicht.` : ""}`,
+        "„Neuen Einsatz beginnen“: gilt ab jetzt.",
+        ...dritteMoeglich && letzter ? [`„Ab dem letzten Vordruck“: Nr. ${letzteNr || "ohne Nr."} vom ${tagUhr(new Date(letzter.zeit))} gehört schon zum neuen Einsatz.`] : [],
+        "Zurücknehmen: „Einsatz … fortsetzen“ unter „Erstellte Vordrucke“."
+    ].join("\n"),
+        "Neuen Einsatz beginnen", "Abbrechen", dritteMoeglich ? "Ab dem letzten Vordruck" : "");
     if (wahl === "nein") {
         return;
     }
     const stand = einsatzStand();
     const eingabe = maskeLesen();
-    if (wahl === "dritte" && letzter) {
-        const zeit = new Date(letzter.zeit).getTime();
-        if (stand.grenzen.includes(zeit)) {
-            einsatzSetzen(stand, "Der Einsatz beginnt schon mit diesem Vordruck; es ändert sich nichts.");
-            return;
-        }
-        stand.grenzen.push(zeit);
-        stand.grenzen.sort((x, y) => x - y);
-        einsatzSetzen(stand, `Neuer Einsatz beginnt mit dem letzten Vordruck${letzteNr ? ` (Nr. ${letzteNr})` : ""}; frühere Nummern zählen beim Prüfen nicht mehr. Die Maske steht auf Nr. ${eingabe.nummer?.trim() || "ohne"}, „Nächster Vordruck“ zählt von dort weiter. Soll der neue Einsatz bei 1 beginnen, jetzt die Nr. ändern.`);
-        return;
-    }
-    if (leer) {
-        einsatzSetzen(stand, "Der laufende Einsatz ist von Hand begonnen und noch leer; ein weiterer Wechsel änderte nichts.");
-        return;
-    }
-    // Ohne begonnenen Text fängt die Nummerierung neu an, mit dem Vorsatz der bisherigen Nr.
-    let nummerText = "";
-    if (!(eingabe.inhalt ?? "").trim()) {
+    const leerText = !(eingabe.inhalt ?? "").trim();
+    // Ohne begonnenen Text fängt die Nummerierung neu an (mit dem Vorsatz der bisherigen Nr.), nach
+    // „Ab dem letzten Vordruck“ mit der Nr. nach diesem Vordruck; „Fortsetzen“ gibt sie zurück.
+    const nummerAendern = (ziel: () => string): string => {
         const vorher = eingabe.nummer?.trim() ?? "";
-        const nummer = `${/^(.*?)\d*$/.exec(vorher)?.[1] ?? ""}1`;
+        if (!leerText) {
+            return ` Die Maske behält Nr. ${vorher || "(ohne)"} mit ihrem Text; gehört der Spruch in den neuen Einsatz, jetzt die Nr. prüfen.`;
+        }
+        const nummer = ziel();
+        if (!nummer || nummer === vorher) {
+            return nummer ? ` Die Maske bleibt bei Nr. ${nummer}.` : "";
+        }
         setzeFeld("nummer", nummer);
-        speicher()?.setItem(EINSATZ_NUMMER_SCHLUESSEL, JSON.stringify({ gesetzt: nummer, vorher }));
-        nummerText = ` Die Maske beginnt mit Nr. ${nummer}${vorher ? ` (vorher ${vorher})` : ""}.`;
-    } else {
-        nummerText = ` Die Maske behält Nr. ${eingabe.nummer?.trim() || "ohne"} mit ihrem Text; gehört der Spruch in den neuen Einsatz, jetzt die Nr. prüfen.`;
+        schreibe(speicher(), EINSATZ_NUMMER_SCHLUESSEL, JSON.stringify({ gesetzt: nummer, vorher }));
+        return ` Die Maske beginnt mit Nr. ${nummer}${vorher ? ` (vorher ${vorher})` : ""}.`;
+    };
+    if (wahl === "dritte" && letzter) {
+        stand.grenzen.push(letzteZeit);
+        stand.grenzen.sort((x, y) => x - y);
+        einsatzSetzen(stand, () => `Neuer Einsatz beginnt mit dem letzten Vordruck${letzteNr ? ` (Nr. ${letzteNr})` : ""}; frühere Nummern zählen beim Prüfen nicht mehr.`
+            + nummerAendern(() => letzteNr ? freieNummerNach(letzteNr) : ""));
+        return;
     }
     stand.grenzen.push(Date.now());
-    einsatzSetzen(stand, `Neuer Einsatz begonnen: Frühere Nummern zählen beim Prüfen nicht mehr.${nummerText}`);
+    einsatzSetzen(stand, () => "Neuer Einsatz begonnen: Frühere Nummern zählen beim Prüfen nicht mehr."
+        + nummerAendern(() => `${/^(.*?)\d*$/.exec(eingabe.nummer?.trim() ?? "")?.[1] ?? ""}1`));
 });
 element<HTMLButtonElement>("einsatz-fortsetzen").addEventListener("click", async () => {
     const vorher = vorigerEinsatz();
     const stand = einsatzStand();
-    const beginn = aktuellerEinsatzBeginn();
+    // Ein fester Zeitpunkt für alle Vergleiche: Ohne Arbeit in den letzten zwölf Stunden beginnt der Einsatz „jetzt“, und das wandert.
+    const jetzt = Date.now();
+    const beginn = einsatzBeginn(aktivitaet(), stand, jetzt);
     const handgesetzt = stand.grenzen.includes(beginn);
     const imEinsatz = juengste().length;
     const folge = imEinsatz > 0
-        ? ` Die ${imEinsatz === 1 ? "1 schon erstellte Nr." : `${imEinsatz} schon erstellten Nummern`} des laufenden Einsatzes gehören dann zum selben Nummernkreis; gleiche Nummern erscheinen in der Liste als „(Korrektur)“ oder „(erneut gedruckt)“.`
+        ? ` ${imEinsatz === 1 ? "Die 1 schon erstellte Nr. des laufenden Einsatzes gehört" : `Die ${imEinsatz} schon erstellten Nummern des laufenden Einsatzes gehören`} dann zum selben Nummernkreis; gleiche Nummern erscheinen in der Liste als „(Korrektur)“ oder „(erneut gedruckt)“.`
         : "";
     const frageText = vorher
-        ? `Den Einsatz vom ${tagUhr(new Date(vorher.beginn))} bis ${tagUhr(new Date(vorher.ende))} fortsetzen? ${vorher.anzahl === 1 ? "Sein 1 Eintrag zählt" : `Seine ${vorher.anzahl} Einträge zählen`} dann wieder beim Prüfen und Hochzählen der Nummern${handgesetzt ? "" : ", auch über die Pause hinweg"}.${folge}`
+        ? `Den Einsatz ${zeitraum(vorher.beginn, vorher.ende)} fortsetzen? ${vorher.anzahl === 1 ? "Sein 1 Eintrag zählt" : `Seine ${vorher.anzahl} Einträge zählen`} dann wieder beim Prüfen und Hochzählen der Nummern${handgesetzt ? "" : ", auch über die Pause hinweg"}.${folge}`
         : `Den von Hand begonnenen Einsatz zurücknehmen? Es zählen dann wieder alle Einträge seit der letzten Pause von zwölf Stunden.${folge}`;
     if (!await frage(frageText, vorher ? "Einsatz fortsetzen" : "Zurücknehmen")) {
         return;
@@ -1994,33 +2149,41 @@ element<HTMLButtonElement>("einsatz-fortsetzen").addEventListener("click", async
     if (handgesetzt) {
         // Genau die zuletzt gesetzte Grenze zurück: so führt der Weg dorthin, wo man vorher war.
         neu.grenzen.splice(neu.grenzen.lastIndexOf(beginn), 1);
-    } else if (vorher) {
-        // Die Brücke liegt am letzten Eintrag vor der Pause, gleich ob erstellt oder abgelegt.
-        neu.bruecken.push(vorher.ende);
+    }
+    // Beginnt der Einsatz auch ohne Grenze mit dieser Pause, überbrückt „Fortsetzen“ sie. Die Brücke liegt
+    // am letzten Eintrag vor der Pause, gleich ob erstellt oder abgelegt.
+    if (vorher && einsatzBeginn(aktivitaet(), neu, jetzt) === beginn) {
+        neu.bruecken = [...new Set([...neu.bruecken, ...vorher.bruecken])].sort((x, y) => x - y);
     }
     // Nichts vortäuschen: Hat sich der Beginn nicht geändert, sagen.
-    if (einsatzBeginn(aktivitaet(), neu) === beginn) {
+    if (einsatzBeginn(aktivitaet(), neu, jetzt) === beginn) {
         einsatzSetzen(stand, "Es ließ sich nichts zurücknehmen; der laufende Einsatz beginnt unverändert.");
         return;
     }
-    // Hat „Neuer Einsatz“ die Nr. der leeren Maske auf 1 gesetzt, gibt „Fortsetzen“ sie zurück.
-    let nummerText = "";
-    try {
-        const gemerkt = JSON.parse(speicher()?.getItem(EINSATZ_NUMMER_SCHLUESSEL) ?? "null") as { gesetzt?: string; vorher?: string } | null;
-        const jetzt = maskeLesen();
-        if (gemerkt?.gesetzt && gemerkt.vorher && (jetzt.nummer ?? "").trim() === gemerkt.gesetzt && !(jetzt.inhalt ?? "").trim()) {
-            setzeFeld("nummer", gemerkt.vorher);
-            nummerText = ` Die Maske steht wieder auf Nr. ${gemerkt.vorher}.`;
+    einsatzSetzen(neu, () => {
+        // Hat „Neuer Einsatz“ die Nr. der Maske geändert, gibt „Fortsetzen“ sie zurück, solange noch kein Text darin steht.
+        let nummerText = "";
+        try {
+            const gemerkt = JSON.parse(speicher()?.getItem(EINSATZ_NUMMER_SCHLUESSEL) ?? "null") as { gesetzt?: string; vorher?: string } | null;
+            const jetzt = maskeLesen();
+            if (gemerkt?.gesetzt && gemerkt.vorher && (jetzt.nummer ?? "").trim() === gemerkt.gesetzt) {
+                if (!(jetzt.inhalt ?? "").trim()) {
+                    setzeFeld("nummer", gemerkt.vorher);
+                    nummerText = ` Die Maske steht wieder auf Nr. ${gemerkt.vorher}.`;
+                } else {
+                    nummerText = ` Die Maske hat Text und bleibt bei Nr. ${gemerkt.gesetzt}; vor „Neuer Einsatz“ war es Nr. ${gemerkt.vorher}.`;
+                }
+            }
+            speicher()?.removeItem(EINSATZ_NUMMER_SCHLUESSEL);
+        } catch {
+            // Kaputter Merker: nichts zurückgeben.
         }
-        speicher()?.removeItem(EINSATZ_NUMMER_SCHLUESSEL);
-    } catch {
-        // Kaputter Merker: nichts zurückgeben.
-    }
-    einsatzSetzen(neu, (vorher ? `Einsatz vom ${tagUhr(new Date(vorher.beginn))} fortgesetzt; seine Nummern zählen wieder.` : "Neuer Einsatz zurückgenommen; die Nummern zählen wieder wie vorher.") + nummerText);
+        return (vorher ? `Einsatz ${zeitraum(vorher.beginn, vorher.ende)} fortgesetzt; seine Nummern zählen wieder. Wieder trennen: „Neuer Einsatz“.` : "Neuer Einsatz zurückgenommen; die Nummern zählen wieder wie vorher.") + nummerText;
+    });
 });
 
 element<HTMLButtonElement>("verlauf-csv").addEventListener("click", () => {
-    herunterladen(new Blob([verlaufAlsCsv(verlauf, einsatzStand())], { type: "text/csv;charset=utf-8" }), "erstellte-vordrucke.csv");
+    herunterladen(new Blob([verlaufAlsCsv(verlauf, einsatzStand(), aktivitaet().map(eintrag => new Date(eintrag.zeit).getTime()))], { type: "text/csv;charset=utf-8" }), "erstellte-vordrucke.csv");
 });
 // Die gelöschte Liste bleibt im Gerätespeicher, bis sie wiederhergestellt oder
 // von einem weiteren Löschen ergänzt wird: Wiederherstellen übersteht ein Neuladen.
@@ -2057,8 +2220,12 @@ element<HTMLButtonElement>("verlauf-loeschen").addEventListener("click", async (
         return;
     }
     // Ein zweites Löschen verwirft das erste nicht: beide kommen zusammen zurück.
-    speicher()?.setItem(GELOESCHT_SCHLUESSEL, JSON.stringify([...geloeschteListe(), ...verlauf]));
-    speicher()?.setItem(`${GELOESCHT_SCHLUESSEL}.zeit`, new Date().toISOString());
+    // Lässt sich die Sicherung nicht schreiben, bleibt die Liste: sonst wäre sie ohne Weg zurück weg.
+    if (!schreibe(speicher(), GELOESCHT_SCHLUESSEL, JSON.stringify([...geloeschteListe(), ...verlauf]))) {
+        zeigeKurzmeldung("Die Liste wurde nicht gelöscht: Das Gerät kann die Sicherung dafür nicht speichern. Erst „Liste als CSV“ sichern.");
+        return;
+    }
+    schreibe(speicher(), `${GELOESCHT_SCHLUESSEL}.zeit`, new Date().toISOString());
     loescheVerlauf();
     verlauf = [];
     verlaufZeigen();
@@ -2088,7 +2255,7 @@ async function naechsterVordruck(knopf: HTMLButtonElement): Promise<void> {
     }
     const eingabe = maskeLesen();
     const ablegbar = Boolean((eingabe.inhalt ?? "").trim()) && !istErstellt(eingabe);
-    if (ablegbar && !await frage(`Dieser Vordruck${eingabe.nummer?.trim() ? ` Nr. ${eingabe.nummer.trim()}` : ""} wurde noch nicht als PDF erstellt. Er kommt in die Ablage unter den Knöpfen und lässt sich von dort zurückholen.${ablageVollSatz(eingabe)} Zum nächsten Vordruck wechseln?`, "Zum nächsten Vordruck")) {
+    if (ablegbar && !await frage(`Dieser Vordruck${eingabe.nummer?.trim() ? ` Nr. ${eingabe.nummer.trim()}` : ""} wurde noch nicht als PDF erstellt. ${speicherZustand() === "ok" ? "Er kommt in die Ablage unter den Knöpfen und lässt sich von dort zurückholen." : "Das Gerät kann nichts speichern: Er geht verloren und lässt sich nicht zurückholen."}${ablageVollSatz(eingabe)} Zum nächsten Vordruck wechseln?`, "Zum nächsten Vordruck")) {
         return;
     }
     // Ein nie erstellter Vordruck mit Text bleibt zurückholbar.
@@ -2150,12 +2317,21 @@ async function naechsterVordruck(knopf: HTMLButtonElement): Promise<void> {
         + (uebernommenNamen.length > 0
             ? `Übernommen: ${aufzaehlen(uebernommenNamen)}; alles andere ist leer.`
             : "Alles andere ist leer.")
-        + (ablegbar ? ` ${eingabe.nummer?.trim() ? `Nr. ${eingabe.nummer.trim()}` : "Der vorige Vordruck ohne Nr."} liegt in der Ablage.` : "")
+        + (ablegbar ? ` ${inDerAblage(eingabe.nummer?.trim() ? `Nr. ${eingabe.nummer.trim()}` : "Der vorige Vordruck ohne Nr.")}` : "")
         + heraus;
     // Der Hinweis nach dem Neuladen hat seinen Zweck erfüllt; Rückmeldung und
     // Zurücknehmen stehen oben über der Maske, an einer Stelle für beide Wege.
     entwurfHinweis.hidden = true;
     meldeStatus(text, { stand: eingabe, aktion: "Nächster Vordruck" }, true);
+    // Der Rat „Neuer Einsatz wählen“ liegt sonst in der zugeklappten Liste: den Knopf gleich dazu.
+    if (text.includes(einsatzRat())) {
+        const aktion = document.createElement("button");
+        aktion.type = "button";
+        aktion.className = "link";
+        aktion.textContent = "Neuer Einsatz …";
+        aktion.addEventListener("click", () => element<HTMLButtonElement>("einsatz-neu").click());
+        obenStatus.append(" ", aktion);
+    }
     // Rückmeldung und erstes Feld zusammen ins Bild, ohne Kurzmeldung über den Feldern.
     // Der zweite Tipp eines Doppeltipps landet sonst im hochgerollten Formular.
     maskeSperreBis = performance.now() + 1_200;
@@ -2176,7 +2352,7 @@ for (const art of ["pointerdown", "mousedown", "touchstart", "click"] as const) 
             ereignis.stopPropagation();
             // Nicht stumm: Ein bewusster Tipp soll wissen, dass er wiederholt werden muss.
             if (art === "pointerdown") {
-                zeigeKurzmeldung("Eben umgeschaltet: Dieser Tipp wurde nicht ausgeführt (Schutz vor Doppeltipp). Bitte noch einmal tippen.", false);
+                zeigeKurzmeldung("Neuer Vordruck geöffnet: Dieser Tipp wurde nicht ausgeführt (Schutz vor Doppeltipp). Bitte noch einmal tippen.", false);
             }
         }
     }, { capture: true, passive: false });
@@ -2230,14 +2406,15 @@ element<HTMLButtonElement>("einzeln-leeren").addEventListener("click", async () 
     if (!await frage(`Alle Felder leeren? ${belegt.length} ausgefüllte ${belegt.length === 1 ? "Angabe" : "Angaben"}${zusatz} ${belegt.length === 1 ? "wird" : "werden"} geleert. Ein nicht erstellter Vordruck kommt in die Ablage unter den Knöpfen und lässt sich von dort zurückholen, auch nach weiterem Tippen.${ablageVollSatz(eingabe)}`, "Felder leeren")) {
         return;
     }
-    const heraus = (eingabe.inhalt ?? "").trim() && !istErstellt(eingabe) ? ablegen(eingabe, "geleert") : "";
+    const wirdAbgelegt = Boolean((eingabe.inhalt ?? "").trim()) && !istErstellt(eingabe);
+    const heraus = wirdAbgelegt ? ablegen(eingabe, "geleert") : "";
     maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
     maskeSchreiben(vorgaben);
     entwurfEntfernen();
     weitereZaehlen();
     entwurfHinweis.hidden = true;
     angefasstZuruecksetzen();
-    meldeStatus(`Alle Felder geleert.${heraus}`, { stand: eingabe, aktion: "Felder leeren", beschriftung: "Alle geleerten Felder wiederherstellen" });
+    meldeStatus(`Alle Felder geleert.${wirdAbgelegt ? ` ${inDerAblage(eingabe.nummer?.trim() ? `Nr. ${eingabe.nummer.trim()}` : "Der Vordruck ohne Nr.")}` : ""}${heraus}`, { stand: eingabe, aktion: "Felder leeren", beschriftung: "Alle geleerten Felder wiederherstellen" });
     planeVorschau();
 });
 
@@ -2334,7 +2511,7 @@ async function dateiEinlesen(datei: File): Promise<void> {
         ersetztText = vorher ? ` Ersetzt ${vorher.dateiName} (${vorher.ergebnis.zeilen.length} ${vorher.ergebnis.zeilen.length === 1 ? "Zeile" : "Zeilen"}).` : "";
         dateiName = datei.name;
         // Nur der Name, nicht der Inhalt: nach dem Neuladen sagt die Seite, was zuvor geladen war.
-        tabSpeicher()?.setItem("bnv.tabelle.v1", datei.name);
+        schreibeImTab(tabSpeicher(), "bnv.tabelle.v1", datei.name);
     } catch (fehler) {
         const meldung = `${datei.name} ließ sich nicht lesen: ${fehler instanceof Error ? fehler.message : String(fehler)}`;
         ergebnis = vorher?.ergebnis ?? null;
@@ -2394,14 +2571,22 @@ function fehltIn(betroffen: readonly TabellenErgebnis["zeilen"][number][], was: 
 function schonGleichErstellt(zeilen: readonly { zeile: number; eingabe: Eingabe }[]): string {
     // Nur dieselbe Vordruckart zählt: als Meldevordruck ist derselbe Stand ein neuer Bogen.
     const { vordruck } = optionen();
-    const erstellt = new Map(verlauf.filter(eintrag => !eintrag.vordruck || eintrag.vordruck === vordruck)
-        .map(eintrag => [verlaufKennung(eintrag.eingabe), eintrag.zeit]));
+    const erstellt = new Map<string, Eintrag>();
+    for (const eintrag of verlauf.filter(eintrag => !eintrag.vordruck || eintrag.vordruck === vordruck)) {
+        const kennung = verlaufKennung(eintrag.eingabe);
+        if (!erstellt.has(kennung)) {
+            erstellt.set(kennung, eintrag);
+        }
+    }
     const gleich = zeilen.filter(zeile => erstellt.has(verlaufKennung(zeile.eingabe)));
     if (gleich.length === 0) {
         return "";
     }
-    const zeit = new Date(erstellt.get(verlaufKennung(gleich[0]?.eingabe ?? {})) ?? "");
-    const wann = Number.isNaN(zeit.getTime()) ? "" : ` (zuerst ${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr)`;
+    const erster = erstellt.get(verlaufKennung(gleich[0]?.eingabe ?? {}));
+    const zeit = new Date(erster?.zeit ?? "");
+    // Auch die Druckfassung nennen: Wurde beim ersten Mal gekürzt oder verteilt gedruckt, ist der volle Text nicht gedruckt.
+    const fassung = (erster?.zusatz ?? "").split(", ").filter(teil => /gekürzt|verteilt|Fehlern/.test(teil)).join(", ");
+    const wann = Number.isNaN(zeit.getTime()) ? "" : ` (zuerst ${zeit.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} ${zeit.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr${fassung ? `, ${fassung}` : ""})`;
     return gleich.length === zeilen.length
         ? `Alle Zeilen wurden auf diesem Gerät schon mit gleichem Inhalt als PDF erstellt${wann}.`
         : `${gleich.length} von ${zeilen.length} Zeilen ${gleich.length === 1 ? "wurde" : "wurden"} auf diesem Gerät schon mit gleichem Inhalt als PDF erstellt${wann}.`;
@@ -2520,7 +2705,7 @@ function tabelleAnzeigen(): void {
         const satz = document.createElement("p");
         // Die Spalte „Verfasser“ gibt es nicht mehr: Der Absender ist der Verfasser, das soll hier stehen.
         const verfasser = unbekannteSpalten.some(name => name.trim().toLowerCase() === "verfasser");
-        satz.textContent = `Diese Spalten sind unbekannt und werden ignoriert: ${unbekannteSpalten.join(", ")}.${verfasser ? " „Verfasser“ gibt es nicht mehr: Gedruckt wird der Absender als Verfasser; fehlt die Spalte „Absender“, bitte dorthin übertragen." : ""}`;
+        satz.textContent = `Diese Spalten sind unbekannt und werden ignoriert: ${unbekannteSpalten.join(", ")}.${verfasser ? " „Verfasser“ gibt es nicht mehr: Der Bogen nennt den Verfasser „Absender“. Die Spalte bitte in „Absender“ umbenennen; sie wird sonst ignoriert." : ""}`;
         warnung.append(satz);
     }
     const zusatz = [
@@ -2691,6 +2876,15 @@ function listeUebernahmeZeigen(): void {
         return art && !art.startsWith(vordruck === "nachricht" ? "nachricht" : vordruck === "meldung" ? "melde" : "beide");
     });
     const andereNummern = [...new Set(andere.map(zeile => zeile.daten.nummer || `Zeile ${zeile.zeile}`))];
+    // Ältere Sicherungen haben die Zeit ohne Sekunden: Ein Einsatzwechsel innerhalb einer Minute ist darin nicht mehr zu erkennen.
+    const jeMinute = new Map<string, Set<string>>();
+    for (const zeile of zeilen) {
+        const erstellt = zeile.liste?.erstellt.trim() ?? "";
+        if (/\d{1,2}:\d{2}$/.test(erstellt) && !/\d{1,2}:\d{2}:\d{2}$/.test(erstellt)) {
+            jeMinute.set(erstellt, (jeMinute.get(erstellt) ?? new Set<string>()).add(zeile.liste?.einsatz?.trim() ?? ""));
+        }
+    }
+    const minutenWechsel = [...jeMinute.values()].some(einsaetze => einsaetze.size > 1);
     element<HTMLParagraphElement>("liste-text").textContent = [
         `${dateiName} ist eine gesicherte Liste erstellter Vordrucke.`,
         fehlen === 0
@@ -2701,6 +2895,7 @@ function listeUebernahmeZeigen(): void {
                     : imEinsatz > 0
                         ? ` Übernommen zählen ${imEinsatz} davon beim Prüfen der Nummern; die übrigen gehören zu einem früheren Einsatz (unter „Erstellte Vordrucke“ fortsetzbar).`
                         : " Sie gehören zu einem früheren Einsatz; beim Prüfen der Nummern zählen sie erst, wenn er unter „Erstellte Vordrucke“ fortgesetzt wird."),
+        minutenWechsel ? "Die Zeiten dieser Datei haben keine Sekunden: Ein Einsatzwechsel innerhalb einer Minute ist darin nicht erkennbar, die betroffenen Einsätze können hier zusammengefasst sein." : "",
         "„PDF herunterladen“ druckt die Zeilen neu und übernimmt sie dabei.",
         andere.length > 0 ? `${andere.length === 1 ? "Eine Zeile war" : `${andere.length} Zeilen waren`} ein anderer Vordruck als eingestellt (${andereNummern.slice(0, 6).map(nummer => /^Zeile/.test(nummer) ? nummer : `Nr. ${nummer}`).join(", ")}); gedruckt wird alles als ${NAME[vordruck]}.` : ""
     ].filter(Boolean).join(" ");
@@ -2798,13 +2993,8 @@ element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", async ereign
         // sonst stünden sie nach einem späteren Übernehmen doppelt da. Zeilen, die mit
         // diesem Vordruck schon darin stehen, kommen nicht ein zweites Mal hinein.
         const uebernommen = ergebnis?.istListe ? listeUebernehmen() : "";
-        const schonInListe = new Set(verlauf.map(eintrag => `${eintrag.vordruck ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
-        const neueZeilen = ergebnis?.istListe ? zeilen.filter(zeile => !schonInListe.has(`${vordruck}|${verlaufKennung(zeile.eingabe)}`)) : zeilen;
-        const gemerkt = merkeVordrucke(neueZeilen.map(zeile => zeile.eingabe), jetzt, vordruck, index => {
-            const zeile = neueZeilen[index];
-            if (!zeile) {
-                return "";
-            }
+        // Was in der Liste über die Druckfassung steht, je Zeile.
+        const zusatzFuer = (zeile: TabellenErgebnis["zeilen"][number]): string => {
             const lang = istKritisch(pruefeTextlaenge(zeile.daten.inhalt, vordruck));
             const felder = zeileGekuerzt(zeile, verteilen);
             return [
@@ -2813,16 +3003,29 @@ element<HTMLButtonElement>("tabelle-pdf").addEventListener("click", async ereign
                 lang && verteilen ? `auf ${verteiltText(zeile.daten.inhalt, vordruck)} verteilt` : lang ? "Text gekürzt gedruckt" : "",
                 felder.length > 0 ? `${felder.join(", ")} gekürzt gedruckt` : ""
             ].filter(Boolean).join(", ");
+        };
+        // Nur die Druckfassung zählt beim Vergleich: Derselbe Stand in anderer Fassung (etwa gekürzt statt verteilt) ist ein weiterer Druck.
+        const fassungsteil = (zusatz: string) => zusatz.split(", ").filter(teil => /gekürzt|verteilt|Fehlern/.test(teil)).join(", ");
+        const schonInListe = new Set(verlauf.map(eintrag => `${eintrag.vordruck ?? ""}|${verlaufKennung(eintrag.eingabe)}|${fassungsteil(eintrag.zusatz ?? "")}`));
+        const neueZeilen = ergebnis?.istListe
+            ? zeilen.filter(zeile => !schonInListe.has(`${vordruck}|${verlaufKennung(zeile.eingabe)}|${fassungsteil(zusatzFuer(zeile))}`))
+            : zeilen;
+        const gemerkt = merkeVordrucke(neueZeilen.map(zeile => zeile.eingabe), jetzt, vordruck, index => {
+            const zeile = neueZeilen[index];
+            return zeile ? zusatzFuer(zeile) : "";
         }, aktuellerEinsatzBeginn());
         verlauf = gemerkt.liste;
         verlaufZeigen();
         const uhr = jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
         const { gekuerzt: anzahl, verteilt } = tabellenAnzahl();
         const vordrucke = verteilen ? verteilt : anzahl;
-        const liste = gemerkt.neu === 0
-            ? "Die Liste erstellter Vordrucke enthielt diese Zeilen schon."
-            : `${gemerkt.neu} ${gemerkt.neu === 1 ? "Zeile" : "Zeilen"} in die Liste erstellter Vordrucke eingetragen${gemerkt.verdraengt > 0 ? `; dafür sind die ältesten ${gemerkt.verdraengt} herausgefallen (Liste fasst ${HOECHSTENS})` : ""}.`;
-        element<HTMLParagraphElement>("tabelle-erstellt").textContent = `PDF mit ${vordrucke} ${vordrucke === 1 ? "Vordruck" : "Vordrucken"} um ${uhr} Uhr erstellt.${uebernommen ? ` ${uebernommen}` : ""} ${liste}`;
+        const liste = !gemerkt.gespeichert
+            ? `Nicht in die Liste erstellter Vordrucke eingetragen: ${speicherZustand() === "voll" ? "Der Speicher des Geräts ist voll" : "Das Gerät speichert nichts"}.`
+            : gemerkt.neu === 0
+                // Nach einer Übernahme der gesicherten Liste stehen die Zeilen schon darin: kein zweiter, widersprüchlicher Satz.
+                ? uebernommen ? "" : "Die Liste erstellter Vordrucke enthielt diese Zeilen schon."
+                : `${gemerkt.neu} ${gemerkt.neu === 1 ? "Zeile" : "Zeilen"} (Nr. ${aufzaehlen(gemerkt.liste.slice(-gemerkt.neu).slice(0, 6).map(eintrag => (eintrag.eingabe.nummer ?? "").trim() || "ohne Nr."))}${gemerkt.neu > 6 ? " u. a." : ""}) in die Liste erstellter Vordrucke neu eingetragen${zeilen.length - gemerkt.neu > 0 ? `, ${zeilen.length - gemerkt.neu} schon vorhanden` : ""}${gemerkt.verdraengt > 0 ? `; dafür sind die ältesten ${gemerkt.verdraengt} herausgefallen (Liste fasst ${HOECHSTENS})` : ""}.`;
+        element<HTMLParagraphElement>("tabelle-erstellt").textContent = `PDF mit ${vordrucke} ${vordrucke === 1 ? "Vordruck" : "Vordrucken"} um ${uhr} Uhr erstellt.${uebernommen ? ` ${uebernommen}` : ""} ${liste}`.trim();
         listeUebernahmeZeigen();
         element<HTMLParagraphElement>("tabelle-erstellt").hidden = false;
     });
@@ -2859,11 +3062,15 @@ function tabellenProbleme(): { probleme: string[]; zuLang: TabellenErgebnis["zei
     const schonErstellt = ergebnis?.istListe ? [] : zeilen.filter(zeile => frueherErstellt(zeile.daten.nummer, zeile.eingabe));
     const gekuerzt = zeilen.filter(zeile => zeileGekuerzt(zeile).length > 0);
     const unmoeglich = zeilen.filter(zeile => zeile.hinweise.some(hinweis => hinweis.includes(UNMOEGLICH)));
+    const leere = zeilen.filter(zeile => !(zeile.daten.inhalt ?? "").trim() && !(zeile.eingabe.empfaenger ?? "").trim());
     const probleme = [
         erste ? `${mitFehler.length} ${mitFehler.length === 1 ? "Zeile hat" : "Zeilen haben"} Fehler, etwa Zeile ${erste.zeile}: ${eigeneFehler(erste.fehler, vordruck)[0]}. Betroffene Felder bleiben leer oder werden ersetzt.` : "",
         zuLang.length > 0 ? `In ${zuLang.length === 1 ? "Zeile" : "den Zeilen"} ${zeilenListe(zuLang)} ist der Text länger als ein Vordruck.` : "",
         gekuerzt.length > 0 ? `In ${gekuerzt.length === 1 ? "Zeile" : "den Zeilen"} ${zeilenListe(gekuerzt)}: ${gekuerztSatz(gekuerzt[0] ? zeileGekuerzt(gekuerzt[0]) : [])}${gekuerzt.length > 1 ? " (in Zeile " + gekuerzt[0]?.zeile + ")" : ""}.` : "",
         unmoeglich.length > 0 ? `In ${unmoeglich.length === 1 ? "Zeile" : "den Zeilen"} ${zeilenListe(unmoeglich)} steht eine unmögliche Uhrzeit oder ein unmögliches Datum.` : "",
+        leere.length > 0 ? `${leere.length === 1 ? "Zeile" : "Die Zeilen"} ${zeilenListe(leere)} ${leere.length === 1 ? "hat" : "haben"} weder Text noch ${vordruck === "meldung" ? "Empfänger" : "Gegenstelle"} und ${leere.length === 1 ? "wird" : "werden"} als leerer Bogen gedruckt.` : "",
+        // Der Meldevordruck hat keine Richtung: Ohne Absender fragt er in jeder Zeile, nicht nur bei einem „Ausgang“.
+        vordruck === "meldung" ? fehltIn(zeilen.filter(zeile => zeile.daten.inhalt && !(zeile.eingabe.absender ?? "").trim() && !zeile.fehler.some(text => text.startsWith("Absender"))), "der Absender") : "",
         doppelt.length > 0 ? `Die Zeilen ${zeilenListe(doppelt)} haben doppelte Nummern.` : "",
         // Mit früherer Gegenstelle, Zeit und Fassung: Wer prüft, soll nicht selbst suchen müssen.
         schonErstellt.length > 0 ? `Auf diesem Gerät schon mit anderem Inhalt oder an eine andere Gegenstelle erstellt: ${[...new Map(schonErstellt.map(zeile => [zeile.daten.nummer, zeile])).values()].slice(0, 4).map(zeile => {
@@ -3071,9 +3278,14 @@ function netzZeigen(): void {
         };
         // HEAD geht am Offline-Dienst vorbei (er bedient nur GET) und fragt wirklich den Server.
         // Die Startseite selbst: Liefert der Server dafür noch einen Fehler, ist er nicht zurück.
+        const start = performance.now();
         void fetch("./", { method: "HEAD", cache: "no-store" })
             .then(antwort => {
-                if (antwort.ok) {
+                const dauer = (performance.now() - start) / 1000;
+                if (antwort.ok && dauer > 3) {
+                    // Antwortet er so langsam, fällt ein Neuladen wieder auf die gespeicherte Fassung zurück: nicht dazu raten.
+                    hinweis.textContent = `Der Server antwortet, aber langsam (${Math.round(dauer)} s): Es läuft die auf diesem Gerät gespeicherte Fassung ${__FASSUNG__}. Neu laden holt die aktuelle erst, wenn er schneller antwortet.`;
+                } else if (antwort.ok) {
                     hinweis.textContent = "Der Server ist wieder erreichbar. Neu laden holt die aktuelle Fassung.";
                 } else {
                     hinweis.textContent = `Der Server meldet einen Fehler (${antwort.status}): Es läuft die auf diesem Gerät gespeicherte Fassung ${__FASSUNG__}.`;
@@ -3146,6 +3358,8 @@ addEventListener("online", gestaltungNachholen);
 addEventListener("online", netzZeigen);
 // Auch ohne Netzwechsel kann der Server zurückkommen: einmal pro Minute nachsehen.
 setInterval(() => {
+    // Die Gestaltung auch ohne Netzwechsel wieder versuchen (ein Serverfehler löst kein „online“ aus).
+    gestaltungNachholen();
     if (!element<HTMLParagraphElement>("speicher-stand").hidden) {
         netzZeigen();
     }

@@ -1,4 +1,5 @@
 import { schreibeCsv } from "./csv.js";
+import { schreibe } from "./speicherwache.js";
 import { ERSTELLT_SPALTE, LISTEN_SPALTEN, SPALTEN, type Eingabe } from "./spalten.js";
 
 // Liste der erzeugten Einzelvordrucke auf diesem Gerät: zum Abgleich mit dem
@@ -53,6 +54,8 @@ export function verlaufKennung(eingabe: Eingabe): string {
 /** Ergebnis des Merkens: die neue Liste und wie viele alte Einträge dafür herausgefallen sind. */
 export interface Gemerkt {
     liste: Eintrag[];
+    /** `false`, wenn das Gerät die Liste nicht schreiben konnte (gesperrt oder voll). */
+    gespeichert: boolean;
     /** Neu eingetragen; schon vorhandene Stände zählen nicht. */
     neu: number;
     verdraengt: number;
@@ -85,10 +88,8 @@ export function merkeVordrucke(
     });
     const alle = [...bisher, ...dazu];
     const liste = alle.slice(-HOECHSTENS);
-    if (dazu.length > 0) {
-        speicher()?.setItem(SCHLUESSEL, JSON.stringify(liste));
-    }
-    return { liste, neu: dazu.length, verdraengt: alle.length - liste.length };
+    const gespeichert = dazu.length === 0 || schreibe(speicher(), SCHLUESSEL, JSON.stringify(liste));
+    return { liste, gespeichert, neu: dazu.length, verdraengt: alle.length - liste.length };
 }
 
 /** Ein einzelner Vordruck. */
@@ -99,7 +100,7 @@ export function merkeVordruck(eingabe: Eingabe, zeit = new Date(), vordruck?: st
 /** Schreibt eine ganze Liste zurück, etwa nach „Liste löschen“ und „Wiederherstellen“. */
 export function setzeVerlauf(liste: readonly Eintrag[]): Eintrag[] {
     const gekuerzt = liste.slice(-HOECHSTENS);
-    speicher()?.setItem(SCHLUESSEL, JSON.stringify(gekuerzt));
+    schreibe(speicher(), SCHLUESSEL, JSON.stringify(gekuerzt));
     return gekuerzt;
 }
 
@@ -165,8 +166,9 @@ export function uebernimmEintraege(dazu: readonly Eintrag[]): Gemerkt {
         return true;
     });
     const alle = [...bisher, ...neu].sort((a, b) => a.zeit.localeCompare(b.zeit));
-    const liste = setzeVerlauf(alle);
-    return { liste, neu: neu.length, verdraengt: alle.length - liste.length };
+    const liste = alle.slice(-HOECHSTENS);
+    const gespeichert = neu.length === 0 || schreibe(speicher(), SCHLUESSEL, JSON.stringify(liste));
+    return { liste, gespeichert, neu: neu.length, verdraengt: alle.length - liste.length };
 }
 
 /** Ohne erstellten Vordruck in dieser Zeit beginnt ein neuer Einsatz. */
@@ -221,16 +223,27 @@ export function einsatzBeginn(liste: readonly { zeit: string }[], stand: Einsatz
 
 /**
  * Je Eintrag die laufende Nummer seines Einsatzes, ab 0: neu an einer Grenze und
- * nach einer Pause von `EINSATZ_PAUSE`, außer sie ist überbrückt.
+ * nach einer Pause von `EINSATZ_PAUSE`, außer sie ist überbrückt. `weitere`: Zeitpunkte
+ * (ms), zu denen sonst gearbeitet wurde, etwa abgelegte Entwürfe: Sie unterbrechen eine
+ * Pause und tragen die Brücken, die „Einsatz fortsetzen“ dort gesetzt hat.
  */
-export function einsatzFolgen(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE): number[] {
+export function einsatzFolgen(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE, weitere: readonly number[] = []): number[] {
+    const punkte = [...new Set([...liste.map(eintrag => new Date(eintrag.zeit).getTime()), ...weitere].filter(zeit => !Number.isNaN(zeit)))].sort((a, b) => a - b);
+    /** Ob zwischen `von` und `bis` eine nicht überbrückte Pause liegt, gemessen an allen Arbeitszeitpunkten. */
+    const pauseZwischen = (von: number, bis: number): boolean => {
+        const dazwischen = [von, ...punkte.filter(zeit => zeit > von && zeit < bis), bis];
+        return dazwischen.some((zeit, index) => {
+            const naechster = dazwischen[index + 1];
+            return naechster !== undefined && naechster - zeit > EINSATZ_PAUSE && !stand.bruecken.includes(zeit);
+        });
+    };
     let folge = 0;
     let vorher = Number.NaN;
     return liste.map(eintrag => {
         const zeit = new Date(eintrag.zeit).getTime();
         if (!Number.isNaN(vorher)) {
             const ueberGrenze = stand.grenzen.some(grenze => vorher < grenze && grenze <= zeit);
-            const pause = zeit - vorher > EINSATZ_PAUSE && !stand.bruecken.includes(vorher);
+            const pause = pauseZwischen(vorher, zeit);
             if (ueberGrenze || pause) {
                 folge++;
             }
@@ -245,9 +258,9 @@ export function einsatzFolgen(liste: readonly Eintrag[], stand: Einsatzstand = O
  * Gegenstelle im selben Einsatz ist: „Korrektur“ bei anderem Stand, „erneut“
  * bei gleichem Stand in anderer Druckform. Sonst leer.
  */
-export function fassungen(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE): ("" | "Korrektur" | "erneut")[] {
+export function fassungen(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE, weitere: readonly number[] = []): ("" | "Korrektur" | "erneut")[] {
     const gesehen = new Map<string, Set<string>>();
-    const folgen = einsatzFolgen(liste, stand);
+    const folgen = einsatzFolgen(liste, stand, weitere);
     return liste.map((eintrag, index) => {
         // Neuer Einsatz: nach langer Pause oder über eine gesetzte Grenze hinweg.
         if (index > 0 && folgen[index] !== folgen[index - 1]) {
@@ -296,8 +309,8 @@ export function listenEinsatz(zeilen: readonly { eingabe: Eingabe; liste?: { ers
  * CSV im Format der Vorlage, damit sie im Reiter „Aus Excel oder CSV“ wieder
  * eingelesen werden kann; vorn steht, wann der Vordruck erstellt wurde.
  */
-export function verlaufAlsCsv(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE): string {
-    const folgen = einsatzFolgen(liste, stand);
+export function verlaufAlsCsv(liste: readonly Eintrag[], stand: Einsatzstand = OHNE_GRENZE, weitere: readonly number[] = []): string {
+    const folgen = einsatzFolgen(liste, stand, weitere);
     const zwei = (zahl: number) => String(zahl).padStart(2, "0");
     const zeitpunkt = (iso: string) => {
         const zeit = new Date(iso);

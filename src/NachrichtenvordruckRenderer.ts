@@ -132,7 +132,7 @@ export function zeichneNachrichtenvordruck(
 }
 
 /** Breite, die der Prüfvermerk neben einem Betreff höchstens bekommt. */
-const PRUEFVERMERK_NEBEN_BETREFF = 45;
+export const PRUEFVERMERK_NEBEN_BETREFF = 45;
 
 /** Lage der Zeile „Inhalt“ auf einem Vordruck, in mm. */
 export interface InhaltZeile {

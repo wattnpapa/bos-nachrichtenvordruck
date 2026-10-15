@@ -330,13 +330,18 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 /* Am Telefon sind die drei Spalten feste Drittel der Breite, das Feld steht unter dem Kästchen: So bleibt die Seite so breit wie der Bildschirm. */
 @media (max-width: 40rem) {
   .verteiler table { width: 100%; table-layout: fixed; }
-  .verteiler td { white-space: normal; vertical-align: top; padding-right: var(--r-2); }
+  .verteiler td { white-space: normal; vertical-align: top; padding-right: 4px; }
   .verteiler td label { display: flex; justify-content: flex-start; }
-  .verteiler td input.verteiler-text { display: block; width: 100%; margin: var(--r-3) 0 0; padding-inline: var(--r-2); }
-  .verteiler th[scope="row"] { width: 2.5rem; padding-right: var(--r-1); }
+  .verteiler td input.verteiler-text { display: block; width: 100%; margin: var(--r-3) 0 0; padding-inline: 0.2rem; }
+  .verteiler th[scope="row"] { width: 1.9rem; padding-right: 2px; }
 }
-/* Ein Empfängerfeld, das auf dem Bogen gekürzt würde. */
-.verteiler td input.verteiler-text.zu-lang-feld { border-style: dashed; border-color: var(--alarm); }
+/* Ein Empfängerfeld, das auf dem Bogen gekürzt würde: in jedem Modus kräftig gestrichelt, dazu ein Wort, das nicht von Farbe und Strich abhängt. */
+.verteiler td input.verteiler-text.zu-lang-feld { border-style: dashed; border-width: 3px; border-color: var(--alarm); background: var(--warn-fond); }
+.verteiler .verteiler-wort { display: block; margin: 2px 0 0 var(--r-3); font-size: var(--t-s); font-weight: 700; color: var(--alarm); white-space: normal; text-align: left; }
+.verteiler .verteiler-wort[hidden] { display: none; }
+@media (max-width: 40rem) {
+  .verteiler .verteiler-wort { margin-left: 0; }
+}
 
 /* ---- Arbeitsfläche: Maske links, Vorschau rechts ------------------ */
 .arbeitsflaeche { display: grid; gap: 0 var(--r-4); }
@@ -398,6 +403,8 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 /* Ohne Knöpfe: Ein Tipp auf die Meldung schließt sie nur und löst nichts darunter aus. */
 .kurzmeldung { cursor: pointer; }
 .kurzmeldung .kurzmeldung-knoepfe { display: none; }
+.kurzmeldung.mit-knopf .kurzmeldung-knoepfe { display: flex; flex-wrap: wrap; width: 100%; }
+.kurzmeldung.mit-knopf .kurzmeldung-knoepfe button { flex: 1 1 auto; }
 .kurzmeldung > span:first-child { flex: 1 1 14rem; }
 .kurzmeldung-knoepfe { display: flex; gap: var(--r-4); }
 @media (min-width: 64rem) { .kurzmeldung { bottom: var(--r-4); } }
@@ -649,7 +656,7 @@ table.uebersicht tr.mit-fehler td:first-child { box-shadow: inset 6px 0 0 var(--
 
 /* ---- Nacht und Dunkel: Feinschliff --------------------------------- */
 .nacht-modus { --strich: 2px; --strich-stark: 2px; }
-.nacht-modus button:disabled { opacity: 0.85; }
+.nacht-modus button:disabled, .dunkel-modus button:disabled { opacity: 0.85; }
 /* Auch Nebenknöpfe gesperrt an der Form erkennbar: gestrichelt und gedämpft. */
 .nacht-modus button:disabled:not(.primaer):not(.link):not(.arbeitet),
 .dunkel-modus button:disabled:not(.primaer):not(.link):not(.arbeitet) { border-style: dashed; color: var(--text-2); }
@@ -736,3 +743,17 @@ table.uebersicht tr.einsatz-trenner td { font-weight: 700; color: var(--text-2);
   table.uebersicht tr.einsatz-trenner td { display: block; width: 100%; padding: 0.15rem 0.5rem; }
   table.uebersicht tr.einsatz-trenner td::before { content: none; }
 }
+
+/* Der Tipp kam zu früh: Die Rückfrage sagt es selbst, ein Tipp ins Leere wäre sonst rätselhaft. */
+dialog.frage p.frage-hinweis { font-size: var(--t-s); font-weight: 700; padding: var(--r-2); border-left: 6px solid var(--akzent); }
+dialog.frage p.frage-hinweis[hidden] { display: none; }
+/* „Neuer Einsatz“ ist der folgenreichere der beiden Knöpfe: fett und mit kräftigerem Rand. */
+#einsatz-neu { font-weight: 700; border-width: 2px; }
+/* Der gesperrte Zurücknehmen-Knopf bleibt tippbar (um den Tipp zu melden) und sieht wie ein deaktivierter aus. */
+button.gesperrt { opacity: 0.5; cursor: default; }
+.nacht-modus button.gesperrt, .dunkel-modus button.gesperrt { opacity: 0.85; }
+.nacht-modus button.gesperrt:not(.primaer):not(.link):not(.arbeitet),
+.dunkel-modus button.gesperrt:not(.primaer):not(.link):not(.arbeitet) { border-style: dashed; color: var(--text-2); }
+/* Die Überschrift bricht um, statt bei 320 px (Feld-Modus) über den Rand zu ragen. */
+h1 { overflow-wrap: anywhere; }
+.einleitung[hidden] { display: none; }

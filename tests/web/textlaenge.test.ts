@@ -63,6 +63,20 @@ describe("Betreff in der Zeile „Inhalt“", () => {
         expect(gekuerzteFelderAufBoegen(boegen, "nachricht")).toContain("Betreff");
     });
 
+    it("kürzt einen langen Prüfvermerk neben dem Betreff, statt ihn abschneiden zu lassen, und nennt den Betreff weiter", async () => {
+        const { bogenListe, gekuerzteFelderAufBoegen } = await import("../../web/src/textlaenge.js");
+        const { zuVordruckDaten } = await import("../../web/src/spalten.js");
+        const { daten, fehler } = zuVordruckDaten({
+            betreff: "Sandsacknachschub Deich Nord, Sielhafen, Lage am Abschnitt B, Verpflegung Helfer",
+            vorrang: "Eilig", weg: "Fnuk", absender: "Technische Einsatzleitung Landkreis Nord", inhalt: satz.repeat(20)
+        });
+        const boegen = bogenListe(daten, "nachricht", fehler, true);
+        const vermerk = boegen[0]?.pruefvermerk ?? "";
+        expect(vermerk.startsWith("Prüfen:")).toBe(true);
+        expect(vermerk).toMatch(/u\. a\.$|^Prüfen: [^;]+$/);
+        expect(gekuerzteFelderAufBoegen(boegen, "nachricht")).toContain("Betreff");
+    });
+
     it("nennt im Meldevordruck keine Felder, die er nicht hat", async () => {
         const { pruefvermerk } = await import("../../web/src/textlaenge.js");
         const { zuVordruckDaten } = await import("../../web/src/spalten.js");
