@@ -49,6 +49,9 @@
           + k + "body{background:" + f[0] + ";color:" + f[2] + "}"
           + k + "input," + k + "textarea," + k + "select," + k + "button," + k + "summary{background:" + f[1] + ";color:" + f[2] + ";border:2px solid " + f[3] + "}"
           + k + ".kurzmeldung," + k + "dialog{background:" + f[1] + ";color:" + f[2] + ";border-color:" + f[2] + "}"
+          // Reiter: ohne Stylesheet stehen lange und kurze Beschriftung beide da; der aktive Reiter bleibt erkennbar.
+          + k + ".kurz{display:none}" + k + "[aria-selected=true]{font-weight:700;text-decoration:underline}"
+          + k + ".warnung{border:2px solid " + f[3] + "}" + k + "input:focus," + k + "textarea:focus," + k + "select:focus{outline-color:" + f[2] + "}"
           + k + "a{color:" + f[2] + "}" + k + "canvas," + k + "iframe{filter:brightness(.35)}";
       }
       var stil = document.createElement("style");

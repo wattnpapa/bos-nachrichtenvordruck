@@ -403,8 +403,9 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 /* Ohne Knöpfe: Ein Tipp auf die Meldung schließt sie nur und löst nichts darunter aus. */
 .kurzmeldung { cursor: pointer; }
 .kurzmeldung .kurzmeldung-knoepfe { display: none; }
-.kurzmeldung.mit-knopf .kurzmeldung-knoepfe { display: flex; flex-wrap: wrap; width: 100%; }
-.kurzmeldung.mit-knopf .kurzmeldung-knoepfe button { flex: 1 1 auto; }
+.kurzmeldung.mit-knopf .kurzmeldung-knoepfe { display: flex; flex-wrap: nowrap; width: 100%; }
+/* Gleiche Breite, fester Platz: Zurücknehmen links, OK rechts, auch wenn sich die Beschriftung ändert. */
+.kurzmeldung.mit-knopf .kurzmeldung-knoepfe button { flex: 1 1 0; min-width: 0; }
 .kurzmeldung > span:first-child { flex: 1 1 14rem; }
 .kurzmeldung-knoepfe { display: flex; gap: var(--r-4); }
 @media (min-width: 64rem) { .kurzmeldung { bottom: var(--r-4); } }
@@ -745,15 +746,23 @@ table.uebersicht tr.einsatz-trenner td { font-weight: 700; color: var(--text-2);
 }
 
 /* Der Tipp kam zu früh: Die Rückfrage sagt es selbst, ein Tipp ins Leere wäre sonst rätselhaft. */
-dialog.frage p.frage-hinweis { font-size: var(--t-s); font-weight: 700; padding: var(--r-2); border-left: 6px solid var(--akzent); }
+/* Über dem Text statt zwischen Text und Knöpfen: Nichts darunter verrutscht, der zweite Tipp trifft denselben Knopf. */
+dialog.frage { position: fixed; }
+dialog.frage p.frage-hinweis { position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 2; font-size: var(--t-s); font-weight: 700; padding: var(--r-3); background: var(--flaeche); color: var(--text); border-left: 6px solid var(--akzent); border-bottom: var(--strich) solid var(--linie-stark); }
 dialog.frage p.frage-hinweis[hidden] { display: none; }
 /* „Neuer Einsatz“ ist der folgenreichere der beiden Knöpfe: fett und mit kräftigerem Rand. */
 #einsatz-neu { font-weight: 700; border-width: 2px; }
 /* Der gesperrte Zurücknehmen-Knopf bleibt tippbar (um den Tipp zu melden) und sieht wie ein deaktivierter aus. */
-button.gesperrt { opacity: 0.5; cursor: default; }
+button.gesperrt { opacity: 0.7; border-style: dashed; cursor: default; }
 .nacht-modus button.gesperrt, .dunkel-modus button.gesperrt { opacity: 0.85; }
 .nacht-modus button.gesperrt:not(.primaer):not(.link):not(.arbeitet),
 .dunkel-modus button.gesperrt:not(.primaer):not(.link):not(.arbeitet) { border-style: dashed; color: var(--text-2); }
 /* Die Überschrift bricht um, statt bei 320 px (Feld-Modus) über den Rand zu ragen. */
 h1 { overflow-wrap: anywhere; }
 .einleitung[hidden] { display: none; }
+/* Die Speicherwarnung bleibt beim Scrollen oben im Bild: Sonst sieht sie nicht, wer weiter unten tippt. */
+#speicher-warnung { position: sticky; top: 0; z-index: 5; font-weight: 700; font-size: var(--t-s); padding-block: var(--r-2); margin-bottom: var(--r-2); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); }
+#speicher-warnung[hidden] { display: none; }
+.speicher-defekt #offline-stand { display: none; }
+.kurzmeldung.oben { top: var(--r-2); bottom: auto !important; }
+@media (max-width: 22rem) { h1 { font-size: 1.3rem; } }

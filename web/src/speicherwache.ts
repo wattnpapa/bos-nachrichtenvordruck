@@ -7,6 +7,8 @@
 export type SpeicherZustand = "ok" | "gesperrt" | "voll";
 
 let zustand: SpeicherZustand = "ok";
+/** Schlüssel, deren letztes Schreiben scheiterte: Erst wenn genau diese wieder gelingen, ist der Speicher wieder „ok“. */
+const gescheitert = new Map<string, "gesperrt" | "voll">();
 const hoerer = new Set<(neu: SpeicherZustand) => void>();
 
 export function speicherZustand(): SpeicherZustand {
@@ -18,7 +20,9 @@ export function beiSpeicherZustand(fn: (neu: SpeicherZustand) => void): void {
     hoerer.add(fn);
 }
 
-function setzeZustand(neu: SpeicherZustand): void {
+function berechneZustand(): void {
+    const arten = [...gescheitert.values()];
+    const neu: SpeicherZustand = arten.includes("gesperrt") ? "gesperrt" : arten.includes("voll") ? "voll" : "ok";
     if (neu !== zustand) {
         zustand = neu;
         hoerer.forEach(fn => fn(neu));
@@ -30,19 +34,63 @@ function istVoll(fehler: unknown): boolean {
     return f?.name === "QuotaExceededError" || f?.name === "NS_ERROR_DOM_QUOTA_REACHED" || f?.code === 22 || f?.code === 1014;
 }
 
-/** Schreibt `wert`; `false`, wenn der Speicher gesperrt oder voll ist (der Zustand wird gemeldet). */
+/**
+ * Schreibt `wert`; `false`, wenn der Speicher gesperrt oder voll ist (der Zustand wird gemeldet).
+ * Ein kleiner geglückter Schreibzugriff auf einen anderen Schlüssel nimmt die Warnung nicht zurück:
+ * Der Entwurf, der nicht ankommt, ist damit nicht gerettet.
+ */
 export function schreibe(ort: Storage | null, schluessel: string, wert: string): boolean {
     if (!ort) {
-        setzeZustand("gesperrt");
+        gescheitert.set(schluessel, "gesperrt");
+        berechneZustand();
         return false;
     }
     try {
         ort.setItem(schluessel, wert);
-        setzeZustand("ok");
+        gescheitert.delete(schluessel);
+        berechneZustand();
         return true;
     } catch (fehler) {
-        setzeZustand(istVoll(fehler) ? "voll" : "gesperrt");
+        gescheitert.set(schluessel, istVoll(fehler) ? "voll" : "gesperrt");
+        berechneZustand();
         return false;
+    }
+}
+
+/**
+ * Der Gerätespeicher (localStorage) oder `null`. Auch Lesen und Löschen werfen in manchen
+ * Browsern (gesperrte Websitedaten): Dort liefert `getItem` dann `null` statt zu werfen.
+ */
+export function geraeteSpeicher(art: "local" | "session" = "local"): Storage | null {
+    try {
+        const roh = art === "local" ? globalThis.localStorage : globalThis.sessionStorage;
+        if (!roh) {
+            return null;
+        }
+        return {
+            getItem: (schluessel: string) => {
+                try {
+                    return roh.getItem(schluessel);
+                } catch {
+                    return null;
+                }
+            },
+            setItem: (schluessel: string, wert: string) => roh.setItem(schluessel, wert),
+            removeItem: (schluessel: string) => {
+                try {
+                    roh.removeItem(schluessel);
+                } catch {
+                    // Nichts zu entfernen.
+                }
+            },
+            clear: () => roh.clear(),
+            key: (index: number) => roh.key(index),
+            get length() {
+                return roh.length;
+            }
+        } as Storage;
+    } catch {
+        return null;
     }
 }
 
@@ -71,12 +119,10 @@ export function speicherPruefen(ort: Storage | null): boolean {
 /** Der Text zum Zustand, fest oben auf der Seite und in Rückmeldungen. */
 export function speicherWarnung(z: SpeicherZustand): string {
     if (z === "gesperrt") {
-        return "Dieser Browser speichert nichts: Entwurf, Ablage, Liste erstellter Vordrucke, Nummernprüfung und Einsatzwechsel gehen beim Neuladen verloren. "
-            + "Websitedaten für diese Seite zulassen oder ein anderes Fenster nehmen; PDFs sofort herunterladen.";
+        return "Browser speichert nichts: Entwurf, Ablage, Liste und Einsatzwechsel gehen beim Neuladen verloren. PDFs sofort herunterladen.";
     }
     if (z === "voll") {
-        return "Der Speicher des Geräts ist voll: Neues wird nicht behalten und geht beim Neuladen verloren (Entwurf, Ablage, Liste, Einsatzwechsel). "
-            + "Platz schaffen: in den Browser-Einstellungen Websitedaten löschen, vorher die Liste als CSV sichern. PDFs sofort herunterladen.";
+        return "Speicher voll: Neues geht beim Neuladen verloren (Entwurf, Ablage, Liste, Einsatzwechsel). Websitedaten löschen, vorher Liste als CSV sichern; PDFs sofort herunterladen.";
     }
     return "";
 }

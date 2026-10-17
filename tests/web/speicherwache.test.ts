@@ -20,19 +20,30 @@ function speicher(fehler?: { name: string }): Storage {
 }
 
 describe("Speicherwache", () => {
-    it("meldet einen vollen und einen gesperrten Speicher und danach wieder „ok“", () => {
+    it("meldet einen vollen und einen gesperrten Speicher und nimmt die Warnung erst zurück, wenn derselbe Schlüssel wieder geht", () => {
         const zustaende: string[] = [];
         beiSpeicherZustand(zustand => zustaende.push(zustand));
         expect(schreibe(speicher(), "a", "1")).toBe(true);
         expect(speicherZustand()).toBe("ok");
         expect(schreibe(speicher({ name: "QuotaExceededError" }), "a", "1")).toBe(false);
         expect(speicherZustand()).toBe("voll");
-        expect(schreibe(null, "a", "1")).toBe(false);
+        // Ein kleiner Schreibzugriff auf einen anderen Schlüssel rettet den Entwurf nicht: Die Warnung bleibt.
+        expect(schreibe(speicher(), "b", "1")).toBe(true);
+        expect(speicherZustand()).toBe("voll");
+        expect(schreibe(null, "c", "1")).toBe(false);
         expect(speicherZustand()).toBe("gesperrt");
+        expect(schreibe(speicher(), "c", "1")).toBe(true);
+        expect(speicherZustand()).toBe("voll");
+        expect(schreibe(speicher(), "a", "1")).toBe(true);
+        expect(speicherZustand()).toBe("ok");
+        expect(zustaende).toEqual(["voll", "gesperrt", "voll", "ok"]);
+    });
+
+    it("prüft beim Start mit einem kleinen Wert", () => {
         expect(speicherPruefen(speicher({ name: "SecurityError" }))).toBe(false);
+        expect(speicherZustand()).toBe("gesperrt");
         expect(speicherPruefen(speicher())).toBe(true);
         expect(speicherZustand()).toBe("ok");
-        expect(zustaende).toEqual(["voll", "gesperrt", "ok"]);
     });
 
     it("hat für jeden Zustand einen Warntext, nur für „ok“ keinen", () => {

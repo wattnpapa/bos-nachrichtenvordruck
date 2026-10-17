@@ -1,5 +1,5 @@
 import { schreibeCsv } from "./csv.js";
-import { schreibe } from "./speicherwache.js";
+import { geraeteSpeicher, schreibe } from "./speicherwache.js";
 import { ERSTELLT_SPALTE, LISTEN_SPALTEN, SPALTEN, type Eingabe } from "./spalten.js";
 
 // Liste der erzeugten Einzelvordrucke auf diesem Gerät: zum Abgleich mit dem
@@ -23,11 +23,7 @@ const SCHLUESSEL = "bnv.verlauf.v1";
 export const HOECHSTENS = 1000;
 
 function speicher(): Storage | null {
-    try {
-        return globalThis.localStorage ?? null;
-    } catch {
-        return null;
-    }
+    return geraeteSpeicher("local");
 }
 
 export function ladeVerlauf(): Eintrag[] {
@@ -61,6 +57,11 @@ export interface Gemerkt {
     verdraengt: number;
 }
 
+/** Der Zusatz ohne die Herkunft („aus tabelle.csv“): Dieselbe Tabelle unter anderem Namen ist kein anderer Druck. */
+export function zusatzOhneHerkunft(zusatz: string | undefined): string {
+    return (zusatz ?? "").split(", ").filter(teil => !teil.startsWith("aus ")).join(", ");
+}
+
 /**
  * Trägt erstellte Vordrucke ein. Ein Stand, der mit demselben Vordruck schon
  * in der Liste steht, kommt nicht doppelt hinein, etwa beim zweiten Download
@@ -76,11 +77,11 @@ export function merkeVordrucke(
 ): Gemerkt {
     const bisher = ladeVerlauf();
     // Derselbe Stand in anderer Druckfassung (gekürzt, verteilt) bekommt einen eigenen Eintrag.
-    const schon = new Set(bisher.filter(eintrag => new Date(eintrag.zeit).getTime() >= ab).map(eintrag => `${eintrag.vordruck ?? ""}|${eintrag.zusatz ?? ""}|${verlaufKennung(eintrag.eingabe)}`));
+    const schon = new Set(bisher.filter(eintrag => new Date(eintrag.zeit).getTime() >= ab).map(eintrag => `${eintrag.vordruck ?? ""}|${zusatzOhneHerkunft(eintrag.zusatz)}|${verlaufKennung(eintrag.eingabe)}`));
     const dazu: Eintrag[] = [];
     eingaben.forEach((eingabe, index) => {
         const text = zusatz(index);
-        const kennung = `${vordruck ?? ""}|${text}|${verlaufKennung(eingabe)}`;
+        const kennung = `${vordruck ?? ""}|${zusatzOhneHerkunft(text)}|${verlaufKennung(eingabe)}`;
         if (!schon.has(kennung)) {
             schon.add(kennung);
             dazu.push({ zeit: zeit.toISOString(), eingabe, ...vordruck ? { vordruck } : {}, ...text ? { zusatz: text } : {} });

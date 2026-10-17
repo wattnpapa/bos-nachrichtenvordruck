@@ -142,11 +142,23 @@ export function trenneLangeWoerter(pdf: jsPDF, absatz: string, maxWidth: number)
         const stuecke: string[] = [];
         let rest = wort;
         while (pdf.getTextWidth(rest) > maxWidth) {
+            // Wie viele Zeichen höchstens in die Zeile passen (die Breite wächst mit der Länge: binär suchen,
+            // sonst misst ein Wort von 2000 Zeichen tausendfach ein Wort von 2000 Zeichen).
+            let passen = 1;
+            for (let tief = 1, hoch = rest.length - 1; tief <= hoch;) {
+                const mitte = (tief + hoch) >> 1;
+                if (pdf.getTextWidth(rest.slice(0, mitte)) <= maxWidth) {
+                    passen = mitte;
+                    tief = mitte + 1;
+                } else {
+                    hoch = mitte - 1;
+                }
+            }
             // Hat das Wort eigene Bruchstellen (Adressen, Kennungen, Bindestriche),
             // dort umbrechen und keinen Strich einfügen: Ein eingefügter wäre vom
             // echten nicht zu unterscheiden. Nur, wenn die Zeile gut gefüllt ist.
             let bruch = 0;
-            for (let stelle = 1; stelle < rest.length - 1; stelle++) {
+            for (let stelle = 1; stelle < Math.min(rest.length - 1, passen); stelle++) {
                 if ("/-.@_".includes(rest.charAt(stelle)) && pdf.getTextWidth(rest.slice(0, stelle + 1)) <= maxWidth) {
                     bruch = stelle + 1;
                 }
@@ -156,12 +168,18 @@ export function trenneLangeWoerter(pdf: jsPDF, absatz: string, maxWidth: number)
                 rest = rest.slice(bruch);
                 continue;
             }
-            let laenge = rest.length - 1;
-            while (laenge > 1 && pdf.getTextWidth(`${rest.slice(0, laenge)}-`) > maxWidth) {
-                laenge--;
+            let tief = 1;
+            for (let t = 1, hoch = rest.length - 1; t <= hoch;) {
+                const mitte = (t + hoch) >> 1;
+                if (pdf.getTextWidth(`${rest.slice(0, mitte)}-`) <= maxWidth) {
+                    tief = mitte;
+                    t = mitte + 1;
+                } else {
+                    hoch = mitte - 1;
+                }
             }
-            stuecke.push(`${rest.slice(0, laenge)}-`);
-            rest = rest.slice(laenge);
+            stuecke.push(`${rest.slice(0, tief)}-`);
+            rest = rest.slice(tief);
         }
         return [...stuecke, rest].join(" ");
     });
