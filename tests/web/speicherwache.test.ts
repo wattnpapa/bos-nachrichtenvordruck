@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beiSpeicherZustand, schreibe, speicherPruefen, speicherWarnung, speicherZustand } from "../../web/src/speicherwache.js";
+import { beiSpeicherZustand, geraeteSpeicher, gescheiterteSchluessel, schreibe, speicherPruefen, speicherWarnung, speicherZustand } from "../../web/src/speicherwache.js";
 
 /** Ein Speicher, dessen Schreiben mit `fehler` scheitert (oder nie). */
 function speicher(fehler?: { name: string }): Storage {
@@ -36,7 +36,8 @@ describe("Speicherwache", () => {
         expect(speicherZustand()).toBe("voll");
         expect(schreibe(speicher(), "a", "1")).toBe(true);
         expect(speicherZustand()).toBe("ok");
-        expect(zustaende).toEqual(["voll", "gesperrt", "voll", "ok"]);
+        expect(zustaende.filter(zustand => zustand !== "ok")).toEqual(expect.arrayContaining(["voll", "gesperrt"]));
+        expect(zustaende.at(-1)).toBe("ok");
     });
 
     it("prüft beim Start mit einem kleinen Wert", () => {
@@ -44,6 +45,26 @@ describe("Speicherwache", () => {
         expect(speicherZustand()).toBe("gesperrt");
         expect(speicherPruefen(speicher())).toBe(true);
         expect(speicherZustand()).toBe("ok");
+    });
+
+    it("behandelt einen nicht lesbaren Speicher als gesperrt und überschreibt dann nichts still", () => {
+        const roh = { getItem: () => { throw new Error("denied"); }, setItem: () => undefined, removeItem: () => undefined };
+        Object.defineProperty(globalThis, "localStorage", { value: roh, configurable: true });
+        try {
+            const ort = geraeteSpeicher("local");
+            expect(ort?.getItem("x")).toBeNull();
+            expect(speicherZustand()).toBe("gesperrt");
+            expect(schreibe(ort, "bnv.verlauf.v1", "[]")).toBe(false);
+            expect(gescheiterteSchluessel()).not.toContain("(lesen)");
+        } finally {
+            Reflect.deleteProperty(globalThis, "localStorage");
+        }
+    });
+
+    it("sagt bei gescheiterter Liste nur das, nicht einen verlorenen Entwurf", () => {
+        expect(speicherWarnung("voll", ["bnv.verlauf.v1"])).toContain("Liste erstellter Vordrucke");
+        expect(speicherWarnung("voll", ["bnv.verlauf.v1"])).not.toContain("Entwurf");
+        expect(speicherWarnung("voll", ["bnv.entwurf.v1"])).toContain("Entwurf");
     });
 
     it("hat für jeden Zustand einen Warntext, nur für „ok“ keinen", () => {

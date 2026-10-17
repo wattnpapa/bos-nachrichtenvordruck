@@ -141,11 +141,15 @@ export function trenneLangeWoerter(pdf: jsPDF, absatz: string, maxWidth: number)
         }
         const stuecke: string[] = [];
         let rest = wort;
-        while (pdf.getTextWidth(rest) > maxWidth) {
+        // Mehr Zeichen, als in die schmalsten Glyphen einer Zeile passen, passen sicher nicht: Dann ist weder das ganze Wort
+        // zu messen noch über seine ganze Länge zu suchen (bei 20 000 Zeichen kostete das Minuten).
+        const schmal = Math.min(...[".", "i", "l", "'", " "].map(zeichen => pdf.getTextWidth(zeichen)).filter(breite => breite > 0));
+        const kapazitaet = Number.isFinite(schmal) && schmal > 0 ? Math.ceil(maxWidth / schmal) + 2 : Number.MAX_SAFE_INTEGER;
+        while (rest.length > kapazitaet || pdf.getTextWidth(rest) > maxWidth) {
             // Wie viele Zeichen höchstens in die Zeile passen (die Breite wächst mit der Länge: binär suchen,
             // sonst misst ein Wort von 2000 Zeichen tausendfach ein Wort von 2000 Zeichen).
             let passen = 1;
-            for (let tief = 1, hoch = rest.length - 1; tief <= hoch;) {
+            for (let tief = 1, hoch = Math.min(rest.length - 1, kapazitaet); tief <= hoch;) {
                 const mitte = (tief + hoch) >> 1;
                 if (pdf.getTextWidth(rest.slice(0, mitte)) <= maxWidth) {
                     passen = mitte;
@@ -169,7 +173,7 @@ export function trenneLangeWoerter(pdf: jsPDF, absatz: string, maxWidth: number)
                 continue;
             }
             let tief = 1;
-            for (let t = 1, hoch = rest.length - 1; t <= hoch;) {
+            for (let t = 1, hoch = Math.min(rest.length - 1, kapazitaet); t <= hoch;) {
                 const mitte = (t + hoch) >> 1;
                 if (pdf.getTextWidth(`${rest.slice(0, mitte)}-`) <= maxWidth) {
                     tief = mitte;

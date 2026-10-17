@@ -338,7 +338,9 @@ summary .stand { font-size: var(--t-s); font-weight: 400; color: var(--text-2); 
 /* Ein Empfängerfeld, das auf dem Bogen gekürzt würde: in jedem Modus kräftig gestrichelt, dazu ein Wort, das nicht von Farbe und Strich abhängt. */
 .verteiler td input.verteiler-text.zu-lang-feld { border-style: dashed; border-width: 3px; border-color: var(--alarm); background: var(--warn-fond); }
 .verteiler .verteiler-wort { display: block; margin: 2px 0 0 var(--r-3); font-size: var(--t-s); font-weight: 700; color: var(--alarm); white-space: normal; text-align: left; }
-.verteiler .verteiler-wort[hidden] { display: none; }
+/* Der Platz bleibt reserviert: Erscheint „zu lang“, rutschen die Zeilen darunter nicht. */
+.verteiler .verteiler-wort[hidden] { display: block; visibility: hidden; }
+.verteiler .verteiler-wort { min-height: 1.3em; }
 @media (max-width: 40rem) {
   .verteiler .verteiler-wort { margin-left: 0; }
 }
@@ -657,7 +659,7 @@ table.uebersicht tr.mit-fehler td:first-child { box-shadow: inset 6px 0 0 var(--
 
 /* ---- Nacht und Dunkel: Feinschliff --------------------------------- */
 .nacht-modus { --strich: 2px; --strich-stark: 2px; }
-.nacht-modus button:disabled, .dunkel-modus button:disabled { opacity: 0.85; }
+.nacht-modus button:disabled, .dunkel-modus button:disabled { opacity: 0.92; }
 /* Auch Nebenknöpfe gesperrt an der Form erkennbar: gestrichelt und gedämpft. */
 .nacht-modus button:disabled:not(.primaer):not(.link):not(.arbeitet),
 .dunkel-modus button:disabled:not(.primaer):not(.link):not(.arbeitet) { border-style: dashed; color: var(--text-2); }
@@ -747,21 +749,26 @@ table.uebersicht tr.einsatz-trenner td { font-weight: 700; color: var(--text-2);
 
 /* Der Tipp kam zu früh: Die Rückfrage sagt es selbst, ein Tipp ins Leere wäre sonst rätselhaft. */
 /* Über dem Text statt zwischen Text und Knöpfen: Nichts darunter verrutscht, der zweite Tipp trifft denselben Knopf. */
-dialog.frage { position: fixed; }
-dialog.frage p.frage-hinweis { position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 2; font-size: var(--t-s); font-weight: 700; padding: var(--r-3); background: var(--flaeche); color: var(--text); border-left: 6px solid var(--akzent); border-bottom: var(--strich) solid var(--linie-stark); }
+/* Hohe Rückfragen (Feld-Modus, Querformat): Der Text rollt, die Knöpfe bleiben im Dialog und im Bild. */
+dialog.frage { position: fixed; max-height: calc(100vh - 1rem); max-height: calc(100dvh - 1rem); overflow: hidden; }
+dialog.frage[open] { display: flex; flex-direction: column; }
+dialog.frage form { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+dialog.frage #frage-text { overflow-y: auto; min-height: 2.5rem; flex: 1 1 auto; }
+dialog.frage .aktionen { flex: none; }
+dialog.frage p.frage-hinweis { pointer-events: none; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 2; font-size: var(--t-s); font-weight: 700; padding: var(--r-3); background: var(--flaeche); color: var(--text); border-left: 6px solid var(--akzent); border-bottom: var(--strich) solid var(--linie-stark); }
 dialog.frage p.frage-hinweis[hidden] { display: none; }
 /* „Neuer Einsatz“ ist der folgenreichere der beiden Knöpfe: fett und mit kräftigerem Rand. */
 #einsatz-neu { font-weight: 700; border-width: 2px; }
 /* Der gesperrte Zurücknehmen-Knopf bleibt tippbar (um den Tipp zu melden) und sieht wie ein deaktivierter aus. */
-button.gesperrt { opacity: 0.7; border-style: dashed; cursor: default; }
-.nacht-modus button.gesperrt, .dunkel-modus button.gesperrt { opacity: 0.85; }
+button.gesperrt { opacity: 0.8; border-style: dashed; cursor: default; }
+.nacht-modus button.gesperrt, .dunkel-modus button.gesperrt { opacity: 0.92; }
 .nacht-modus button.gesperrt:not(.primaer):not(.link):not(.arbeitet),
 .dunkel-modus button.gesperrt:not(.primaer):not(.link):not(.arbeitet) { border-style: dashed; color: var(--text-2); }
 /* Die Überschrift bricht um, statt bei 320 px (Feld-Modus) über den Rand zu ragen. */
 h1 { overflow-wrap: anywhere; }
 .einleitung[hidden] { display: none; }
 /* Die Speicherwarnung bleibt beim Scrollen oben im Bild: Sonst sieht sie nicht, wer weiter unten tippt. */
-#speicher-warnung { position: sticky; top: 0; z-index: 5; font-weight: 700; font-size: var(--t-s); padding-block: var(--r-2); margin-bottom: var(--r-2); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); }
+#speicher-warnung { position: sticky; top: 0; z-index: 5; font-weight: 700; font-size: var(--t-s); line-height: 1.3; padding-block: var(--r-2); padding-inline: var(--r-3); margin-bottom: var(--r-2); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); }
 #speicher-warnung[hidden] { display: none; }
 .speicher-defekt #offline-stand { display: none; }
 .kurzmeldung.oben { top: var(--r-2); bottom: auto !important; }

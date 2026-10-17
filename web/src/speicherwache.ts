@@ -7,6 +7,8 @@
 export type SpeicherZustand = "ok" | "gesperrt" | "voll";
 
 let zustand: SpeicherZustand = "ok";
+/** Sammelschlüssel für Lesefehler: Der Speicher ist dann gesperrt, auch wenn Schreibversuche scheitern müssten. */
+const LESEN = "(lesen)";
 /** Schlüssel, deren letztes Schreiben scheiterte: Erst wenn genau diese wieder gelingen, ist der Speicher wieder „ok“. */
 const gescheitert = new Map<string, "gesperrt" | "voll">();
 const hoerer = new Set<(neu: SpeicherZustand) => void>();
@@ -15,15 +17,26 @@ export function speicherZustand(): SpeicherZustand {
     return zustand;
 }
 
+/** Die Schlüssel, deren Schreiben scheiterte (ohne den Sammelschlüssel für Lesefehler). */
+export function gescheiterteSchluessel(): string[] {
+    return [...gescheitert.keys()].filter(schluessel => schluessel !== LESEN);
+}
+
 /** Ruft `fn` bei jedem Wechsel des Zustands auf. */
 export function beiSpeicherZustand(fn: (neu: SpeicherZustand) => void): void {
     hoerer.add(fn);
+    // Was schon vor dem Anmelden gescheitert ist (ein Lesefehler beim Start), kommt sofort an.
+    fn(zustand);
 }
 
+let letzteUnterschrift = "";
 function berechneZustand(): void {
     const arten = [...gescheitert.values()];
     const neu: SpeicherZustand = arten.includes("gesperrt") ? "gesperrt" : arten.includes("voll") ? "voll" : "ok";
-    if (neu !== zustand) {
+    // Auch ein Wechsel der betroffenen Schlüssel meldet sich: Der Warntext hängt davon ab.
+    const unterschrift = `${neu}|${[...gescheitert.entries()].map(([schluessel, art]) => `${schluessel}:${art}`).sort().join(",")}`;
+    if (unterschrift !== letzteUnterschrift) {
+        letzteUnterschrift = unterschrift;
         zustand = neu;
         hoerer.forEach(fn => fn(neu));
     }
@@ -40,6 +53,11 @@ function istVoll(fehler: unknown): boolean {
  * Der Entwurf, der nicht ankommt, ist damit nicht gerettet.
  */
 export function schreibe(ort: Storage | null, schluessel: string, wert: string): boolean {
+    // Ließ sich der Speicher schon nicht lesen, ist nicht bekannt, was darin steht: Schreiben überschriebe es still.
+    if (gescheitert.has(LESEN)) {
+        berechneZustand();
+        return false;
+    }
     if (!ort) {
         gescheitert.set(schluessel, "gesperrt");
         berechneZustand();
@@ -72,6 +90,8 @@ export function geraeteSpeicher(art: "local" | "session" = "local"): Storage | n
                 try {
                     return roh.getItem(schluessel);
                 } catch {
+                    gescheitert.set(LESEN, "gesperrt");
+                    berechneZustand();
                     return null;
                 }
             },
@@ -116,13 +136,19 @@ export function speicherPruefen(ort: Storage | null): boolean {
     return ok;
 }
 
-/** Der Text zum Zustand, fest oben auf der Seite und in Rückmeldungen. */
-export function speicherWarnung(z: SpeicherZustand): string {
-    if (z === "gesperrt") {
-        return "Browser speichert nichts: Entwurf, Ablage, Liste und Einsatzwechsel gehen beim Neuladen verloren. PDFs sofort herunterladen.";
+/**
+ * Der Text zum Zustand, fest oben auf der Seite: kurz, denn er klebt dort. Scheitert nur die Liste (nicht der Entwurf),
+ * sagt er das, statt einen verlorenen Entwurf zu behaupten.
+ */
+export function speicherWarnung(z: SpeicherZustand, schluessel: readonly string[] = []): string {
+    if (z === "ok") {
+        return "";
     }
-    if (z === "voll") {
-        return "Speicher voll: Neues geht beim Neuladen verloren (Entwurf, Ablage, Liste, Einsatzwechsel). Websitedaten löschen, vorher Liste als CSV sichern; PDFs sofort herunterladen.";
+    const nurListe = schluessel.length > 0 && schluessel.every(name => name === "bnv.verlauf.v1");
+    if (nurListe) {
+        return `${z === "voll" ? "Speicher voll" : "Browser speichert nichts"}: Die Liste erstellter Vordrucke bleibt nicht erhalten. „Liste als CSV“ sichern.`;
     }
-    return "";
+    return z === "gesperrt"
+        ? "Browser speichert nichts: Entwurf, Ablage, Liste gehen beim Neuladen verloren. PDFs sofort laden."
+        : "Speicher voll: Entwurf, Ablage, Liste gehen beim Neuladen verloren. PDFs sofort laden, Liste als CSV sichern.";
 }
