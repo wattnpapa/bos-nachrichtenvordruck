@@ -888,6 +888,13 @@ function meldeStatus(text: string, zurueck: Zuruecknahme | null | "behalten" = n
         zuruecknahmeZeigen();
         if (zurueck) {
             zuruecknahmeSperren();
+            // Der Knopf darf nicht halb unter dem Bildrand liegen.
+            for (const knopf of [rueckgaengig, element<HTMLButtonElement>("oben-rueckgaengig")]) {
+                if (!knopf.hidden && !imBild(knopf)) {
+                    knopf.scrollIntoView({ block: "nearest" });
+                    break;
+                }
+            }
         }
     }
     obenZeigen();
@@ -954,7 +961,10 @@ for (const knopf of [rueckgaengig, element<HTMLButtonElement>("oben-rueckgaengig
     knopf.addEventListener("click", ereignis => {
         if (knopf.getAttribute("aria-disabled") === "true") {
             ereignis.stopImmediatePropagation();
-            zeigeKurzmeldung("Zurücknehmen ist gleich möglich: Dieser Tipp wurde nicht ausgeführt (Schutz vor Doppeltipp). Bitte noch einmal tippen.", false);
+            // Am Knopf selbst sagen, nicht in einer Meldung, die woanders im Bild steht.
+            const vorher = knopf.textContent;
+            knopf.textContent = "Gleich möglich: noch einmal tippen";
+            setTimeout(() => { knopf.textContent = vorher; }, 900);
         }
     }, true);
 }
@@ -1184,7 +1194,10 @@ element<HTMLButtonElement>("oben-ablage").addEventListener("click", () => {
     ablageBereich.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
 });
 ablageZeigen();
-let fensterHinweisBis = 0;
+/** Stand des anderen Fensters (ohne Stempel), den dieses Fenster mit „Hier weiterarbeiten“ angenommen hat: Er löst keinen neuen Hinweis aus. */
+let fremdAkzeptiert = "";
+/** Stand von hier, der beim Konflikt schon in die Ablage gelegt wurde. */
+let konfliktAbgelegt = "";
 const fensterHinweis = element<HTMLDivElement>("fenster-hinweis");
 /** Kurz für den Hinweis: „Nr. 12, „Lage ruhig …““ oder „leer“. */
 function entwurfKurz(eingabe: Eingabe): string {
@@ -1199,7 +1212,13 @@ function obenHinweiseAktualisieren(): void {
 function fensterGeaendert(fremd: Entwurf): void {
     const hier = maskeLesen();
     fensterKonflikt = true;
-    element<HTMLParagraphElement>("fenster-text").textContent = `Ein anderes Fenster hat den Entwurf geändert (${entwurfKurz(ohneStempel(fremd))}); hier steht ${entwurfKurz(hier)}. Zwei Fenster überschreiben sich: Bis zur Wahl schreibt dieses Fenster nicht auf das Gerät.`;
+    // Was hier steht, kommt sofort in die Ablage: Wer den Hinweis überliest oder neu lädt, verliert so nichts.
+    const sichern = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
+    if (sichern && konfliktAbgelegt !== JSON.stringify(hier)) {
+        ablegen(hier, "anderes Fenster");
+        konfliktAbgelegt = JSON.stringify(hier);
+    }
+    element<HTMLParagraphElement>("fenster-text").textContent = `Anderes Fenster: ${entwurfKurz(ohneStempel(fremd))}. Hier: ${entwurfKurz(hier)}.${sichern ? " Der Stand von hier liegt in der Ablage." : ""}`;
     fensterHinweis.hidden = false;
     obenHinweiseAktualisieren();
     entwurfSpeichern();
@@ -1208,32 +1227,42 @@ function fensterEntscheiden(laden: boolean): void {
     fensterKonflikt = false;
     fensterHinweis.hidden = true;
     obenHinweiseAktualisieren();
+    let fremd: Entwurf | null = null;
+    try {
+        fremd = JSON.parse(speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
+    } catch {
+        fremd = null;
+    }
     if (!laden) {
-        // Hier weiterarbeiten: Dieses Fenster darf den Entwurf wieder schreiben, eine Minute lang ohne neuen Hinweis.
-        fensterHinweisBis = performance.now() + 60_000;
+        // Der überschriebene Stand des anderen Fensters bleibt in der Ablage, bevor dieses Fenster wieder schreibt.
+        let heraus = "";
+        if (fremd && weichtAb(ohneStempel(fremd)) && (ohneStempel(fremd).inhalt ?? "").trim()) {
+            heraus = ablegen(ohneStempel(fremd), "anderes Fenster");
+            fremdAkzeptiert = JSON.stringify(ohneStempel(fremd));
+        }
         letzterEntwurfStand = "";
         entwurfSpeichern();
+        meldeStatus(`Dieses Fenster schreibt wieder.${heraus || (fremdAkzeptiert ? " Der Stand des anderen Fensters liegt in der Ablage." : "")}`, null, true);
         return;
     }
-    try {
-        const fremd = JSON.parse(speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
-        if (!fremd) {
-            return;
-        }
-        // Was hier steht und nicht erstellt ist, geht in die Ablage: nichts geht verloren.
-        const hier = maskeLesen();
-        const abgelegt = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
-        const heraus = abgelegt ? ablegen(hier, "getauscht") : "";
-        maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
-        maskeSchreiben(ohneStempel(fremd));
-        letzterEntwurfStand = "";
-        entwurfSpeichern();
-        weitereZaehlen();
-        planeVorschau();
-        meldeStatus(`Entwurf des anderen Fensters geladen.${abgelegt ? ` ${inDerAblage(hier.nummer?.trim() ? `Nr. ${hier.nummer.trim()} von hier` : "Der Stand von hier")}` : ""}${heraus}`, null);
-    } catch {
-        // Kaputter Entwurf im anderen Fenster: hier bleibt alles, wie es ist.
+    if (!fremd) {
+        return;
     }
+    // Was hier steht und nicht erstellt ist, geht in die Ablage (beim Konflikt schon geschehen): nichts geht verloren.
+    const hier = maskeLesen();
+    const abgelegt = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
+    if (abgelegt && konfliktAbgelegt !== JSON.stringify(hier)) {
+        ablegen(hier, "getauscht");
+    }
+    konfliktAbgelegt = "";
+    maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
+    maskeSchreiben(ohneStempel(fremd));
+    letzterEntwurfStand = "";
+    entwurfSpeichern();
+    weitereZaehlen();
+    planeVorschau();
+    // Oben melden: Die Statuszeile unten rollte die Seite um Bildschirme nach unten.
+    meldeStatus(`Entwurf des anderen Fensters geladen.${abgelegt ? ` ${inDerAblage(hier.nummer?.trim() ? `Nr. ${hier.nummer.trim()} von hier` : "Der Stand von hier")}` : ""}`, null, true);
 }
 element<HTMLButtonElement>("fenster-laden").addEventListener("click", () => fensterEntscheiden(true));
 element<HTMLButtonElement>("fenster-bleiben").addEventListener("click", () => fensterEntscheiden(false));
@@ -1248,11 +1277,12 @@ addEventListener("storage", ereignis => {
     }
     // Zwei offene Fenster überschreiben sich: Hat dieses Fenster etwas stehen und ein anderes schreibt einen anderen Entwurf,
     // kommt ein Hinweis mit Wahl (nicht modal). Ein bloßes Neuschreiben desselben Inhalts zählt nicht.
-    if (ereignis.key === ENTWURF_SCHLUESSEL && ereignis.newValue && performance.now() >= fensterHinweisBis) {
+    if (ereignis.key === ENTWURF_SCHLUESSEL && ereignis.newValue && !fensterKonflikt) {
         try {
             const fremd = JSON.parse(ereignis.newValue) as Entwurf;
             if (fremd._fenster !== FENSTER_KENNUNG && weichtAb(maskeLesen())
-                && JSON.stringify(ohneStempel(fremd)) !== JSON.stringify(maskeLesen())) {
+                && JSON.stringify(ohneStempel(fremd)) !== JSON.stringify(maskeLesen())
+                && JSON.stringify(ohneStempel(fremd)) !== fremdAkzeptiert) {
                 fensterGeaendert(fremd);
             }
         } catch {
@@ -2130,7 +2160,15 @@ function laufenderEinsatzLeer(): HTMLTableRowElement[] {
     return [tr];
 }
 
+/** Der Hinweis „wiederhergestellt: noch nicht als PDF erstellt“ soll nach dem Erstellen nicht widersprechen. */
+function entwurfHinweisAktualisieren(): void {
+    const kopf = document.querySelector<HTMLElement>("#entwurf-text strong");
+    if (kopf && !entwurfHinweis.hidden && kopf.textContent?.includes("noch nicht als PDF erstellt") && istErstellt(maskeLesen())) {
+        kopf.textContent = kopf.textContent.replace("noch nicht als PDF erstellt", "inzwischen als PDF erstellt");
+    }
+}
 function verlaufZeigen(): void {
+    entwurfHinweisAktualisieren();
     verlaufBereich.hidden = verlauf.length === 0;
     element<HTMLSpanElement>("verlauf-zahl").textContent = String(verlauf.length);
     // Eine spätere Fassung derselben Nr. an dieselbe Gegenstelle im selben Einsatz:
@@ -3438,7 +3476,8 @@ addEventListener("drop", ereignis => {
 
 // Eine eingelesene Tabelle wird nicht gespeichert; vor dem Neuladen fragt der Browser nach.
 addEventListener("beforeunload", ereignis => {
-    if (ergebnis && ergebnis.zeilen.length > 0) {
+    // Im Konflikt zweier Fenster liegt der Entwurf nur in diesem Tab: Der Browser fragt vor dem Schließen nach.
+    if (fensterKonflikt || (ergebnis && ergebnis.zeilen.length > 0)) {
         ereignis.preventDefault();
     }
 });
