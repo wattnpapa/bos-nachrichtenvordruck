@@ -13,6 +13,11 @@ const LESEN = "(lesen)";
 const gescheitert = new Map<string, "gesperrt" | "voll">();
 const hoerer = new Set<(neu: SpeicherZustand) => void>();
 
+/** Ließ sich der Speicher nicht lesen? Dann steht nicht fest, was darin liegt, und es wird nichts geschrieben. */
+export function lesefehler(): boolean {
+    return gescheitert.has(LESEN);
+}
+
 export function speicherZustand(): SpeicherZustand {
     return zustand;
 }
@@ -140,9 +145,12 @@ export function speicherPruefen(ort: Storage | null): boolean {
  * Der Text zum Zustand, fest oben auf der Seite: kurz, denn er klebt dort. Scheitert nur die Liste (nicht der Entwurf),
  * sagt er das, statt einen verlorenen Entwurf zu behaupten.
  */
-export function speicherWarnung(z: SpeicherZustand, schluessel: readonly string[] = []): string {
+export function speicherWarnung(z: SpeicherZustand, schluessel: readonly string[] = [], lesenGescheitert = false): string {
     if (z === "ok") {
         return "";
+    }
+    if (lesenGescheitert) {
+        return "Browser lässt Lesen nicht zu: Vorhandenes bleibt unverändert, ist aber nicht sichtbar. Neues wird nicht gespeichert. PDFs sofort laden.";
     }
     const nurListe = schluessel.length > 0 && schluessel.every(name => name === "bnv.verlauf.v1");
     if (nurListe) {

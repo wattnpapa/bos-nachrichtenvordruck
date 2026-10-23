@@ -7,7 +7,7 @@ import { zeichneBildvorschau } from "./bildvorschau.js";
 import { dekodiereCsv, schreibeCsv, leseCsv } from "./csv.js";
 import { dateiname, erzeugePdf, type Blattformat, type PdfOptionen, type VordruckWahl } from "./pdf.js";
 import { bogenListe, gekuerzteFelderAufBoegen, istKritisch, pruefeTextlaenge, teileInhalt, textlaengeMeldung, verteiltText, type Bogen } from "./textlaenge.js";
-import { beiSpeicherZustand, gescheiterteSchluessel, geraeteSpeicher, schreibe, schreibeImTab, speicherPruefen, speicherWarnung, speicherZustand } from "./speicherwache.js";
+import { beiSpeicherZustand, gescheiterteSchluessel, geraeteSpeicher, lesefehler, schreibe, schreibeImTab, speicherPruefen, speicherWarnung, speicherZustand } from "./speicherwache.js";
 import { EINSATZ_PAUSE, HOECHSTENS, einsatzBeginn, einsatzFolgen, einsatzVereinen, eintragKennung, fassungen, listenEinsatz, listenEintraege, uebernimmEintraege, verlaufKennung, ladeVerlauf, loescheVerlauf, merkeVordruck, merkeVordrucke, mitNummer, verlaufAlsCsv, type Eintrag, type Einsatzstand } from "./verlauf.js";
 import {
     SPALTEN,
@@ -42,8 +42,9 @@ if (ladeVerlauf().length > 0) {
 }
 const speicherWarnungZeile = element<HTMLParagraphElement>("speicher-warnung");
 beiSpeicherZustand(zustand => {
-    speicherWarnungZeile.textContent = speicherWarnung(zustand, gescheiterteSchluessel());
+    speicherWarnungZeile.textContent = speicherWarnung(zustand, gescheiterteSchluessel(), lesefehler());
     speicherWarnungZeile.hidden = zustand === "ok";
+    obenHinweiseSichtbar();
     // Die Zusage „bleibt zuverlässig gespeichert“ im Kasten darüber widerspräche der Warnung.
     document.documentElement.classList.toggle("speicher-defekt", zustand !== "ok");
     warnhoeheMerken();
@@ -53,8 +54,19 @@ beiSpeicherZustand(zustand => {
  * landen, nicht dahinter. Die Höhe geht als Scroll-Abstand an die Seite.
  */
 function warnhoeheMerken(): void {
-    const hoehe = speicherWarnungZeile.hidden ? 0 : Math.ceil(speicherWarnungZeile.getBoundingClientRect().height);
+    const container = document.getElementById("oben-hinweise");
+    const hoehe = !container || container.hidden ? 0 : Math.ceil(container.getBoundingClientRect().height);
     document.documentElement.style.scrollPaddingTop = hoehe > 0 ? `${hoehe + 8}px` : "";
+    document.documentElement.style.setProperty("--warnhoehe", `${hoehe}px`);
+}
+/** Der Container oben ist sichtbar, solange Speicherwarnung oder Fenster-Hinweis offen ist. */
+function obenHinweiseSichtbar(): void {
+    const container = document.getElementById("oben-hinweise");
+    const fenster = document.getElementById("fenster-hinweis");
+    if (container) {
+        container.hidden = speicherWarnungZeile.hidden && (fenster?.hidden ?? true);
+    }
+    warnhoeheMerken();
 }
 addEventListener("resize", warnhoeheMerken);
 speicherPruefen(speicher());
@@ -445,24 +457,59 @@ const BEHALTEN_EINGANG: readonly Schluessel[] = ["weg", "richtung", "titel", "hi
  * Felder mit; maskeSchreiben übergeht beides. Ein zweiter Tab weiß so, was
  * im ersten frisch eingetragen wurde.
  */
-type Entwurf = Eingabe & { _geaendert?: string; _angefasst?: string[]; _geleert?: string[] };
+type Entwurf = Eingabe & { _geaendert?: string; _angefasst?: string[]; _geleert?: string[]; _fenster?: string };
+
+/** Kennung dieses Fensters im Entwurf: So erkennt ein Fenster, ob ein Entwurf von ihm oder von einem anderen stammt. */
+const FENSTER_KENNUNG = Math.random().toString(36).slice(2, 10);
+/** Der Entwurf ohne die Stempel (Zeit, Markierungen, Fenster): nur der Inhalt der Maske. */
+function ohneStempel(entwurf: Entwurf): Eingabe {
+    const { _geaendert: _, _angefasst: __, _geleert: ___, _fenster: ____, ...rest } = entwurf;
+    return rest;
+}
 
 /** Eigener Stand dieses Tabs: übersteht das Neuladen, ohne dass ein zweiter Tab ihn überschreibt. */
 function tabSpeicher(): Storage | null {
     return geraeteSpeicher("session");
 }
 
+/** Letzter geschriebener Stand (Inhalt, Markierungen) und ob das Schreiben auf das Gerät glückte: Unverändertes wird nicht noch einmal geschrieben. */
+let letzterEntwurfStand = "";
+let letzterEntwurfOk = false;
+/** Solange ein zweites Fenster einen anderen Entwurf hat und noch nicht gewählt ist, schreibt dieses Fenster nur in den Tab. */
+let fensterKonflikt = false;
+
 function entwurfSpeichern(): void {
     const jetzt = new Date();
-    const entwurf = JSON.stringify({ ...maskeLesen(), _geaendert: jetzt.toISOString(), _angefasst: [...angefasst], _geleert: [...frischGeleert] } satisfies Entwurf);
+    const maske = maskeLesen();
+    const stand = JSON.stringify([maske, [...angefasst], [...frischGeleert]]);
+    // Unverändert und schon auf dem Gerät: nicht schreiben. Ein Fenster, das nur den Fokus verliert, fasst den Entwurf
+    // eines anderen Fensters so nicht an und löst dort keine Rückfrage aus.
+    if (stand === letzterEntwurfStand && letzterEntwurfOk && !fensterKonflikt) {
+        return;
+    }
+    const entwurf = JSON.stringify({ ...maske, _geaendert: jetzt.toISOString(), _angefasst: [...angefasst], _geleert: [...frischGeleert], _fenster: FENSTER_KENNUNG } satisfies Entwurf);
+    // Ein leeres Fenster überschreibt keinen vorhandenen Entwurf eines anderen Fensters.
+    let fremderEntwurf = false;
+    try {
+        const vorhanden = JSON.parse(speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
+        fremderEntwurf = Boolean(vorhanden) && vorhanden?._fenster !== FENSTER_KENNUNG && weichtAb(ohneStempel(vorhanden as Entwurf)) && !weichtAb(maske);
+    } catch {
+        fremderEntwurf = false;
+    }
     // localStorage: für einen neuen Tab oder nach dem Neustart des Browsers.
-    const aufGeraet = schreibe(speicher(), ENTWURF_SCHLUESSEL, entwurf);
+    const aufGeraet = fensterKonflikt || fremderEntwurf ? false : schreibe(speicher(), ENTWURF_SCHLUESSEL, entwurf);
     const imTab = schreibeImTab(tabSpeicher(), ENTWURF_SCHLUESSEL, entwurf);
-    entwurfStand.textContent = aufGeraet
-        ? `Entwurf auf diesem Gerät gespeichert, ${jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr.`
-        : imTab
-            ? "Entwurf nicht auf dem Gerät gespeichert (Speicher gesperrt oder voll); er bleibt nur in diesem Tab, bis er geschlossen wird."
-            : "Entwurf nicht gespeichert (Speicher gesperrt oder voll); der Text geht beim Neuladen verloren.";
+    letzterEntwurfStand = stand;
+    letzterEntwurfOk = aufGeraet;
+    entwurfStand.textContent = fensterKonflikt
+        ? "Entwurf nur in diesem Tab: Das andere Fenster hat einen anderen; erst oben wählen."
+        : fremderEntwurf
+            ? "Leere Maske: Der Entwurf des anderen Fensters bleibt auf dem Gerät."
+            : aufGeraet
+                ? `Entwurf auf diesem Gerät gespeichert, ${jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr.`
+                : imTab
+                    ? "Entwurf nicht auf dem Gerät gespeichert (Speicher gesperrt oder voll); er bleibt nur in diesem Tab, bis er geschlossen wird."
+                    : "Entwurf nicht gespeichert (Speicher gesperrt oder voll); der Text geht beim Neuladen verloren.";
 }
 
 function entwurfEntfernen(): void {
@@ -531,7 +578,7 @@ try {
         // Vor dem Start Getipptes gilt. Ein älterer Entwurf mit Text kommt in die Ablage
         // statt darunter; einer ohne Text (nur Kopfangaben) füllt die leeren Felder.
         if (entwurf) {
-            const { _geaendert: _, _angefasst: __, _geleert: ___, ...alt } = entwurf;
+            const alt = ohneStempel(entwurf);
             const getippt = maskeLesen();
             const nummer = alt.nummer?.trim();
             const erstellt = ladeVerlauf().some(eintrag => JSON.stringify(eintrag.eingabe) === JSON.stringify(alt));
@@ -1137,15 +1184,35 @@ element<HTMLButtonElement>("oben-ablage").addEventListener("click", () => {
     ablageBereich.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
 });
 ablageZeigen();
-let letzteFensterWarnung = -Infinity;
-let fensterFrageOffen = false;
-/** Ein anderes Fenster hat den Entwurf geändert: laden oder hier weiterarbeiten (dann überschreibt dieses Fenster ihn). */
-async function fensterGeaendert(): Promise<void> {
-    fensterFrageOffen = true;
-    const wahl = await frageWahl("Ein anderes Fenster dieser App hat den Entwurf geändert. Zwei Fenster überschreiben sich: Was hier getippt wird, ersetzt dort den Entwurf.",
-        "Entwurf des anderen Fensters laden", "Hier weiterarbeiten");
-    fensterFrageOffen = false;
-    if (wahl !== "ja") {
+let fensterHinweisBis = 0;
+const fensterHinweis = element<HTMLDivElement>("fenster-hinweis");
+/** Kurz für den Hinweis: „Nr. 12, „Lage ruhig …““ oder „leer“. */
+function entwurfKurz(eingabe: Eingabe): string {
+    const nummer = eingabe.nummer?.trim();
+    const text = (eingabe.inhalt ?? "").trim();
+    return nummer || text ? `${nummer ? `Nr. ${nummer}` : "ohne Nr."}${text ? `, „${kurz(text, 28)}“` : ", ohne Text"}` : "leer";
+}
+function obenHinweiseAktualisieren(): void {
+    obenHinweiseSichtbar();
+}
+/** Ein anderes Fenster hat den Entwurf geändert: nicht modal, damit nichts getippt Eingegebenes in einen Dialog läuft. */
+function fensterGeaendert(fremd: Entwurf): void {
+    const hier = maskeLesen();
+    fensterKonflikt = true;
+    element<HTMLParagraphElement>("fenster-text").textContent = `Ein anderes Fenster hat den Entwurf geändert (${entwurfKurz(ohneStempel(fremd))}); hier steht ${entwurfKurz(hier)}. Zwei Fenster überschreiben sich: Bis zur Wahl schreibt dieses Fenster nicht auf das Gerät.`;
+    fensterHinweis.hidden = false;
+    obenHinweiseAktualisieren();
+    entwurfSpeichern();
+}
+function fensterEntscheiden(laden: boolean): void {
+    fensterKonflikt = false;
+    fensterHinweis.hidden = true;
+    obenHinweiseAktualisieren();
+    if (!laden) {
+        // Hier weiterarbeiten: Dieses Fenster darf den Entwurf wieder schreiben, eine Minute lang ohne neuen Hinweis.
+        fensterHinweisBis = performance.now() + 60_000;
+        letzterEntwurfStand = "";
+        entwurfSpeichern();
         return;
     }
     try {
@@ -1155,19 +1222,21 @@ async function fensterGeaendert(): Promise<void> {
         }
         // Was hier steht und nicht erstellt ist, geht in die Ablage: nichts geht verloren.
         const hier = maskeLesen();
-        const heraus = (hier.inhalt ?? "").trim() && !istErstellt(hier) ? ablegen(hier, "getauscht") : "";
-        const { _geaendert: _, _angefasst: __, _geleert: ___, ...rest } = fremd;
+        const abgelegt = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
+        const heraus = abgelegt ? ablegen(hier, "getauscht") : "";
         maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
-        maskeSchreiben(rest);
+        maskeSchreiben(ohneStempel(fremd));
+        letzterEntwurfStand = "";
         entwurfSpeichern();
         weitereZaehlen();
         planeVorschau();
-        const abgelegt = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
         meldeStatus(`Entwurf des anderen Fensters geladen.${abgelegt ? ` ${inDerAblage(hier.nummer?.trim() ? `Nr. ${hier.nummer.trim()} von hier` : "Der Stand von hier")}` : ""}${heraus}`, null);
     } catch {
         // Kaputter Entwurf im anderen Fenster: hier bleibt alles, wie es ist.
     }
 }
+element<HTMLButtonElement>("fenster-laden").addEventListener("click", () => fensterEntscheiden(true));
+element<HTMLButtonElement>("fenster-bleiben").addEventListener("click", () => fensterEntscheiden(false));
 // Andere Fenster mit derselben App ändern Ablage und Liste mit.
 addEventListener("storage", ereignis => {
     if (ereignis.key === ABLAGE_SCHLUESSEL || ereignis.key === null) {
@@ -1177,12 +1246,18 @@ addEventListener("storage", ereignis => {
         verlauf = ladeVerlauf();
         verlaufZeigen();
     }
-    // Zwei offene Fenster überschreiben sich: Der Entwurf auf dem Gerät gehört dem, der zuletzt tippt. Wer hier schon etwas
-    // stehen hat, wird gefragt (einmal pro Minute); die Frage bleibt, bis sie beantwortet ist, statt nach Sekunden zu verschwinden.
-    if (ereignis.key === ENTWURF_SCHLUESSEL && ereignis.newValue && !fensterFrageOffen && performance.now() - letzteFensterWarnung > 60_000
-        && weichtAb(maskeLesen())) {
-        letzteFensterWarnung = performance.now();
-        void fensterGeaendert();
+    // Zwei offene Fenster überschreiben sich: Hat dieses Fenster etwas stehen und ein anderes schreibt einen anderen Entwurf,
+    // kommt ein Hinweis mit Wahl (nicht modal). Ein bloßes Neuschreiben desselben Inhalts zählt nicht.
+    if (ereignis.key === ENTWURF_SCHLUESSEL && ereignis.newValue && performance.now() >= fensterHinweisBis) {
+        try {
+            const fremd = JSON.parse(ereignis.newValue) as Entwurf;
+            if (fremd._fenster !== FENSTER_KENNUNG && weichtAb(maskeLesen())
+                && JSON.stringify(ohneStempel(fremd)) !== JSON.stringify(maskeLesen())) {
+                fensterGeaendert(fremd);
+            }
+        } catch {
+            // Kaputter Entwurf: kein Hinweis.
+        }
     }
     // „Einsatz fortsetzen“ in einem anderen Fenster hat die Nr. zurückgegeben: Dieses Fenster zieht nach, solange noch kein Text darin steht.
     if (ereignis.key === EINSATZ_NUMMER_SCHLUESSEL && ereignis.newValue === null && ereignis.oldValue) {
@@ -1356,7 +1431,7 @@ function einzelPruefen() {
         feld.classList.toggle("zu-lang-feld", zuLang);
         const wort = feld.nextElementSibling;
         if (wort instanceof HTMLElement && wort.classList.contains("verteiler-wort")) {
-            wort.hidden = !zuLang;
+            wort.classList.toggle("aus", !zuLang);
         }
         zuLangGeaendert ||= zuLang !== (wort instanceof HTMLElement && wort.dataset["war"] === "1");
         if (wort instanceof HTMLElement) {
@@ -2229,7 +2304,7 @@ element<HTMLButtonElement>("einsatz-neu").addEventListener("click", async () => 
     const neueNr = `${/^(.*?)\d*$/.exec(nrVorher)?.[1] ?? ""}1`;
     const wahl = await frageWahl([
         `Neuen Einsatz beginnen? Frühere Nummern gelten dann nicht mehr als doppelt; die Liste bleibt.${ablage > 0 ? ` Die Ablage (${ablage}) bleibt, ihre Nummern zählen im neuen Einsatz nicht.` : ""}`,
-        `„Neuen Einsatz beginnen“: ab jetzt zählen nur neue Vordrucke${leerMaske ? (neueNr === nrVorher ? `; die Maske bleibt bei Nr. ${nrVorher}.` : `; die Maske beginnt dann mit Nr. ${neueNr} (${nrVorher ? `vorher ${nrVorher}` : "bisher ohne Nr."}).`) : "."}`,
+        `„Neuen Einsatz beginnen“: ab jetzt zählen nur neue Vordrucke${leerMaske ? (neueNr === nrVorher ? `; die Maske bleibt bei Nr. ${nrVorher}.` : `; die Maske beginnt dann mit Nr. ${neueNr} (${nrVorher ? `vorher ${nrVorher}` : "bisher keine Nr. eingetragen"}).`) : "."}`,
         ...dritteMoeglich && letzter ? [`„Ab dem letzten Vordruck“: Nr. ${letzteNr || "ohne Nr."} vom ${tagUhr(new Date(letzter.zeit))} gehört schon zum neuen Einsatz.`] : [],
         "Zurücknehmen: „Einsatz … fortsetzen“ unter „Erstellte Vordrucke“."
     ].join("\n"),
@@ -2380,6 +2455,7 @@ element<HTMLButtonElement>("verlauf-loeschen").addEventListener("click", async (
     verlauf = [];
     verlaufZeigen();
     geloeschtZeigen();
+    kurzmeldungSchliessen();
     // Die Seite wird kürzer: „Wiederherstellen“ soll im Bild bleiben, nicht die Fußzeile.
     element<HTMLParagraphElement>("verlauf-geloescht").scrollIntoView({ block: "center" });
 });
@@ -3418,6 +3494,16 @@ document.addEventListener("click", ereignis => {
         && !ereignis.target.closest("[data-sprung]")) {
         ereignis.preventDefault();
         ereignis.stopPropagation();
+        // Ein Tipp auf den Knopf der Kurzmeldung ersetzt die Meldung nicht: Der Knopf sagt es selbst.
+        if (ereignis.target.closest("#kurzmeldung")) {
+            const knopf = ereignis.target.closest("button");
+            if (knopf) {
+                const vorher = knopf.textContent;
+                knopf.textContent = "Gleich möglich: noch einmal tippen";
+                setTimeout(() => { knopf.textContent = vorher; }, 900);
+            }
+            return;
+        }
         // Nicht stumm: Wer bewusst schnell getippt hat, soll wissen, warum nichts geschah.
         zeigeKurzmeldung("Tipp direkt nach dem vorigen nicht ausgeführt (Schutz vor Doppeltipp). Bitte noch einmal tippen.", false);
     }
