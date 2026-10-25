@@ -782,8 +782,13 @@ h1 { overflow-wrap: anywhere; }
 #fenster-hinweis p { margin: 0 0 var(--r-2); }
 #fenster-hinweis .aktionen { margin-top: 0; gap: var(--r-3); display: grid; grid-template-columns: 1fr 1fr; }
 #fenster-hinweis .aktionen button { width: 100%; min-width: 0; margin: 0; }
-/* Niedrige Bilder (Tastatur, Querformat): Der Bereich klebt nicht mehr, sonst bliebe kein Platz zum Tippen. */
-@media (max-height: 36rem) { #oben-hinweise { position: static; } }
+/* Niedrige Bilder (Tastatur, Querformat): Der Bereich klebt weiter, aber ist eine Zeile mit zwei Knöpfen: Wer tippt, sieht ihn sonst nie. */
+@media (max-height: 36rem) {
+  #fenster-hinweis { padding-block: 2px; margin-bottom: 2px; }
+  #fenster-hinweis p { margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; }
+  #fenster-hinweis .aktionen button { min-height: 2.75rem; padding-block: 0; font-size: 0.85rem; }
+  #speicher-warnung { font-size: 0.8rem; padding-block: 2px; margin-bottom: 2px; }
+}
 /* Nach der Speicherwarnung: die Kurzmeldung oben liegt darunter, nicht darüber. */
 .kurzmeldung.oben { top: calc(var(--warnhoehe, 0px) + var(--r-2)); }
 @media (max-height: 30rem) { #speicher-warnung { font-size: 0.8rem; padding-block: 2px; } }

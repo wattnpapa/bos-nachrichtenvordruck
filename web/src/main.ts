@@ -482,6 +482,7 @@ function entwurfSpeichern(): void {
     const jetzt = new Date();
     const maske = maskeLesen();
     const stand = JSON.stringify([maske, [...angefasst], [...frischGeleert]]);
+    konfliktNachfuehren();
     // Unverändert und schon auf dem Gerät: nicht schreiben. Ein Fenster, das nur den Fokus verliert, fasst den Entwurf
     // eines anderen Fensters so nicht an und löst dort keine Rückfrage aus.
     if (stand === letzterEntwurfStand && letzterEntwurfOk && !fensterKonflikt) {
@@ -1140,7 +1141,8 @@ function ablageZeigen(): void {
     const WIE: Record<string, string> = {
         verworfen: "mit „Nächster Vordruck“ abgelegt",
         geleert: "mit „Felder leeren“ abgelegt",
-        getauscht: "beim Zurückholen abgelegt"
+        getauscht: "beim Zurückholen abgelegt",
+        "anderes Fenster": "beim Konflikt zweier Fenster abgelegt"
     };
     const heute = new Date().toDateString();
     const knoepfe = [...liste].reverse().map(eintrag => {
@@ -1196,8 +1198,10 @@ element<HTMLButtonElement>("oben-ablage").addEventListener("click", () => {
 ablageZeigen();
 /** Stand des anderen Fensters (ohne Stempel), den dieses Fenster mit „Hier weiterarbeiten“ angenommen hat: Er löst keinen neuen Hinweis aus. */
 let fremdAkzeptiert = "";
-/** Stand von hier, der beim Konflikt schon in die Ablage gelegt wurde. */
-let konfliktAbgelegt = "";
+/** Stand von hier, der beim Konflikt schon in die Ablage gelegt wurde; er wird beim Weitertippen nachgeführt. */
+let konfliktAbgelegt: Eingabe | null = null;
+/** Der Entwurf des anderen Fensters, wie er zuletzt auf dem Gerät lag. */
+let konfliktFremd: Entwurf | null = null;
 const fensterHinweis = element<HTMLDivElement>("fenster-hinweis");
 /** Kurz für den Hinweis: „Nr. 12, „Lage ruhig …““ oder „leer“. */
 function entwurfKurz(eingabe: Eingabe): string {
@@ -1208,17 +1212,28 @@ function entwurfKurz(eingabe: Eingabe): string {
 function obenHinweiseAktualisieren(): void {
     obenHinweiseSichtbar();
 }
+/** Text des Hinweises und Stand von hier in der Ablage, nachgeführt bei jeder Änderung hier oder im anderen Fenster. */
+function konfliktNachfuehren(): void {
+    if (!fensterKonflikt || !konfliktFremd) {
+        return;
+    }
+    const hier = maskeLesen();
+    const sichern = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
+    if (sichern && JSON.stringify(konfliktAbgelegt) !== JSON.stringify(hier)) {
+        // Derselbe Stand liegt nur einmal in der Ablage: der vorige Zwischenstand von hier wird ersetzt, nicht ergänzt.
+        if (konfliktAbgelegt) {
+            ablageEntfernen(konfliktAbgelegt);
+        }
+        ablegen(hier, "anderes Fenster");
+        konfliktAbgelegt = hier;
+    }
+    element<HTMLParagraphElement>("fenster-text").textContent = `Anderes Fenster: ${entwurfKurz(ohneStempel(konfliktFremd))}. Hier: ${entwurfKurz(hier)}.${sichern ? " Der Stand von hier liegt in der Ablage." : ""}`;
+}
 /** Ein anderes Fenster hat den Entwurf geändert: nicht modal, damit nichts getippt Eingegebenes in einen Dialog läuft. */
 function fensterGeaendert(fremd: Entwurf): void {
-    const hier = maskeLesen();
+    konfliktFremd = fremd;
     fensterKonflikt = true;
-    // Was hier steht, kommt sofort in die Ablage: Wer den Hinweis überliest oder neu lädt, verliert so nichts.
-    const sichern = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
-    if (sichern && konfliktAbgelegt !== JSON.stringify(hier)) {
-        ablegen(hier, "anderes Fenster");
-        konfliktAbgelegt = JSON.stringify(hier);
-    }
-    element<HTMLParagraphElement>("fenster-text").textContent = `Anderes Fenster: ${entwurfKurz(ohneStempel(fremd))}. Hier: ${entwurfKurz(hier)}.${sichern ? " Der Stand von hier liegt in der Ablage." : ""}`;
+    konfliktNachfuehren();
     fensterHinweis.hidden = false;
     obenHinweiseAktualisieren();
     entwurfSpeichern();
@@ -1233,6 +1248,9 @@ function fensterEntscheiden(laden: boolean): void {
     } catch {
         fremd = null;
     }
+    const abgelegtHier = konfliktAbgelegt;
+    konfliktAbgelegt = null;
+    konfliktFremd = null;
     if (!laden) {
         // Der überschriebene Stand des anderen Fensters bleibt in der Ablage, bevor dieses Fenster wieder schreibt.
         let heraus = "";
@@ -1242,7 +1260,8 @@ function fensterEntscheiden(laden: boolean): void {
         }
         letzterEntwurfStand = "";
         entwurfSpeichern();
-        meldeStatus(`Dieses Fenster schreibt wieder.${heraus || (fremdAkzeptiert ? " Der Stand des anderen Fensters liegt in der Ablage." : "")}`, null, true);
+        meldeStatus("", null, true);
+        zeigeKurzmeldung(`Dieses Fenster schreibt wieder.${heraus || (fremdAkzeptiert ? " Der Stand des anderen Fensters liegt in der Ablage." : "")}`, false);
         return;
     }
     if (!fremd) {
@@ -1251,18 +1270,21 @@ function fensterEntscheiden(laden: boolean): void {
     // Was hier steht und nicht erstellt ist, geht in die Ablage (beim Konflikt schon geschehen): nichts geht verloren.
     const hier = maskeLesen();
     const abgelegt = Boolean((hier.inhalt ?? "").trim()) && !istErstellt(hier);
-    if (abgelegt && konfliktAbgelegt !== JSON.stringify(hier)) {
+    if (abgelegt && JSON.stringify(abgelegtHier) !== JSON.stringify(hier)) {
+        if (abgelegtHier) {
+            ablageEntfernen(abgelegtHier);
+        }
         ablegen(hier, "getauscht");
     }
-    konfliktAbgelegt = "";
     maskeSchreiben(Object.fromEntries(SPALTEN.map(spalte => [spalte.schluessel, ""])) as Eingabe);
     maskeSchreiben(ohneStempel(fremd));
     letzterEntwurfStand = "";
     entwurfSpeichern();
     weitereZaehlen();
     planeVorschau();
-    // Oben melden: Die Statuszeile unten rollte die Seite um Bildschirme nach unten.
-    meldeStatus(`Entwurf des anderen Fensters geladen.${abgelegt ? ` ${inDerAblage(hier.nummer?.trim() ? `Nr. ${hier.nummer.trim()} von hier` : "Der Stand von hier")}` : ""}`, null, true);
+    // Am Bildrand: Die Zeile oben in der Maske liegt außer Sicht, wenn weiter unten getippt wird.
+    meldeStatus("", null, true);
+    zeigeKurzmeldung(`Entwurf des anderen Fensters geladen.${abgelegt ? ` ${inDerAblage(hier.nummer?.trim() ? `Nr. ${hier.nummer.trim()} von hier` : "Der Stand von hier")}` : ""}`, false);
 }
 element<HTMLButtonElement>("fenster-laden").addEventListener("click", () => fensterEntscheiden(true));
 element<HTMLButtonElement>("fenster-bleiben").addEventListener("click", () => fensterEntscheiden(false));
@@ -1277,10 +1299,16 @@ addEventListener("storage", ereignis => {
     }
     // Zwei offene Fenster überschreiben sich: Hat dieses Fenster etwas stehen und ein anderes schreibt einen anderen Entwurf,
     // kommt ein Hinweis mit Wahl (nicht modal). Ein bloßes Neuschreiben desselben Inhalts zählt nicht.
-    if (ereignis.key === ENTWURF_SCHLUESSEL && ereignis.newValue && !fensterKonflikt) {
+    if (ereignis.key === ENTWURF_SCHLUESSEL && ereignis.newValue) {
         try {
             const fremd = JSON.parse(ereignis.newValue) as Entwurf;
-            if (fremd._fenster !== FENSTER_KENNUNG && weichtAb(maskeLesen())
+            if (fensterKonflikt) {
+                // Der andere tippt weiter: Der Hinweis zeigt den neuen Stand, nicht den vom ersten Mal.
+                if (fremd._fenster !== FENSTER_KENNUNG) {
+                    konfliktFremd = fremd;
+                    konfliktNachfuehren();
+                }
+            } else if (fremd._fenster !== FENSTER_KENNUNG && weichtAb(maskeLesen())
                 && JSON.stringify(ohneStempel(fremd)) !== JSON.stringify(maskeLesen())
                 && JSON.stringify(ohneStempel(fremd)) !== fremdAkzeptiert) {
                 fensterGeaendert(fremd);
@@ -3488,6 +3516,17 @@ einstellungenLaden();
 einstellungenZeigen();
 felderFuerVordruckZeigen();
 verlaufZeigen();
+// Neuladen mitten im Konflikt: Der Tab-Stand ist älter als der Entwurf des anderen Fensters auf dem Gerät. Der Hinweis kommt wieder.
+try {
+    const imTab = JSON.parse(tabSpeicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
+    const aufGeraet = JSON.parse(speicher()?.getItem(ENTWURF_SCHLUESSEL) ?? "null") as Entwurf | null;
+    if (imTab && aufGeraet && aufGeraet._fenster !== imTab._fenster && (imTab.inhalt ?? "").trim()
+        && JSON.stringify(ohneStempel(imTab)) !== JSON.stringify(ohneStempel(aufGeraet)) && weichtAb(ohneStempel(aufGeraet))) {
+        fensterGeaendert(aufGeraet);
+    }
+} catch {
+    // Kaputter Entwurf: kein Hinweis.
+}
 element<HTMLParagraphElement>("laedt").hidden = true;
 let spaeterStart = false;
 {
