@@ -375,14 +375,17 @@
             </div>
           </form>
 
-          <section class="karte vorschau" aria-labelledby="vorschau-titel">
+          <section class="karte vorschau" aria-labelledby="vorschau-titel" id="vorschau">
             <div class="kopfzeile">
               <h3 id="vorschau-titel">Vorschau</h3>
               <button type="button" id="einzeln-oeffnen">In neuem Tab öffnen<span class="nur-dunkel"> (helles Blatt)</span></button>
+              <button type="button" class="vorschau-schalter" id="vorschau-schalter" aria-controls="vorschau-inhalt" aria-expanded="true">Vorschau ausblenden</button>
             </div>
             <iframe id="einzeln-vorschau" title="Vorschau des Vordrucks"></iframe>
+            <div id="vorschau-inhalt">
             <canvas id="einzeln-bild" class="bildvorschau" role="img" aria-label="Vorschau des Vordrucks" hidden></canvas>
             <p class="nebentext" id="vorschau-ersatz" hidden>Vorschau als Bild zum Prüfen. „In neuem Tab öffnen“ zeigt die PDF genau so, wie sie gedruckt wird.<span class="nur-dunkel"> Die Vorschau ist hier abgedunkelt; die PDF im neuen Tab ist ein helles weißes Blatt.</span></p>
+            </div>
           </section>
 
           <!-- Nach der Vorschau, damit am Telefon erst geprüft und dann heruntergeladen wird. -->

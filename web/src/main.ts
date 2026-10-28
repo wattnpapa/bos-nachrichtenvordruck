@@ -1619,8 +1619,33 @@ function pdfInRahmenLaden(verteilen: boolean): void {
     }
 }
 
+// Ausblendbar: Ohne Vorschau steht die Maske über die ganze Breite, die Textfelder
+// werden breiter und die Seite beim Tippen kürzer. Gedruckt wird weiter aus dem Rahmen.
+const VORSCHAU_SCHLUESSEL = "bnv.vorschau.v1";
+let vorschauSichtbar = speicher()?.getItem(VORSCHAU_SCHLUESSEL) !== "aus";
+
+function zeigeVorschauSchalter(): void {
+    element<HTMLElement>("ansicht-einzeln").querySelector(".arbeitsflaeche")?.classList.toggle("ohne-vorschau", !vorschauSichtbar);
+    element<HTMLElement>("vorschau-inhalt").hidden = !vorschauSichtbar;
+    const schalter = element<HTMLButtonElement>("vorschau-schalter");
+    schalter.textContent = vorschauSichtbar ? "Vorschau ausblenden" : "Vorschau einblenden";
+    schalter.setAttribute("aria-expanded", String(vorschauSichtbar));
+}
+
+element<HTMLButtonElement>("vorschau-schalter").addEventListener("click", () => {
+    vorschauSichtbar = !vorschauSichtbar;
+    if (vorschauSichtbar) {
+        speicher()?.removeItem(VORSCHAU_SCHLUESSEL);
+    } else {
+        schreibe(speicher(), VORSCHAU_SCHLUESSEL, "aus");
+    }
+    zeigeVorschauSchalter();
+    vorschauAktualisieren();
+});
+zeigeVorschauSchalter();
+
 function vorschauAktualisieren(): void {
-    if (element<HTMLElement>("ansicht-einzeln").hidden) {
+    if (element<HTMLElement>("ansicht-einzeln").hidden || !vorschauSichtbar) {
         return;
     }
     // Langer Text wie auf dem vorgeschlagenen Weg: verteilt, das Bild zeigt Blatt 1.
