@@ -214,6 +214,7 @@
 
       <!-- ============================ Einzeln ============================ -->
       <section id="ansicht-einzeln" role="tabpanel" aria-labelledby="reiter-einzeln" class="ansicht">
+        <div class="uebungs-band" id="uebungs-band" role="status" hidden><strong>ÜBUNG</strong> – Dieser Vordruck ist als Übung gekennzeichnet und beschreibt keine echte Nachricht. Vorschau und PDF tragen das Wasserzeichen „ÜBUNG“.</div>
         <div class="arbeitsflaeche">
           <form id="maske" class="maske" autocomplete="off">
             <!-- Nach „Nächster Vordruck“ steht man hier oben; das Zurücknehmen soll nicht Bildschirme tiefer liegen. -->
@@ -248,6 +249,9 @@
               <p class="hinweis" id="richtung-hinweis"></p>
               <!-- Rückmeldung beim Wechsel der Richtung: hier, nicht als Kurzmeldung über den nächsten Feldern. -->
               <p class="hinweis wichtig" id="richtung-meldung" role="status" hidden></p>
+              <!-- Übungskennzeichen wie im Erfassungsbogen: ein Haken, der bis ins PDF sichtbar bleibt. -->
+              <label class="inline uebung-wahl"><input type="checkbox" name="uebung" value="ja" /> Dies ist eine Übung</label>
+              <p class="hinweis">Jeder Vordruck trägt dann quer das Wasserzeichen „ÜBUNG“, in Vorschau und PDF. „Nächster Vordruck“ behält den Haken.</p>
             </section>
 
             <section class="karte" data-nur="nachricht">

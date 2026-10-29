@@ -16,6 +16,17 @@ describe("zuVordruckDaten", () => {
         expect(zuVordruckDaten({}).daten.ankreuzfelder()).toEqual([]);
     });
 
+    it("liest die Übungskennzeichnung wie die Gesprächsnotiz", () => {
+        expect(zuVordruckDaten({ uebung: "ja" }).daten.uebung).toBe(true);
+        expect(zuVordruckDaten({ uebung: "X" }).daten.uebung).toBe(true);
+        expect(zuVordruckDaten({ uebung: "nein" }).daten.uebung).toBe(false);
+        expect(zuVordruckDaten({}).daten.uebung).toBe(false);
+        const { daten, fehler } = zuVordruckDaten({ uebung: "vielleicht" });
+        expect(daten.uebung).toBe(false);
+        expect(fehler).toEqual(["Übung: „vielleicht“ ist weder ja noch nein"]);
+        expect(schluesselZuKopf("Übung")).toBe("uebung");
+    });
+
     it("meldet ungültige Werte und lässt das Feld leer", () => {
         const { daten, fehler } = zuVordruckDaten({ art: "Funkspruch", gespraechsnotiz: "vielleicht" });
         expect(daten.art).toBeUndefined();

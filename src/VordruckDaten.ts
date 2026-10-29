@@ -145,6 +145,13 @@ export class VordruckDaten {
     pruefvermerk = "";
 
     /**
+     * Der Vordruck gehört zu einer Übung: Quer über das Formular kommt hinter die
+     * Eintragungen das blasse Wasserzeichen „ÜBUNG“. Es bleibt auch ohne
+     * Formular (`ohneHintergrund`) und ohne Rahmen stehen.
+     */
+    uebung = false;
+
+    /**
      * Welche Ankreuzfelder aus den gesetzten Angaben folgen.
      *
      * Die Reihenfolge ist stabil, damit sich die PDF-Ausgabe bei gleicher

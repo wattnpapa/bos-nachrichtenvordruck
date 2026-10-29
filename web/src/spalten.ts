@@ -20,7 +20,7 @@ export type Schluessel =
     | "aufnahmeDatum" | "aufnahmeUhrzeit" | "aufnahmeHdz"
     | "annahmeDatum" | "annahmeUhrzeit" | "annahmeHdz"
     | "befoerderungDatum" | "befoerderungUhrzeit" | "befoerderungHdz"
-    | "verteiler" | VerteilerTextSchluessel | "titel" | "hinweis";
+    | "verteiler" | VerteilerTextSchluessel | "titel" | "hinweis" | "uebung";
 
 export const VERTEILER_ZEILEN = ["S1", "S2", "S3", "S4", "S6"] as const;
 export type VerteilerTextSchluessel = `verteiler${typeof VERTEILER_ZEILEN[number]}Text${2 | 3}`;
@@ -86,7 +86,8 @@ export const SPALTEN: readonly Spalte[] = [
         nurNachricht: true
     }))),
     { schluessel: "titel", titel: "Titel", beschreibung: "Überschrift am oberen Blattrand, außerhalb des Formulars.", beispiel: "", breite: 16 },
-    { schluessel: "hinweis", titel: "Hinweis", beschreibung: "Zeile am unteren Blattrand, außerhalb des Formulars.", beispiel: "", breite: 16 }
+    { schluessel: "hinweis", titel: "Hinweis", beschreibung: "Zeile am unteren Blattrand, außerhalb des Formulars.", beispiel: "", breite: 16 },
+    { schluessel: "uebung", titel: "Übung", beschreibung: "ja: Der Vordruck gehört zu einer Übung und trägt quer das Wasserzeichen „ÜBUNG“, hinter den Eintragungen. Leer oder nein bei einer echten Nachricht.", beispiel: "nein", auswahl: JA_NEIN, breite: 8 }
 ];
 
 export interface Umwandlung {
@@ -373,6 +374,12 @@ export function zuVordruckDaten(roh: Eingabe): Umwandlung {
     daten.gespraechsnotiz = WAHR[notiz] === true;
     if (notiz && !WAHR[notiz] && !FALSCH.has(notiz)) {
         fehler.push(`Gesprächsnotiz: „${text("gespraechsnotiz")}“ ist weder ja noch nein`);
+    }
+
+    const uebung = normiere(eingabe.uebung ?? "");
+    daten.uebung = WAHR[uebung] === true;
+    if (uebung && !WAHR[uebung] && !FALSCH.has(uebung)) {
+        fehler.push(`Übung: „${text("uebung")}“ ist weder ja noch nein`);
     }
 
     daten.empfaenger = liste(eingabe.empfaenger);

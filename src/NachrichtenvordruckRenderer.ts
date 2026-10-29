@@ -48,7 +48,7 @@ export function zeichneNachrichtenvordruck(
 ): void {
     const offsetX = optionen.offsetX ?? 0;
 
-    zeichneHintergrund(pdf, optionen, NACHRICHTENVORDRUCK_FORMULAR);
+    zeichneGrund(pdf, daten, optionen, NACHRICHTENVORDRUCK_FORMULAR);
 
     for (const feld of daten.ankreuzfelder()) {
         const position = NACHRICHTENVORDRUCK_ANKREUZFELDER[feld];
@@ -329,6 +329,51 @@ export function zeichneHintergrund(
         return;
     }
     zeichneFormular(pdf, formular, { offsetX, farbe: optionen.formularfarbe });
+}
+
+/**
+ * Formular und Übungswasserzeichen in der richtigen Reihenfolge: Das
+ * Wasserzeichen liegt hinter dem gezeichneten Formular, damit dessen Linien
+ * sichtbar bleiben; ein eigenes Formularbild wäre deckend, dann kommt es darauf.
+ */
+export function zeichneGrund(pdf: jsPDF, daten: VordruckDaten, optionen: VordruckRenderOptionen, formular: Formular): void {
+    const bild = !optionen.ohneHintergrund && optionen.hintergrund !== undefined;
+    if (!bild) {
+        zeichneUebung(pdf, daten, optionen.offsetX ?? 0);
+    }
+    zeichneHintergrund(pdf, optionen, formular);
+    if (bild) {
+        zeichneUebung(pdf, daten, optionen.offsetX ?? 0);
+    }
+}
+
+/** Wasserzeichen einer Übung: blass genug, dass die Eintragungen darüber lesbar bleiben, kräftig genug für den Drucker. */
+const WASSERZEICHEN = { text: "ÜBUNG", schriftgroesse: 96, winkel: 45, farbe: "#d4d4d4" } as const;
+
+/**
+ * „ÜBUNG“ diagonal über die Mitte des Vordrucks, wenn `daten.uebung` gesetzt
+ * ist. Kommt vor allen Eintragungen, damit sie darüber liegen. Identisch für
+ * Nachrichten- und Meldevordruck.
+ */
+export function zeichneUebung(pdf: jsPDF, daten: VordruckDaten, offsetX: number): void {
+    if (!daten.uebung) {
+        return;
+    }
+    const { text, schriftgroesse, winkel, farbe } = WASSERZEICHEN;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(schriftgroesse);
+    pdf.setTextColor(farbe);
+    const breite = pdf.getTextWidth(text);
+    const hoehe = schriftgroesse * (25.4 / 72) * 0.72;
+    const bogen = winkel * Math.PI / 180;
+    // Die Mitte des Schriftzugs liegt auf der Mitte des Vordrucks; der Anker ist
+    // der Anfang der Grundlinie, also halbe Breite zurück entlang der gedrehten
+    // Zeile und halbe Versalhöhe nach unten quer dazu.
+    const x = offsetX + VORDRUCK_BREITE / 2 - (breite / 2) * Math.cos(bogen) + (hoehe / 2) * Math.sin(bogen);
+    const y = VORDRUCK_HOEHE / 2 + (breite / 2) * Math.sin(bogen) + (hoehe / 2) * Math.cos(bogen);
+    pdf.text(text, x, y, { angle: winkel });
+    pdf.setTextColor(0);
+    pdf.setFont("helvetica", "normal");
 }
 
 /**

@@ -8,7 +8,7 @@ import {
     inhaltTeilen,
     zeichneInhaltZeile,
     type InhaltZeile,
-    zeichneHintergrund,
+    zeichneGrund,
     zeichneRahmen,
     type VordruckRenderOptionen
 } from "./NachrichtenvordruckRenderer.js";
@@ -87,7 +87,7 @@ export function zeichneMeldevordruck(
 ): void {
     const offsetX = optionen.offsetX ?? 0;
 
-    zeichneHintergrund(pdf, optionen, MELDEVORDRUCK_FORMULAR);
+    zeichneGrund(pdf, daten, optionen, MELDEVORDRUCK_FORMULAR);
 
     // „Übermittelt“ im Kopf: Funk, Kurier, Telefon, Fax. DFÜ hat der
     // Meldevordruck nicht; ohne Weg bleibt alles leer.

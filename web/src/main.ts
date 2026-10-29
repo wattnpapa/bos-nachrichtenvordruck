@@ -415,6 +415,13 @@ function maskeSchreiben(eingabe: Eingabe): void {
             feld.value = wert;
         }
     }
+    zeigeUebungsband();
+}
+
+/** Band über der Maske, solange der Vordruck als Übung gekennzeichnet ist; das PDF trägt dann das Wasserzeichen. */
+function zeigeUebungsband(): void {
+    const haken = maske.elements.namedItem("uebung");
+    element<HTMLElement>("uebungs-band").hidden = !(haken instanceof HTMLInputElement && haken.checked);
 }
 
 /**
@@ -449,8 +456,8 @@ const vorgaben = vorgabenLesen();
 // gleich bleiben. Alles andere gehört zur Nachricht und wird geleert, damit
 // nichts davon unbemerkt auf dem nächsten Bogen landet. Nach einem Ausgang sind
 // Absender, Zeichen und Funktion die eigenen, nach einem Eingang die der Gegenstelle.
-const BEHALTEN_AUSGANG: readonly Schluessel[] = ["weg", "richtung", "absender", "zeichen", "funktion", "titel", "hinweis"];
-const BEHALTEN_EINGANG: readonly Schluessel[] = ["weg", "richtung", "titel", "hinweis"];
+const BEHALTEN_AUSGANG: readonly Schluessel[] = ["weg", "richtung", "absender", "zeichen", "funktion", "titel", "hinweis", "uebung"];
+const BEHALTEN_EINGANG: readonly Schluessel[] = ["weg", "richtung", "titel", "hinweis", "uebung"];
 
 /**
  * Der Entwurf trägt den Zeitpunkt der letzten Änderung und die angefassten
@@ -1703,6 +1710,7 @@ function maskeGeaendert(ereignis: Event): void {
         : "";
     entwurfSpeichern();
     weitereZaehlen();
+    zeigeUebungsband();
     // Wer tippt, arbeitet am neuen Stand weiter: ein Zurücknehmen würde ihn verwerfen.
     if (zuruecknahme || statusText.textContent || obenStatus.textContent) {
         meldeStatus("", null);

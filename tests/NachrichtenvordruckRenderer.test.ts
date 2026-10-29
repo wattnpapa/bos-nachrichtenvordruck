@@ -58,6 +58,37 @@ describe("zeichneNachrichtenvordruck", () => {
         expect(texte.map(t => t.text)).not.toContain("Aufnahmevermerk");
     });
 
+    it("legt bei einer Übung das Wasserzeichen „ÜBUNG“ vor die Eintragungen, sonst nicht", () => {
+        const { pdf, texte } = protokollPdf();
+        const daten = volleDaten();
+        daten.uebung = true;
+
+        zeichneNachrichtenvordruck(pdf, daten, { offsetX: 148, ohneHintergrund: true });
+
+        const wasserzeichen = texte.findIndex(t => t.text === "ÜBUNG");
+        expect(wasserzeichen).toBe(0);
+        // Diagonal um die Mitte des rechten Vordrucks: Anfang links unten davon.
+        expect(texte[0]?.x).toBeGreaterThan(148);
+        expect(texte[0]?.x).toBeLessThan(148 + 74);
+        expect(texte[0]?.y).toBeGreaterThan(105);
+        expect(pdf.getTextColor()).toBe("#000000");
+        expect(pdf.output()).toMatch(/0\.70\d+ 0\.70\d+ -0\.70\d+ 0\.70\d+ [\d.]+ [\d.]+ Tm/);
+
+        // Hinter dem gezeichneten Formular, aber auf einem eigenen, deckenden Formularbild.
+        const gezeichnet = protokollPdf();
+        zeichneNachrichtenvordruck(gezeichnet.pdf, daten);
+        expect(gezeichnet.texte.findIndex(t => t.text === "ÜBUNG")).toBe(0);
+        expect(gezeichnet.texte.findIndex(t => t.text === "Aufnahmevermerk")).toBeGreaterThan(0);
+        const mitBild = protokollPdf();
+        zeichneNachrichtenvordruck(mitBild.pdf, daten, { hintergrund: new Uint8Array(readFileSync(new URL("../assets/nachrichtenvordruck4fach.png", import.meta.url))) });
+        expect(mitBild.texte.findIndex(t => t.text === "ÜBUNG")).toBe(0);
+        expect(mitBild.bilder).toHaveLength(1);
+
+        const ohne = protokollPdf();
+        zeichneNachrichtenvordruck(ohne.pdf, volleDaten());
+        expect(ohne.texte.map(t => t.text)).not.toContain("ÜBUNG");
+    });
+
     it("färbt das Formular, nicht aber die Eintragungen", () => {
         const { pdf } = protokollPdf();
 
