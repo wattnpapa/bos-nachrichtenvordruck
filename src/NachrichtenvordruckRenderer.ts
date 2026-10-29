@@ -347,8 +347,8 @@ export function zeichneGrund(pdf: jsPDF, daten: VordruckDaten, optionen: Vordruc
     }
 }
 
-/** Wasserzeichen einer Übung: blass genug, dass die Eintragungen darüber lesbar bleiben, kräftig genug für den Drucker. */
-const WASSERZEICHEN = { text: "ÜBUNG", schriftgroesse: 96, winkel: 45, farbe: "#d4d4d4" } as const;
+/** Wasserzeichen einer Übung: helles Rot, blass genug, dass die Eintragungen darüber lesbar bleiben, kräftig genug für den Drucker. */
+const WASSERZEICHEN = { text: "ÜBUNG", schriftgroesse: 96, winkel: 45, farbe: "#f4b8b8" } as const;
 
 /**
  * „ÜBUNG“ diagonal über die Mitte des Vordrucks, wenn `daten.uebung` gesetzt

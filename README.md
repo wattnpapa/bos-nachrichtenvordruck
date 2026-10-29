@@ -50,7 +50,7 @@ pdf.save("vordrucke.pdf");
 
 Nicht gesetzte Felder bleiben leer. `VordruckDaten` kennt jedes Feld des Nachrichtenvordrucks: Übermittlungsweg (Kopfzeile und Spruchkopf), Richtung im Technischen Betriebsbuch, Aufnahme-, Annahme- und Beförderungsvermerk, Art, Vorrang, Gesprächsnotiz, Abfassungszeit, Zeichen, Funktion, Quittung, Vermerke und über `weitereAnkreuzfelder` das Verteilerraster. Der Meldevordruck nutzt davon nur Nummer, Übermittlungsweg (Funk, Kurier, Telefon, Telefax; DFÜ hat er nicht), Absender, Empfänger, Verfasser und Inhalt.
 
-`titel`, `hinweis` und `fusszeile` stehen außerhalb des Formulars am Blattrand. Mit `uebung = true` trägt der Vordruck quer das blasse Wasserzeichen „ÜBUNG“ hinter den Eintragungen, wie beim Erfassungsbogen: Ein Übungsvordruck wird so nie für eine echte Nachricht gehalten.
+`titel`, `hinweis` und `fusszeile` stehen außerhalb des Formulars am Blattrand. Mit `uebung = true` trägt der Vordruck quer das hellrote Wasserzeichen „ÜBUNG“ hinter den Eintragungen, wie beim Erfassungsbogen: Ein Übungsvordruck wird so nie für eine echte Nachricht gehalten.
 
 Die Schrift im Inhaltsfeld wird nie verkleinert: Der Nachrichtenvordruck schreibt 12 Zeilen in 12 pt auf die Linien, der Meldevordruck 26 Zeilen in 11,5 pt ins Raster. Was darüber hinausgeht, wird abgeschnitten, die letzte gedruckte Zeile endet dann mit „…“. `nachrichtenvordruckInhaltZeilen(pdf, inhalt)` und `meldevordruckInhaltZeilen(pdf, inhalt)` geben vorab `{ zeilen, maxZeilen }` zurück, etwa um vor dem Erzeugen zu warnen.
 
